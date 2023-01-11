@@ -1,0 +1,221 @@
+# Verification of the vectorized 4-parameter Iwan model
+
+
+import sys
+import numpy as np
+import time
+import matplotlib.pyplot as plt
+
+sys.path.append('../.')
+import verification_utils as vutils
+
+sys.path.append('../../')
+import harmonic_utils as hutils
+
+# Python Utilities
+sys.path.append('../../NL_FORCES')
+
+from iwan4_element import Iwan4Force 
+from vector_iwan4 import VectorIwan4
+
+
+# Useful functions for testing: 
+def time_series_forces(Unl, h, Nt, w, nl_force):
+    
+    # Unl = np.reshape(Unl, ((-1,1)))
+
+    # Nonlinear displacements, velocities in time
+    unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+    unltdot = w*hutils.time_series_deriv(Nt, h, Unl, 1) # Nt x Ndnl
+    
+    Nhc = hutils.Nhc(h)
+    cst = hutils.time_series_deriv(Nt, h, np.eye(Nhc), 0)
+    
+    unlth0 = Unl[0]
+    
+    fnl, dfduh, dfdudh = nl_force.local_force_history(unlt, unltdot, h, cst, unlth0)
+    
+    fnl = np.einsum('ij -> i', fnl)
+    # dfduh = np.einsum('ijkl -> il', dfduh)
+    
+    return fnl, dfduh
+
+###############################################################################
+###### Parameters / Initialization                                       ######
+###############################################################################
+
+# Simple Mapping to spring displacements
+Q = np.array([[1.0]])
+T = np.array([[1.0]])
+
+kt = 2.0
+Fs = 3.0
+chi = -0.1
+beta = 0.1
+
+Nsliders = 100
+
+iwan_force   = Iwan4Force(Q, T, kt, Fs, chi, beta, Nsliders=Nsliders, alphasliders=1.0)
+vector_force = VectorIwan4(Q, T, kt, Fs, chi, beta, Nsliders=Nsliders, alphasliders=1.0)
+
+phimax = iwan_force.phimax
+
+###############################################################################
+###### Compare Time Series                                               ######
+###############################################################################
+
+Nt = 1 << 14
+
+w = 1.7
+
+h = np.array([0, 1, 2, 3])
+Unl = 5*phimax*np.array([[0.75, 2.0, 1.3, 0.0, 0.0, 1.0, 0.0]]).T
+
+
+num_times = 1
+
+start_time =  time.perf_counter()
+for i in range(num_times):
+    fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+
+end_time =  time.perf_counter()
+vec_time = (end_time - start_time)/num_times
+print('Vector Time: {:.4e} sec'.format(vec_time))
+
+start_time =  time.perf_counter()
+for i in range(num_times):
+    fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+
+end_time =  time.perf_counter()
+serial_time = (end_time - start_time)/num_times
+
+print('Nt={:}, averaged over {:} runs.'.format(Nt, num_times))
+print('Serial Time: {:.4e} sec'.format(serial_time))
+print('Speedup: {:.4f}'.format(serial_time/vec_time))
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(\
+                                                np.max(np.abs(fnl-fnl_vec)), \
+                                                np.max(np.abs(dfduh-dfduh_vec))))
+
+###############################################################################
+###     AFT Verification - Run more tests                                   ###
+###############################################################################
+
+Nt = 1 << 10
+
+w = 1.7
+
+##### Verification 1
+
+h = np.array([0, 1, 2, 3])
+Unl = 5*np.array([[0.75, 2.0, 1.3, 0.0, 0.0, 1.0, 0.0]]).T
+unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+
+
+fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+
+fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+
+print('\nVerification 1')
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+
+print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
+      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+
+print('')
+
+
+##### Verification 2
+
+h = np.array([0, 1, 2, 3])
+Unl = 0.2*np.array([[0.1, 0.2, 0.05, 0.1, 0.1, 0.1, 0.0]]).T
+unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+
+
+fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+
+fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+
+print('\nVerification 2')
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+
+print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
+      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+
+print('')
+
+
+##### Verification 3
+
+h = np.array([0, 1, 2, 3])
+Unl = 10000000000.0*np.array([[0.1, 0.2, 0.05, 0.1, 0.1, 0.1, 0.0]]).T
+unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+
+
+fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+
+fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+
+print('\nVerification 3')
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+
+print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
+      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+
+print('')
+
+
+##### Verification 5
+
+h = np.array([0, 1, 2, 3])
+Unl = 5*np.array([[0.1, 0.2, 0.05, 0.1, 0.1, 0.1, 0.0]]).T
+unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+
+
+fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+
+fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+
+print('\nVerification 5')
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+
+print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
+      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+
+print('')
+
+
+##### Verification 6
+
+h = np.array([0, 1, 2, 3])
+Unl = 5*np.array([[4.29653115, 4.29165565, 2.8307871 , 4.17186848, 3.37441948,\
+       0.80543152, 3.55638299]]).T
+unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
+
+
+fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
+FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+
+fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
+FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+
+print('\nVerification 6')
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+
+print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
+      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+
+print('')
