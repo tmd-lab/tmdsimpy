@@ -1,14 +1,23 @@
-# Steps to Verify
-#   5. Linear system check
-#   6. Run a 2+ DOF Jenkins and Duffing Backbone and check some peak points 
-#       against HBM continuations
+"""
+Script for verifying the accuracy of the EPMC methods
+
+Outline:
+    1. Linear System check
+    2. SDOF Jenkins and Duffing checks against analytical solutions
+    
+failed_flag = False, changes to true if a test fails at any point 
+
+Notes:
+    1. It would be better to have all the tolerances defined somewhere together
+    rather than the current check of having them wherever they are used.
+""" 
 
 import sys
 import numpy as np
 
 # Path to Harmonic balance / vibration system 
-sys.path.append('../')
-sys.path.append('../NL_FORCES')
+sys.path.append('../ROUTINES/')
+sys.path.append('../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
 from vector_jenkins import VectorJenkins
@@ -77,10 +86,11 @@ def epmc_cont(vib_sys, a0, a1, h):
     return Uwxa_full,lin_mode
 
 
-
 ###############################################################################
 ###### Build Systems                                                     ######
 ###############################################################################
+
+failed_flag = False
 
 ####### Parameters
 m = 1 # kg
@@ -179,13 +189,17 @@ for i in range(len(all_systems)):
     
     # print('\nDisplacement Gradient:')
     fun = lambda Uwx : sys.epmc_res(np.hstack((Uwx, Uwxa[-1])), Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-    vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
+    grad_passed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
+    
+    failed_flag = failed_flag or grad_passed
     
     
     # print('Amplitude Gradient:')
     fun = lambda a : sys.epmc_res(np.hstack((Uwxa[:-1], a)), Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-    vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
+    grad_passed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
 
+    failed_flag = failed_flag or grad_passed
+    
 
 print('Finished gradient check with zeroth harmonic.')
 
@@ -218,13 +232,15 @@ for i in range(len(all_systems)):
     
     # print('\nDisplacement Gradient:')
     fun = lambda Uwx : sys.epmc_res(np.hstack((Uwx, Uwxa[-1])), Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-    vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
+    grad_passed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
     
+    failed_flag = failed_flag or grad_passed
     
     # print('Amplitude Gradient:')
     fun = lambda a : sys.epmc_res(np.hstack((Uwxa[:-1], a)), Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-    vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
+    grad_passed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
 
+    failed_flag = failed_flag or grad_passed
 
 print('Finished gradient check without zeroth harmonic.')
 
@@ -258,6 +274,7 @@ R, dRdUwx, dRda = sdof_jenkins.epmc_res(Uwxa, Fl, h)
 
 if not R[0] == 0.0:
     print('Incorrect static displacement / zeroth harmonic residual.')
+    failed_flag = True
 
 #### 2 DOF Check
 
@@ -290,6 +307,7 @@ R, dRdUwx, dRda = mdof_jenkins.epmc_res(Uwxa, Fl, h)
 
 if np.abs(R[0] + R[1]) > 1e-14:
     print('Incorrect static displacement / zeroth harmonic residual - 2 DOF.')
+    failed_flag = True
 
 
 print('Finished zeroth harmonic residual checking.')
@@ -319,6 +337,7 @@ max_err = np.max(np.abs(error))
 
 if max_err > 1e-15:
     print('EPMC Failed on Linear System, error of {:.3e}'.format(max_err))
+    failed_flag = True
 
 print('Finished Check on Linear System')
 
@@ -330,7 +349,7 @@ print('\nStarting SDOF frequency checks.')
 
 ###### Duffing sanity check - sdof_duffing
 
-h = np.array([0, 1, 2, 3])
+h = np.array([0, 1])
 Nhc = hutils.Nhc(h)
 h0 = 1*(h[0] == 0)
 
@@ -351,10 +370,11 @@ analytical_w - Uwxa_full[:, -3]
 
 error = (analytical_w - Uwxa_full[:, -3]) / analytical_w
 
-accept_error = np.max(np.abs(error[:20])) < 1e-4 and np.max(np.abs(error)) < 3e-2
+accept_error = np.max(np.abs(error)) < 1e-8 
 
 if not accept_error:
     print('\nDuffing Oscillator has unexpected errors in frequency.\n')
+    failed_flag = True
 
 
 ###### Jenkins sanity check - sdof_jenkins
@@ -381,6 +401,17 @@ accept_error = np.abs(Uwxa_full[0, -3] - low_amp_freq) < 1e-12 \
 
 if not accept_error:
     print('\nJenkins Oscillator has unexpected errors in frequency.\n')
+    failed_flag = True
 
 
 print('\nFinished SDOF frequency checks.')
+
+
+###############################################################################
+###### Overall Test Result                                               ######
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
