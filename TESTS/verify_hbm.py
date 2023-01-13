@@ -2,8 +2,8 @@ import sys
 import numpy as np
 
 # Path to Harmonic balance / vibration system 
-sys.path.append('../')
-sys.path.append('../NL_FORCES')
+sys.path.append('../ROUTINES/')
+sys.path.append('../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
 from vibration_system import VibrationSystem

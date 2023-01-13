@@ -1,8 +1,18 @@
+"""
+Script for verifying the accuracy of the harmonic utilities
+    
+failed_flag = False, changes to true if a test fails at any point 
+
+Notes:
+    1. It would be better to have all the tolerances defined somewhere together
+    rather than the current check of having them wherever they are used.
+""" 
+
 import sys
 import numpy as np
 
 # Python Utilities
-sys.path.append('../')
+sys.path.append('../ROUTINES/')
 import harmonic_utils as hutils
 import verification_utils as vutils
 
