@@ -13,10 +13,25 @@ This repository is intended to be cloned into a repository to provide necessary 
 
 ## Tests and Examples
 
-All new routines added to this folder should have examples of how to use the routine added to the EXAMPLES folder and one or more tests to show that the expected results are produced added to the TESTS folder.
+All new routines added to this repository should have tests that verify that the routines give correct/expected results (add to TESTS folder). These tests should serve as good examples of how to use the related functions. Additional examples may be added to the EXAMPLES folder. 
 
-Test and example files should be named logically with informative file names. Comment at the top of the script which functions are being tested or used in the example.
+### Test Guidelines
 
-Tests should output information to make it clear if the expected result is produced or not.
+1. Logically name test files. 
+2. Place comments at the top of files with what is being tested.
+3. Clearly indicate if expected results are produced with the outputs.
+4. Verify all analytical gradients numerically. 
 
-All analytically implemented gradients should have a test verifying them numerically.
+### Test Summary for Important Functions
+
+This section summarizes files in the TESTS folder that also serve as examples for important functions. The folder 'MATLAB_VERSIONS' contains previous implementations of functions from MATLAB that are verified against in some tests.
+
+- *Nonlinear Forces* - see files under NL_FORCES folder.
+    - *Alternating Frequency Time (AFT)* see verify_aft.py (Duffing) and verify_hysteretic_aft.py (Jenkins)
+- *Continuation* - see verify_continuation.py
+- *Extended Periodic Motion Concept (EPMC)* - see verify_epmc.py
+- *Harmonic Balance Method (HBM)* - see verify_hbm.py
+    - *HBM Utilities* - verify_harmonic_utils.py
+- *Nonlinear Solvers* - verify_solver.py
+
+
