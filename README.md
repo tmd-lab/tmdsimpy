@@ -20,7 +20,7 @@ All new routines added to this repository should have tests that verify that the
 1. Logically name test files. 
 2. Place comments at the top of files with what is being tested.
 3. Clearly indicate if expected results are produced with the outputs.
-4. Verify all analytical gradients numerically. 
+4. Verify all analytical gradients numerically, use functions in 'verification_utils.py'. 
 
 ### Test Summary for Important Functions
 
@@ -28,6 +28,7 @@ This section summarizes files in the TESTS folder that also serve as examples fo
 
 - *Nonlinear Forces* - see files under NL_FORCES folder.
     - *Alternating Frequency Time (AFT)* - see verify_aft.py (Duffing) and verify_hysteretic_aft.py (Jenkins)
+    - The vector versions of Iwan and Jenkins are much faster than the normal version under some conditions.
 - *Continuation* - see verify_continuation.py
 - *Extended Periodic Motion Concept (EPMC)* - see verify_epmc.py
 - *Harmonic Balance Method (HBM)* - see verify_hbm.py

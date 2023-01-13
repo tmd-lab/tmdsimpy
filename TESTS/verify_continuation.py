@@ -2,20 +2,26 @@
 Script for verifying the accuracy of the continuation methods
 
 Outline:
-    1. Setup a Nonlinear Model with EPMC
-    2. Solve EPMC at a point
+    1. Setup a Nonlinear Model with Harmonic Balance (HBM)
+    2. Solve HBM at a point
     3. Verify that the residual is appropriate at that point (e.g., 0 except arc length)
     4. Verify Gradients at the solution point
     5. Verify that the forward stepping solves the arc length residual exactly
     6. Try a full continuation (linear against FRF)
+    
+failed_flag = False, changes to true if a test fails at any point 
+
+Notes:
+    1. It would be better to have all the tolerances defined somewhere together
+    rather than the current check of having them wherever they are used.
 """ 
 
 import sys
 import numpy as np
 
 # Path to Harmonic balance / vibration system 
-sys.path.append('../')
-sys.path.append('../NL_FORCES')
+sys.path.append('../ROUTINES/')
+sys.path.append('../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
 from vibration_system import VibrationSystem
@@ -26,8 +32,11 @@ import verification_utils as vutils
 from continuation import Continuation
 
 def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config):
+    
+    test_failed = False
+    
     ###############################################################################
-    ####### 2. Solve EPMC at point                                          #######
+    ####### 2. Solve HBM at point                                          #######
     ###############################################################################
     
     fun = lambda U : vib_sys.hbm_res(np.hstack((U, Uw[-1])), \
@@ -39,11 +48,16 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config):
     
     print('At resonance: Max(abs(U - Ulinear0))=', np.abs(X - fmag*Uw[:-1].reshape((-1))).max())
     
+    if fmag < 1e-6:
+        # Only check against linear resonance amplitude for light forcing 
+        # (when it is near linear response)
+        test_failed = test_failed or np.abs(X - fmag*Uw[:-1].reshape((-1))).max() > 1e-10
+    
     ###############################################################################
     ####### 3. Verify Continuation Residual                                 #######
     ###############################################################################
     
-    Uw0 = np.hstack((X, Uw[-1])) # Solution from previous EPMC solve.
+    Uw0 = np.hstack((X, Uw[-1])) # Solution from previous HBM solve.
     
     CtoP = hutils.harmonic_wise_conditioning(Uw0, Ndof, h, delta=1e-3*fmag)
         
@@ -66,7 +80,10 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config):
     Raug, dRaugdXlamC = cont_solver.correct_res(fun, XlamC, XlamC0, ds, dirC)
     
     print('Max(non arc length Residual): ', np.max(np.abs(Raug[:-1])) )
+    test_failed = test_failed or np.max(np.abs(Raug[:-1])) > 1e-5
+    
     print('abs(Arc Residual) - 1 (should be 0): ', np.abs(Raug[-1]) - 1 )
+    test_failed = test_failed or np.abs(np.abs(Raug[-1]) - 1) > 1e-14
     
     
     ###############################################################################
@@ -75,7 +92,9 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config):
     
     fun_aug = lambda XlamC : cont_solver.correct_res(fun, XlamC, XlamC0, ds, dirC)
     
-    vutils.check_grad(fun_aug, XlamC)
+    grad_passed = vutils.check_grad(fun_aug, XlamC, atol=0.0, rtol=1e-6)
+    
+    test_failed = test_failed or grad_passed
     
     
     ###############################################################################
@@ -89,15 +108,22 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config):
     
     print('Frequency direction (should be positive):', np.sign(dirC[-1]))
     
+    
+    test_failed = test_failed or (not (np.sign(dirC[-1]) == 1.0))
+    
     Raug, dRaugdXlamC = cont_solver.correct_res(fun, XlamC + ds*dirC, XlamC, ds, dirC)
     
     print('Arc Length Residual (should be 0):', Raug[-1])
     
-
+    test_failed = test_failed or np.abs(Raug[-1]) > 1e-14
+    
+    return test_failed
 
 ###############################################################################
-####### 1. Setup Nonlinear EPMC Model                                   #######
+####### 1. Setup Nonlinear HBM Model                                    #######
 ###############################################################################
+
+failed_flag = False
 
 ###########################
 # Setup Nonlinear Force
@@ -187,7 +213,9 @@ print('Testing Essentially Linear System, Peusdo Arc Length:')
 
 fmag = 0.0000001
 
-continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config)
+test_failed = continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config)
+
+failed_flag = failed_flag or test_failed
 
 ###############################################################################
 ####### B. Nonlinear Test                                               #######
@@ -201,7 +229,9 @@ fmag = 1.0
 # third harmonics (sine and cosine) in 2x2 blocks
 # It is only wrong when doing the conditioning. Otherwise it is okay.
 
-continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config)
+test_failed = continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config)
+
+failed_flag = failed_flag or test_failed
 
 
 ###############################################################################
@@ -212,7 +242,10 @@ print('\n\nTesting Essentially Linear System, Orthogonal Corrector:')
 
 fmag = 0.0000001
 
-continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config)
+test_failed = continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config)
+
+failed_flag = failed_flag or test_failed
+
 
 ###############################################################################
 ####### B. Nonlinear Test                                               #######
@@ -226,13 +259,15 @@ fmag = 1.0
 # third harmonics (sine and cosine) in 2x2 blocks
 # It is only wrong when doing the conditioning. Otherwise it is okay.
 
-continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config)
+test_failed = continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config)
+
+failed_flag = failed_flag or test_failed
 
 ###############################################################################
 ####### 6. Full Continuation Run                                        #######
 ###############################################################################
 
-print('\n\nRunning a full linear continuation:')
+print('\n\nRunning a full linear continuation (pseudo corrector):')
 
 fmag = 1.0 
 lam0 = 0.2
@@ -292,6 +327,15 @@ print('Maximum Error between linear FRF and arc length: %.4e \n(Expected 2.85e-4
 #    plt.plot(np.log10(np.abs(XlamP_full[:, Ndof:3*Ndof] - Xwlinear[:, :-1])))
 #    plt.show()
 
+away_from_resonance_mask = np.max(np.sqrt(Xwlinear[:, :3]**2 + Xwlinear[:, 3:6]**2), axis=1) < 100
+
+error = np.max(np.abs(XlamP_full[away_from_resonance_mask, Ndof:3*Ndof] \
+                      - Xwlinear[away_from_resonance_mask, :-1]))
+    
+print('Away from resonance error is {:.4e} (expected less than 1e-5)'.format(error))
+
+failed_flag = failed_flag or error > 1e-5
+
 ###############################################################################
 ####### 6. Full Continuation Run (Orthogonal)                           #######
 ###############################################################################
@@ -316,6 +360,15 @@ Xwlinear = vib_sys.linear_frf(XlamP_full[:, -1], Fl[Ndof:2*Ndof], solver, 3)
 error = np.max(np.abs(XlamP_full[:, Ndof:3*Ndof] - Xwlinear[:, :-1]))
 
 print('Maximum Error between linear FRF and arc length: %.4e \n(Expected 8.35e-5, less than 1e-6 away from resonance.)' % (error))
+
+failed_flag = failed_flag or error > 1e-4
+
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
+    
 
 
 # ############# Plot to see what is going on.
