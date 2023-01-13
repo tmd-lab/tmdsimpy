@@ -27,7 +27,7 @@ All new routines added to this repository should have tests that verify that the
 This section summarizes files in the TESTS folder that also serve as examples for important functions. The folder 'MATLAB_VERSIONS' contains previous implementations of functions from MATLAB that are verified against in some tests.
 
 - *Nonlinear Forces* - see files under NL_FORCES folder.
-    - *Alternating Frequency Time (AFT)* see verify_aft.py (Duffing) and verify_hysteretic_aft.py (Jenkins)
+    - *Alternating Frequency Time (AFT)* - see verify_aft.py (Duffing) and verify_hysteretic_aft.py (Jenkins)
 - *Continuation* - see verify_continuation.py
 - *Extended Periodic Motion Concept (EPMC)* - see verify_epmc.py
 - *Harmonic Balance Method (HBM)* - see verify_hbm.py
