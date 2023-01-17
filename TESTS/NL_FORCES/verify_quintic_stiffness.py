@@ -1,7 +1,10 @@
 """
 Verification of the AFT implementation(s).
 Currently:
-    -Instantaneous Force w/ Duffing (Cubic) Nonlinearity
+    -Instantaneous Force w/ X^5 Nonlinearity
+    
+
+failed_flag = False, changes to true if a test fails at any point 
 """
 
 import sys
@@ -24,6 +27,18 @@ System (all cubic springs, fixed boundaries):
     /|        +-----+        +-----+        |\
 
 """
+
+#######################
+# Test Parameters
+
+failed_flag = False
+
+analytical_tol = 1e-12 # Comparison to analytical solution tolerance
+
+rtol_grad = 1e-11 # Relative gradient tolerance
+
+#######################
+# Test System
 
 # Simple Mapping to spring displacements
 Q = np.array([[1.0, 0], \
@@ -76,12 +91,17 @@ Fnl_analytical[2*Nd+1] = T[1,2]*( 10/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
 Fnl_analytical[6*Nd+1] = T[1,2]*( -5/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
 Fnl_analytical[10*Nd+1] = T[1,2]*( 1/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
 
-print('Difference Between numerical and analytical:', np.linalg.norm(Fnl - Fnl_analytical))
+
+error = np.linalg.norm(Fnl - Fnl_analytical)
+failed_flag = failed_flag or error > analytical_tol
+
+print('Difference Between numerical and analytical:', error)
 # np.hstack((Fnl, Fnl_analytical)).round(3)
 
 # Numerically Verify Gradient
 fun = lambda U: duff_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 #######################
@@ -109,7 +129,8 @@ U = np.random.rand(Nd*Nhc, 1)
 duff_force = QuinticForce(Q, T, kalpha)
 
 fun = lambda U: duff_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 
@@ -124,4 +145,14 @@ Nd = Q.shape[1]
 U = np.random.rand(Nd*Nhc, 1)
 
 fun = lambda U: duff_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+
+######################
+# Test Result
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')

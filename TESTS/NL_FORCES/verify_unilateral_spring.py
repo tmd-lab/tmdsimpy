@@ -2,11 +2,10 @@
 Verification of the AFT implementation(s).
 Currently:
     -Instantaneous Force w/ Unilateral Spring Contact
+    
+
+failed_flag = False, changes to true if a test fails at any point 
 """
-# TODO:
-# 1. Do Some analytical checking of the AFT in fully slipped / fully stuck regimes
-# 2. Plot the backbone to verify.
-# 3. Verify Derivatives in both stuck and slipped regimes
 
 import sys
 import numpy as np
@@ -22,6 +21,16 @@ from unilateral_spring import UnilateralSpring
 import matplotlib as mpl
 mpl.rcParams['lines.linewidth'] = 2
 import matplotlib.pyplot as plt
+
+
+###############################################################################
+##### Test Parameters                                                     #####
+###############################################################################
+
+failed_flag = False
+
+rtol_grad = 1e-9
+atol_grad = 1e-9
 
 ###############################################################################
 ##### Numerical Implementation provides desired force displacement response ###
@@ -96,4 +105,16 @@ for i in range(len(uni_springs)):
     for j in range(U.shape[1]):
         
         fun = lambda U: uni_springs[i].aft(U[:, j], w, h)
-        vutils.check_grad(fun, U)
+        grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad, rtol=rtol_grad)
+        
+        failed_flag = failed_flag or grad_failed
+        
+        
+###############################################################################
+##### Test Results                                                        #####
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed. Manually check figure for correctness.\n')
