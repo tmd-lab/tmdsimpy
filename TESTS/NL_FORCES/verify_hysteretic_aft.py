@@ -2,6 +2,9 @@
 Verification of the AFT implementation(s).
 Currently:
     -Hysteretic SDOF Jenkins Element
+    
+
+failed_flag = False, changes to true if a test fails at any point 
 """
 
 import sys
@@ -16,6 +19,19 @@ import harmonic_utils as hutils
 sys.path.append('../../NL_FORCES')
 
 from jenkins_element import JenkinsForce
+
+
+###############################################################################
+#### Test Details                                                          ####
+###############################################################################
+# Test Details
+
+failed_flag = False
+
+analytical_sol_tol_stick = 1e-14 # Tolerance comparing to analytical solution
+analytical_sol_tol_slip  = 1e-4 # Tolerance comparing to analytical solution
+
+atol_grad = 1e-10 # Absolute gradient tolerance, a few places use 10* this
 
 
 ###############################################################################
@@ -91,19 +107,22 @@ for indext in range(t.shape[0]):
     
     # Check U derivatives
     fun = lambda U: jenkins_force.instant_force(U, udot[indext], update_prev=False)[0:2]
-    vutils.check_grad(fun, np.array([u[indext]]), verbose=False)
+    grad_failed = vutils.check_grad(fun, np.array([u[indext]]), verbose=False, atol=atol_grad)
+    failed_flag = failed_flag or grad_failed
     
     # Check U previous Derivative
     jenkins_force.up = up
     jenkins_force.fp = fp
     fun = lambda Up: modify_history_fun(jenkins_force, u[indext], udot[indext], Up, fp)[0:3:2]
-    vutils.check_grad(fun, np.array([up]), verbose=False)
+    grad_failed = vutils.check_grad(fun, np.array([up]), verbose=False, atol=atol_grad)
+    failed_flag = failed_flag or grad_failed
     
     # Check F previous derivative
     jenkins_force.up = up
     jenkins_force.fp = fp
     fun = lambda Fp: modify_history_fun(jenkins_force, u[indext], udot[indext], up, Fp)[0:4:3]
-    vutils.check_grad(fun, np.array([fp]), verbose=False)
+    grad_failed = vutils.check_grad(fun, np.array([fp]), verbose=False, atol=atol_grad)
+    failed_flag = failed_flag or grad_failed
     
     # Update History so derivatives can be checked at the next state.
     jenkins_force.up = up
@@ -152,19 +171,22 @@ fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
 h = np.array([0, 1])
 Unl = np.array([[0.75, 0.2, 1.3]]).T
 fun = lambda Unl : time_series_forces(Unl, h, Nt, w, jenkins_force)
-vutils.check_grad(fun, Unl, verbose=False)
+grad_failed = vutils.check_grad(fun, Unl, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
 # Lots of harmonics and slipping check
 h = np.array([0, 1, 2, 3])
 Unl = np.array([[0.75, 0.2, 1.3, 2, 3, 4, 5]]).T
 fun = lambda Unl : time_series_forces(Unl, h, Nt, w, jenkins_force)
-vutils.check_grad(fun, Unl, verbose=False, atol=1e-9)
+grad_failed = vutils.check_grad(fun, Unl, verbose=False, atol=atol_grad*10)
+failed_flag = failed_flag or grad_failed
 
 # Stuck Check
 h = np.array([0, 1, 2, 3])
 Unl = np.array([[0.1, -0.1, 0.3, 0.1, 0.05, -0.1, 0.1]]).T
 fun = lambda Unl : time_series_forces(Unl, h, Nt, w, jenkins_force)
-vutils.check_grad(fun, Unl, verbose=False)
+grad_failed = vutils.check_grad(fun, Unl, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
 print('Finished Checking Derivatives of time series w.r.t. harmonic coefficients.')
 
@@ -179,7 +201,8 @@ w = 2.7
 h = np.array([0, 1])
 U = np.array([[0.75, 0.2, 1.3]]).T
 fun = lambda U : jenkins_force.aft(U, w, h)
-vutils.check_grad(fun, U, verbose=False)
+grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 
@@ -187,7 +210,8 @@ Fnl, dFnldU = fun(U)
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.75, 0.2, 1.3, 2, 3, 4, 5]]).T
 fun = lambda U : jenkins_force.aft(U, w, h)
-vutils.check_grad(fun, U, verbose=False)
+grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 
@@ -195,11 +219,15 @@ Fnl, dFnldU = fun(U)
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.1, -0.1, 0.3, 0.1, 0.05, -0.1, 0.1]]).T
 fun = lambda U : jenkins_force.aft(U, w, h)
-vutils.check_grad(fun, U, verbose=False)
+grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 stiffness_error = np.abs(dFnldU - np.diag(np.array([0., 1., 1., 1., 1., 1., 1.])*kt)).max()
 force_error = np.abs(Fnl / U.T / kt - np.array([0, 1, 1, 1, 1, 1, 1])).max()
+
+failed_flag = failed_flag or stiffness_error > analytical_sol_tol_stick \
+                          or force_error > analytical_sol_tol_stick
 
 print('Linear Regime to Analytical Force Error: {:.4e}, Stiffness Error: {:.4e}'.format(force_error, stiffness_error))
 
@@ -207,7 +235,8 @@ print('Linear Regime to Analytical Force Error: {:.4e}, Stiffness Error: {:.4e}'
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
 fun = lambda U : jenkins_force.aft(U, w, h)
-vutils.check_grad(fun, U, verbose=False)
+grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 
@@ -215,7 +244,8 @@ Fnl, dFnldU = fun(U)
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 1e30, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
 fun = lambda U : jenkins_force.aft(U, w, h)
-vutils.check_grad(fun, U, verbose=False, atol=1e-9)
+grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad*10)
+failed_flag = failed_flag or grad_failed
 
 # Need lots of AFT Points to accurately converge Jenkins:
 fun = lambda U : jenkins_force.aft(U, w, h, Nt=1<<17)
@@ -223,6 +253,7 @@ Fnl, dFnldU = fun(U)
 
 force_error = np.abs(Fnl - np.array([0, 0.0, -4*Fs/np.pi, 0.0, 0.0, 0.0, -4*Fs/np.pi/3])).max()
 
+failed_flag = failed_flag or force_error > analytical_sol_tol_slip
 
 print('Fully Slipping Regime to Analytical Force Error: {:.4e} (expected: 9e-5 with Nt=1<<17)'.format(force_error))
 
@@ -230,3 +261,11 @@ print('Fully Slipping Regime to Analytical Force Error: {:.4e} (expected: 9e-5 w
 print('Finished Checking Derivatives of Harmonic Force w.r.t. Harmonic Displacement.')
 
 
+###############################################################################
+#### Test Results                                                          ####
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
