@@ -12,7 +12,10 @@ def compare_mats(M, M_matlab):
     M_mat_np = np.array(M_matlab._data).reshape(M_matlab.size, order='F')
     
     error = np.max(np.abs(M.reshape(M_mat_np.shape) - M_mat_np))
+    
     print(f'Max Error is: {error:e}')
+    
+    return error
     
 
 def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):

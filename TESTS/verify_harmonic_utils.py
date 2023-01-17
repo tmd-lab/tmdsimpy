@@ -24,7 +24,10 @@ eng = matlab.engine.start_matlab()
 eng.cd(wdir + '/MATLAB_VERSIONS/')
 
 
-def verify_hutils(nd, h, X0):
+def verify_hutils(nd, h, X0, tol=1e-12):
+    
+    test_failed = False
+    
     Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
     
     M = np.random.rand(nd, nd)
@@ -50,8 +53,11 @@ def verify_hutils(nd, h, X0):
     E_mat, dEdw_mat = eng.HARMONICSTIFFNESS(M_mat, C_mat, K_mat, w, h_mat, nargout=2)
     E, dEdw = hutils.harmonic_stiffness(M, C, K, w, h)
     
-    vutils.compare_mats(E, E_mat)
-    vutils.compare_mats(dEdw, dEdw_mat)
+    error = vutils.compare_mats(E, E_mat)
+    test_failed = test_failed or error > tol
+    
+    error = vutils.compare_mats(dEdw, dEdw_mat)
+    test_failed = test_failed or error > tol
     
     print('Verifying GETFOURIERCOEFF / GETFOURIERCOEFF, looping over derivative order:')
     
@@ -59,12 +65,19 @@ def verify_hutils(nd, h, X0):
         x_t_mat = eng.TIMESERIES_DERIV(Nt*1.0, h_mat, X0_mat, order*1.0, nargout=1)
         x_t = hutils.time_series_deriv(Nt, h, X0, order)
         
-        vutils.compare_mats(x_t, x_t_mat)
+        error = vutils.compare_mats(x_t, x_t_mat)
+        test_failed = test_failed or error > tol
         
         v_mat = eng.GETFOURIERCOEFF(h_mat, x_t_mat, nargout=1)
         v = hutils.get_fourier_coeff(h, x_t)
         
-        vutils.compare_mats(v, v_mat)
+        error = vutils.compare_mats(v, v_mat)
+        test_failed = test_failed or error > tol
+        
+    return test_failed
+
+# Flag for checking all tests at end.
+failed_flag = False
 
 
 # Verify without zero harmonic
@@ -80,8 +93,9 @@ nd = 5
 h = np.array([0, 1, 2, 3, 6])
 Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
 X0 = np.random.rand(Nhc, nd)
-verify_hutils(nd, h, X0)
+test_failed = verify_hutils(nd, h, X0)
 
+failed_flag = failed_flag or test_failed
 
 
 print('Without Zero Harmonic:')
@@ -95,6 +109,14 @@ Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
 # X0[3,3] = 0.3
 X0 = np.random.rand(Nhc, nd)
 
-verify_hutils(nd, h, X0)
+
+test_failed = verify_hutils(nd, h, X0)
+
+failed_flag = failed_flag or test_failed
 
 
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
+    

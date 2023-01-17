@@ -1,3 +1,18 @@
+"""
+Script for verifying the correctness of Harmonic Balance Method
+    
+failed_flag = False, changes to true if a test fails at any point 
+
+check_matlab can be set to False if you do not have MATLAB/python integration
+
+Notes:
+    1. It would be better to have all the tolerances defined somewhere together
+    rather than the current check of having them wherever they are used.
+""" 
+
+check_matlab = True # Set to False if you do not have MATLAB/python integration
+
+
 import sys
 import numpy as np
 
@@ -11,12 +26,26 @@ from solvers import NonlinearSolver
 import harmonic_utils as hutils
 import verification_utils as vutils
 
-# Location of mat file to compare
-import os
-wdir = os.getcwd()
-import matlab.engine
-eng = matlab.engine.start_matlab()
-eng.cd(wdir + '/MATLAB_VERSIONS/')
+if check_matlab:
+    # Location of mat file to compare
+    import os
+    wdir = os.getcwd()
+    import matlab.engine
+    eng = matlab.engine.start_matlab()
+    eng.cd(wdir + '/MATLAB_VERSIONS/')
+
+
+###########################
+# Tolerances and Failure Flag
+
+# Flag for checking all tests at end.
+failed_flag = False
+
+matlab_tol = 1e-12
+
+grad_rtol = 5e-10
+
+nearlin_tol = 1e-12 # Tolerance for linear analytical v. HBM check
 
 ###########################
 # Setup Nonlinear Force
@@ -80,17 +109,21 @@ R, dRdU, dRdw = vib_sys.hbm_res(Uw, Fl, h, Nt=128, aft_tol=1e-7)
 ###########################
 # Compare to the MATLAB Solution
 
-print('\nMATLAB Comparison:')
-mat_sol = eng.load('duffing_3DOF', 'R', 'dRdU', 'dRdw')
-
-print('Residual: ')
-vutils.compare_mats(R, mat_sol['R'])
-
-print('Gradient: ')
-vutils.compare_mats(dRdU, mat_sol['dRdU'])
-
-print('Gradient w.r.t. w: ')
-vutils.compare_mats(dRdw, mat_sol['dRdw'])
+if check_matlab:
+    print('\nMATLAB Comparison:')
+    mat_sol = eng.load('duffing_3DOF', 'R', 'dRdU', 'dRdw')
+    
+    print('Residual: ')
+    error = vutils.compare_mats(R, mat_sol['R'])
+    failed_flag = failed_flag or error > matlab_tol
+    
+    print('Gradient: ')
+    error = vutils.compare_mats(dRdU, mat_sol['dRdU'])
+    failed_flag = failed_flag or error > matlab_tol
+    
+    print('Gradient w.r.t. w: ')
+    error = vutils.compare_mats(dRdw, mat_sol['dRdw'])
+    failed_flag = failed_flag or error > matlab_tol
 
 
 ###########################
@@ -98,12 +131,14 @@ vutils.compare_mats(dRdw, mat_sol['dRdw'])
 
 print('\nDisplacement Gradient:')
 fun = lambda U : vib_sys.hbm_res(np.hstack((U, Uw[-1])), Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-vutils.check_grad(fun, Uw[:-1])
+grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=grad_rtol)
+failed_flag = failed_flag or grad_failed
 
 
 print('Frequency Gradient:')
 fun = lambda w : vib_sys.hbm_res(np.hstack((Uw[:-1], w)), Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-vutils.check_grad(fun, np.atleast_1d(Uw[-1]))
+grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), rtol=grad_rtol)
+failed_flag = failed_flag or grad_failed
 
 
 ###########################
@@ -154,8 +189,16 @@ X, R, dRdX, sol = solver.nsolve(fun, Uw[:-1])
 
 R_fun, dRdX_fun = fun(X)
 
-print('max(R-R_fun):', np.abs(R-R_fun).max(), \
-      ', max(dRdX-dRdX_fun):', np.abs(dRdX-dRdX_fun).max())
+print('Verifying solver outputs final state R and dRdX:')
+
+solver_error_R = np.abs(R-R_fun).max()
+solver_error_dRdX = np.abs(dRdX-dRdX_fun).max()
+
+failed_flag = failed_flag or solver_error_R > 1e-16
+failed_flag = failed_flag or solver_error_dRdX > 1e-16
+
+print('max(R-R_fun):', solver_error_R, \
+      ', max(dRdX-dRdX_fun):', solver_error_dRdX)
 
 '''
 print('Comparison [U0_sin, Ufinal_cos, Ufinal_sin, mag]')
@@ -164,7 +207,11 @@ print( np.hstack((Uw[2*Ndof:3*Ndof], X[1*Ndof:2*Ndof].reshape((-1,1)), \
                   np.sqrt(X[1*Ndof:2*Ndof].reshape((-1,1))**2 + X[2*Ndof:3*Ndof].reshape((-1,1))**2) )))
 '''
 
-print('Essentially Linear System, resonance: Max(abs(U - U0))=', np.abs(X - Uw[:-1].reshape((-1))).max())
+linear_solve_error = np.abs(X - Uw[:-1].reshape((-1))).max()
+
+failed_flag = failed_flag or linear_solve_error > nearlin_tol
+
+print('Essentially Linear System, resonance: Max(abs(U - U0))=', linear_solve_error)
 
 ###################
 # Nonlinear Point Solution
@@ -185,9 +232,19 @@ X, R, dRdX, sol = solver.nsolve(fun, Uw[:-1])
 
 R_fun, dRdX_fun = fun(X)
 
-print('max(R-R_fun):', np.abs(R-R_fun).max(), \
-      ', max(dRdX-dRdX_fun):', np.abs(dRdX-dRdX_fun).max())
+print('Verifying solver outputs final state R and dRdX:')
+
+solver_error_R = np.abs(R-R_fun).max()
+solver_error_dRdX = np.abs(dRdX-dRdX_fun).max()
+
+failed_flag = failed_flag or solver_error_R > 1e-16
+failed_flag = failed_flag or solver_error_dRdX > 1e-16
+
+print('max(R-R_fun):', solver_error_R, \
+      ', max(dRdX-dRdX_fun):', solver_error_dRdX)
+
 print('norm(R)=', np.linalg.norm(R))
+
 
 '''
 # As expected, shows stiffening behavior and low amplitude since it is not 
@@ -205,10 +262,20 @@ print( np.hstack((Uw[2*Ndof:3*Ndof], X[1*Ndof:2*Ndof].reshape((-1,1)), \
 
 print('\nDisplacement Gradient:')
 fun = lambda U : vib_sys.hbm_res(np.hstack((U, Uw[-1])), fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-vutils.check_grad(fun, X)
+grad_failed = vutils.check_grad(fun, X, rtol=grad_rtol)
+failed_flag = failed_flag or grad_failed
 
 
 print('Frequency Gradient:')
 fun = lambda w : vib_sys.hbm_res(np.hstack((X, w)), fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-vutils.check_grad(fun, np.atleast_1d(Uw[-1]))
+grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), rtol=grad_rtol)
+failed_flag = failed_flag or grad_failed
 
+
+###########################
+# Final Result
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
+    
