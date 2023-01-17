@@ -1,5 +1,15 @@
-# Verification of the vectorized 4-parameter Iwan model
+"""
+Verification of vectorized 4-parameter Iwan model algorithm
 
+This script compares outputs to the non-vectorized 4-Iwan algorithm for 
+verification. Thus gradients do not need to be numerically approximated here.
+
+This script also does timing of the speedup between the algorithms. Default is 
+to only average over 1 time so limit computational effort on a test.
+
+
+failed_flag = False, changes to true if a test fails at any point 
+"""
 
 import sys
 import numpy as np
@@ -19,7 +29,19 @@ from iwan4_element import Iwan4Force
 from vector_iwan4 import VectorIwan4
 
 
-# Useful functions for testing: 
+###############################################################################
+###     Test Parameters                                                     ###
+###############################################################################
+
+failed_flag = False
+
+force_tol = 5e-15 # All should be exactly equal
+df_tol = 1e-14 # rounding error on the derivatives
+
+###############################################################################
+###     Testing Function                                                    ###
+###############################################################################
+
 def time_series_forces(Unl, h, Nt, w, nl_force):
     
     # Unl = np.reshape(Unl, ((-1,1)))
@@ -92,10 +114,13 @@ serial_time = (end_time - start_time)/num_times
 print('Nt={:}, averaged over {:} runs.'.format(Nt, num_times))
 print('Serial Time: {:.4e} sec'.format(serial_time))
 print('Speedup: {:.4f}'.format(serial_time/vec_time))
+    
+    
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(\
-                                                np.max(np.abs(fnl-fnl_vec)), \
-                                                np.max(np.abs(dfduh-dfduh_vec))))
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
 
 ###############################################################################
 ###     AFT Verification - Run more tests                                   ###
@@ -120,10 +145,21 @@ FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 1')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
+    
+
 
 print('')
 
@@ -143,10 +179,21 @@ FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 2')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
+    
+
 
 print('')
 
@@ -166,10 +213,21 @@ FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 3')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
+    
+
 
 print('')
 
@@ -189,10 +247,21 @@ FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 5')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
+    
+
 
 print('')
 
@@ -212,10 +281,29 @@ fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
 FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 6')
+    
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
+    
 
 print('')
+
+###############################################################################
+###     Test Results                                                        ###
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
