@@ -39,8 +39,6 @@ class ConservativeIwanBB(InstantaneousForce):
         self.Fs = Fs*1.0
         self.chi = chi*1.0
         self.beta = beta*1.0
-    
-        assert self.Q[0] == 1, 'Not tested for simultaneous Iwan elements.'
         
     def force(self, X):
         

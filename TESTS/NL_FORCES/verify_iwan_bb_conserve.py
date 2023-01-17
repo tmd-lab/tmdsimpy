@@ -2,6 +2,10 @@
 Verification of the AFT implementation(s).
 Currently:
     -Instantaneous Force w/ Softening Nonlinearity Based on Iwan Model
+    
+    
+failed_flag = False, changes to true if a test fails at any point 
+
 """
 # TODO:
 # 1. Do Some analytical checking of the AFT in fully slipped / fully stuck regimes
@@ -30,6 +34,24 @@ System (all cubic springs, fixed boundaries):
     /|        +-----+        +-----+        |\
 
 """
+
+###############################################################################
+###### Test Parameters                                                   ######
+###############################################################################
+
+failed_flag = False
+
+analytical_tol_stuck = 1e-17 # Tolerance against analytical stuck
+analytical_tol_slip = 1e-9 # Fully slipped state tolerance
+
+rtol_grad = 1e-7 # Relative gradient tolerance
+
+high_amp_grad_rtol = 3e-5 # Relative tolerance for a specific case
+
+
+###############################################################################
+###### System                                                            ######
+###############################################################################
 
 # Simple Mapping to spring displacements
 Q = np.array([[1.0, 0], \
@@ -99,7 +121,10 @@ FnlH_analytical[Nd+0]    = softening_force.kt*U[Nd+0]
 # Sine Term
 FnlH_analytical[2*Nd+1]  = softening_force.kt*U[2*Nd+1] # 1st
 
-print('Force Difference Between numerical and analytical (stuck):', np.linalg.norm(FnlH - FnlH_analytical))
+error =  np.linalg.norm(FnlH - FnlH_analytical)
+failed_flag = failed_flag or error > analytical_tol_stuck
+
+print('Force Difference Between numerical and analytical (stuck):', error)
 
 # np.vstack((FnlH, FnlH_analytical)).T
 
@@ -143,7 +168,10 @@ FnlH_analytical[10*Nd+1] = 4/5*softening_force.Fs/np.pi # 5th
 FnlH_analytical[14*Nd+1] = 4/7*softening_force.Fs/np.pi # 7th 
 
 
-print('Force Difference Between numerical and analytical (slipped):', np.linalg.norm(FnlH - FnlH_analytical))
+error =  np.linalg.norm(FnlH - FnlH_analytical)
+failed_flag = failed_flag or error > analytical_tol_slip
+
+print('Force Difference Between numerical and analytical (slipped):', error)
 
 # np.vstack((FnlH, FnlH_analytical)).T
 
@@ -204,7 +232,8 @@ print('Mid Amplitude:')
 
 # Numerically Verify Gradient
 fun = lambda U: softening_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 print('High Amplitude:')
@@ -213,7 +242,8 @@ softening_force.Fs = 1e-2*Fs
 
 # Numerically Verify Gradient
 fun = lambda U: softening_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=high_amp_grad_rtol)
+failed_flag = failed_flag or grad_failed
 
 softening_force.Fs = Fs
 
@@ -223,7 +253,8 @@ softening_force.Fs = 1e5*Fs
 
 # Numerically Verify Gradient
 fun = lambda U: softening_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 softening_force.Fs = Fs
 
@@ -256,7 +287,8 @@ U = np.random.rand(Nd*Nhc, 1)
 softening_force = ConservativeIwanBB(Q, T, kt, Fs, chi, beta)
 
 fun = lambda U: softening_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 
@@ -271,4 +303,15 @@ Nd = Q.shape[1]
 U = np.random.rand(Nd*Nhc, 1)
 
 fun = lambda U: softening_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+
+###############################################################################
+#### Test Result                                                           ####
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')

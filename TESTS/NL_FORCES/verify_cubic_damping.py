@@ -2,6 +2,9 @@
 Verification of the AFT implementation.
 Currently:
     -Instantaneous Force w/ Cubic Damping Nonlinearity
+    
+    
+failed_flag = False, changes to true if a test fails at any point 
 """
 
 import sys
@@ -26,6 +29,16 @@ System (all cubic dampers, fixed boundaries):
 
 """
 
+#####################
+
+failed_flag = False
+
+analytical_sol_tol = 1e-12 # Tolerance comparing to analytical solution
+
+rtol_grad = 1e-10 # Relative gradient tolerance
+
+
+#####################
 # Simple Mapping to spring displacements
 Q = np.array([[1.0, 0], \
               [-1.0, 1.0], \
@@ -78,12 +91,16 @@ Fnl_analytical[6*Nd+0] = T[0,0]*( 0.25*calpha[0]*(Q[0,0]*U[Nd+0]*w)**3 )
 Fnl_analytical[1*Nd+1] = T[1,2]*( 0.75*calpha[2]*(Q[2,1]*U[2*Nd+1]*w)**3 )
 Fnl_analytical[5*Nd+1] = T[1,2]*( 0.25*calpha[2]*(Q[2,1]*U[2*Nd+1]*w)**3 )
 
-print('Difference Between numerical and analytical:', np.linalg.norm(Fnl - Fnl_analytical))
+analytical_error = np.linalg.norm(Fnl - Fnl_analytical)
+failed_flag = failed_flag or analytical_error > analytical_sol_tol
+
+print('Difference Between numerical and analytical:', analytical_error)
 # np.hstack((Fnl, Fnl_analytical)).round(3)
 
 # Numerically Verify Gradient
 fun = lambda U: nl_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 #######################
@@ -111,7 +128,8 @@ U = np.random.rand(Nd*Nhc, 1)
 nl_force = CubicDamping(Q, T, calpha)
 
 fun = lambda U: nl_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 
@@ -126,4 +144,13 @@ Nd = Q.shape[1]
 U = np.random.rand(Nd*Nhc, 1)
 
 fun = lambda U: nl_force.aft(U, w, h)
-vutils.check_grad(fun, U)
+grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+#######################
+# Test Result
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
