@@ -265,3 +265,53 @@ class VibrationSystem:
         dRda[:-2] = (E + dFnldU) @ (dAscaledla * Uwxa[:-3])
         
         return R, dRdUwx, dRda
+    
+    def hbm_base_res(self, Uw, Ub, base_flag, h, Nt=128, aft_tol=1e-7):
+        """
+        Residual for Harmonic Balance Method with applied base excitation
+
+        system has n free DOFs and nbase DOFs with prescribed displacements
+        
+        Assumes no harmonic forcing other than the base excitation
+
+        Parameters
+        ----------
+        Uw : Harmonic DOFs followed by frequency, (n * Nhc + 1) x 1
+        Ub : Applied Harmonic Displacements to base DOFS, (nbase * Nhc) x 1
+        base_flag : vector of length (n+nbase) with True for base DOFs
+        h : List of Harmonics
+        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : Tolerance for AFT. The default is 1e-7.
+
+        Returns
+        -------
+        R : Residual (n * Nhc)
+        dRdU : Jacobian of residual w.r.t. Harmonic DOFs (n * Nhc x n * Nhc)
+        dRdw : Derivative of residual w.r.t. frequency (n * Nhc)
+        """
+        
+        # Mask of which DOFs are base excitation
+        Nhc = hutils.Nhc(h)
+        base_mask = np.hstack(( np.kron(np.full((Nhc,), True), base_flag), \
+                               np.array([False]))) # Frequency Component
+        
+        # Convert Uw and Ub into a full vector
+        Uw_full = np.zeros(base_mask.shape)
+        
+        Uw_full[base_mask] = Ub
+        Uw_full[np.logical_not(base_mask)] = Uw
+        
+        Fl = np.zeros_like(Uw_full)
+        
+        # Call hbm_res
+        R_full, dRdU_full, dRdw_full = self.hbm_res(Uw_full, Fl, h, Nt=Nt, aft_tol=aft_tol)
+        
+        # Remove rows/columns of hbm_res results
+        R = R_full[np.logical_not(base_mask)]
+        
+        dRdU = dRdU_full[np.logical_not(base_mask), np.logical_not(base_mask)]
+        
+        dRdw = dRdw_full[np.logical_not(base_mask)]
+        
+        
+        return R, dRdU, dRdw
