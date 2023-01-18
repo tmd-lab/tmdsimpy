@@ -15,7 +15,8 @@ sys.path.append('../../')
 import verification_utils as vutils
 import harmonic_utils as hutils
 
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 from unilateral_spring import UnilateralSpring
 
 import matplotlib as mpl

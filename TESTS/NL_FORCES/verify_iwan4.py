@@ -28,7 +28,8 @@ sys.path.append('../../')
 import harmonic_utils as hutils
 
 # Python Utilities
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 
 from iwan4_element import Iwan4Force
 from iwan_bb_conserve import ConservativeIwanBB

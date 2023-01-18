@@ -19,7 +19,8 @@ import verification_utils as vutils
 sys.path.append('../../')
 import harmonic_utils as hutils
 
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 from iwan_bb_conserve import ConservativeIwanBB
 
 import matplotlib as mpl

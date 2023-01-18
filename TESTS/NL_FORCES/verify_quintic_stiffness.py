@@ -14,7 +14,8 @@ import verification_utils as vutils
 
 # Python Utilities
 sys.path.append('../../')
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 
 from quintic_stiffness import QuinticForce
 

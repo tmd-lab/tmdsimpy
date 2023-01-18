@@ -23,7 +23,8 @@ sys.path.append('../../')
 import harmonic_utils as hutils
 
 # Python Utilities
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 
 from jenkins_element import JenkinsForce
 from vector_jenkins import VectorJenkins

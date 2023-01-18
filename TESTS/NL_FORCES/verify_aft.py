@@ -15,7 +15,8 @@ sys.path.append('../')
 sys.path.append('../../')
 import verification_utils as vutils
 
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
 
