@@ -12,7 +12,10 @@ def compare_mats(M, M_matlab):
     M_mat_np = np.array(M_matlab._data).reshape(M_matlab.size, order='F')
     
     error = np.max(np.abs(M.reshape(M_mat_np.shape) - M_mat_np))
+    
     print(f'Max Error is: {error:e}')
+    
+    return error
     
 
 def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
@@ -34,7 +37,9 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
 
     Returns
     -------
-    None.
+    grad_failed : is set to True if the gradient does not meet the specified 
+                    tolerances, indicating that the gradient is considered 
+                    incorrect.
 
     """
     h = 1e-5
@@ -64,7 +69,11 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
     abs_error = np.max(np.abs(dFnldU - dFnldU_num))
     norm_error =  np.max(np.abs(dFnldU - dFnldU_num))/np.linalg.norm(dFnldU_num)
     
+    grad_failed = (abs_error > atol and norm_error > rtol)
+    
     if verbose or (abs_error > atol and norm_error > rtol) :
         print('Difference Between numerical and analytical Jacobian:', abs_error)
         print('Diff/norm(numerical Jacobian):', norm_error)
+                
+    return grad_failed
     

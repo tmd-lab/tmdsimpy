@@ -1,5 +1,15 @@
-# Verification of vectorized Jenkins algorithm
+"""
+Verification of vectorized Jenkins algorithm
 
+This script compares outputs to the non-vectorized Jenkins algorithm for 
+verification. Thus gradients do not need to be numerically approximated here.
+
+This script also does timing of the speedup between the algorithms. Default is 
+to only average over 1 time so limit computational effort on a test.
+
+
+failed_flag = False, changes to true if a test fails at any point 
+"""
 
 import sys
 import numpy as np
@@ -13,10 +23,25 @@ sys.path.append('../../')
 import harmonic_utils as hutils
 
 # Python Utilities
-sys.path.append('../../NL_FORCES')
+sys.path.append('../../ROUTINES/')
+sys.path.append('../../ROUTINES/NL_FORCES')
 
 from jenkins_element import JenkinsForce
 from vector_jenkins import VectorJenkins
+
+
+###############################################################################
+###     Test Parameters                                                     ###
+###############################################################################
+
+failed_flag = False
+
+force_tol = 5e-15 # All should be exactly equal
+df_tol = 1e-14 # rounding error on the derivatives
+
+###############################################################################
+###     Testing Function                                                    ###
+###############################################################################
 
 # Useful functions for testing: 
 def time_series_forces(Unl, h, Nt, w, jenkins_force):
@@ -38,6 +63,11 @@ def time_series_forces(Unl, h, Nt, w, jenkins_force):
     dfduh = np.einsum('ijkl -> il', dfduh)
     
     return fnl, dfduh
+
+
+###############################################################################
+###     Modeling                                                            ###
+###############################################################################
 
 # Vectorized Jenkins Algorithm
 
@@ -89,7 +119,11 @@ print('Serial Time: {:.4e} sec'.format(serial_time))
 print('Speedup: {:.4f}'.format(serial_time/vec_time))
 
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
 
 
 
@@ -116,10 +150,18 @@ FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 1')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
 
 print('')
 
@@ -139,10 +181,18 @@ FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 2')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
 
 print('')
 
@@ -162,10 +212,18 @@ FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 3')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
 
 print('')
 
@@ -183,12 +241,21 @@ FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
 FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
-print('\nVerification 5')
+print('\nVerification 4')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
 
 print('')
 
@@ -209,10 +276,19 @@ FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 5')
 
-print('Force error: {:.4e} and derivative error: {:.4e}'.format(np.max(np.abs(fnl-fnl_vec)), np.max(np.abs(dfduh-dfduh_vec))))
+force_error = np.max(np.abs(fnl-fnl_vec))
+df_error = np.max(np.abs(dfduh-dfduh_vec))
+failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
+print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
+
+
+FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
+failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
-      .format(np.max(np.abs(FnlH_vec-FnlH_vec)), np.max(np.abs(dFnldUH-dFnldUH_vec))))
+      .format(FH_error, dFH_error))
 
 print('')
 
@@ -261,3 +337,13 @@ plt.yscale('log')
 plt.legend()
 # plt.savefig('./Figs/.png', format='png', dpi=300)
 plt.show()
+
+
+###############################################################################
+###     Test Results                                                        ###
+###############################################################################
+
+if failed_flag:
+    print('\n\nTest FAILED, investigate results further!\n')
+else:
+    print('\n\nTest passed.\n')
