@@ -55,13 +55,14 @@ def harmonic_stiffness(M, C, K, w, h):
     if zi == 1:
         E[:nd, :nd] = K
     
-    E[(nd*zi):, (nd*zi):] = np.kron(np.eye(2*n),K) \
-        - np.kron(np.kron(np.diag(h[zi:]*w)**2,np.eye(2)),M) \
-        + np.kron(np.diag(h[zi:]*w), np.kron(damp_rot,C))
-            
-    dEdw[(nd*zi):, (nd*zi):] = \
-        - np.kron(np.kron(2*w*np.diag(h[zi:])**2, np.eye(2)),M) \
-        + np.kron(np.diag(h[zi:]), np.kron(damp_rot,C))
+    if n > 0:
+        E[(nd*zi):, (nd*zi):] = np.kron(np.eye(2*n),K) \
+            - np.kron(np.kron(np.diag(h[zi:]*w)**2,np.eye(2)),M) \
+            + np.kron(np.diag(h[zi:]*w), np.kron(damp_rot,C))
+                
+        dEdw[(nd*zi):, (nd*zi):] = \
+            - np.kron(np.kron(2*w*np.diag(h[zi:])**2, np.eye(2)),M) \
+            + np.kron(np.diag(h[zi:]), np.kron(damp_rot,C))
     
     
     return E, dEdw
