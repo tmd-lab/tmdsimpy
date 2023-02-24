@@ -21,6 +21,9 @@ sys.path.append('../ROUTINES/')
 sys.path.append('../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
+from cubic_damping import CubicDamping
+
+
 from vibration_system import VibrationSystem
 from solvers import NonlinearSolver
 import harmonic_utils as hutils
@@ -270,6 +273,42 @@ print('Frequency Gradient:')
 fun = lambda w : vib_sys.hbm_res(np.hstack((X, w)), fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
 grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), rtol=grad_rtol)
 failed_flag = failed_flag or grad_failed
+
+
+###########################
+# Verify Gradients of system with cubic damping
+
+cnl = 0.03 # N/(m/s)^3 = N s^3 / m^3 = kg s / m^2
+
+
+# Nonlinear Force
+Q = np.array([[1.0, 0.0, 0.0]])
+T = np.array([[1.0], [0.0], [0.0]])
+
+calpha = np.array([cnl])
+
+nl_damping = CubicDamping(Q, T, calpha)
+
+# Setup Vibration System
+vib_sys_nldamp = VibrationSystem(M, K, C)
+
+
+vib_sys_nldamp.add_nl_force(nl_damping)
+
+
+
+print('\nCubic Damping:')
+print('\nDisplacement Gradient:')
+fun = lambda U : vib_sys_nldamp.hbm_res(np.hstack((U, Uw[-1])), fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:2]
+grad_failed = vutils.check_grad(fun, X, rtol=grad_rtol*10)
+failed_flag = failed_flag or grad_failed
+
+
+print('Frequency Gradient:')
+fun = lambda w : vib_sys_nldamp.hbm_res(np.hstack((X, w)), fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
+grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), rtol=grad_rtol)
+failed_flag = failed_flag or grad_failed
+
 
 
 ###########################
