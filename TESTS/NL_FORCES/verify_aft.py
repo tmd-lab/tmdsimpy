@@ -78,7 +78,7 @@ w = 1 # Test for various w
 
 print('Testing Simple First Harmonic Motion:')
 
-Fnl, dFnldU = duff_force.aft(U, w, h)
+Fnl, dFnldU, dFnldw = duff_force.aft(U, w, h)
 
 # # Analytically Verify Force expansion:
 # # X^3*cos^3(x) = X^3*( 3/4*cos(x) + 1/4*cos(3x) )
@@ -96,8 +96,13 @@ print('Difference Between numerical and analytical:', analytical_sol_error)
 # np.hstack((Fnl, Fnl_analytical)).round(3)
 
 # Numerically Verify Gradient
-fun = lambda U: duff_force.aft(U, w, h)
+fun = lambda U: duff_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: duff_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 
@@ -125,11 +130,15 @@ U = np.random.rand(Nd*Nhc, 1)
 
 duff_force = CubicForce(Q, T, kalpha)
 
-fun = lambda U: duff_force.aft(U, w, h)
+fun = lambda U: duff_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: duff_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 ######################
 # Test without zeroth harmonic
@@ -141,8 +150,14 @@ Nd = Q.shape[1]
 
 U = np.random.rand(Nd*Nhc, 1)
 
-fun = lambda U: duff_force.aft(U, w, h)
+fun = lambda U: duff_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: duff_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 ######################

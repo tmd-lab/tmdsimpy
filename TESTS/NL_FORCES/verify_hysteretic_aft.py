@@ -198,30 +198,51 @@ print('Finished Checking Derivatives of time series w.r.t. harmonic coefficients
 
 w = 2.7
 
+#############
 # Basic with some slipping: 
 h = np.array([0, 1])
 U = np.array([[0.75, 0.2, 1.3]]).T
-fun = lambda U : jenkins_force.aft(U, w, h)
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: jenkins_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
+#############
 # Lots of harmonics and slipping check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.75, 0.2, 1.3, 2, 3, 4, 5]]).T
-fun = lambda U : jenkins_force.aft(U, w, h)
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: jenkins_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
+#############
 # Stuck Check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.1, -0.1, 0.3, 0.1, 0.05, -0.1, 0.1]]).T
-fun = lambda U : jenkins_force.aft(U, w, h)
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
+
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: jenkins_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
+
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 Fnl, dFnldU = fun(U)
 
 stiffness_error = np.abs(dFnldU - np.diag(np.array([0., 1., 1., 1., 1., 1., 1.])*kt)).max()
@@ -235,26 +256,38 @@ print('Linear Regime to Analytical Force Error: {:.4e}, Stiffness Error: {:.4e}'
 # Lots of harmonics and slipping check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
-fun = lambda U : jenkins_force.aft(U, w, h)
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: jenkins_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 # Limit of Full Slip Analytical Check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 1e30, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
-fun = lambda U : jenkins_force.aft(U, w, h)
+fun = lambda U : jenkins_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad*10)
 failed_flag = failed_flag or grad_failed
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: jenkins_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
 # Need lots of AFT Points to accurately converge Jenkins:
-fun = lambda U : jenkins_force.aft(U, w, h, Nt=1<<17)
+fun = lambda U : jenkins_force.aft(U, w, h, Nt=1<<17)[0:2]
 Fnl, dFnldU = fun(U)
 
 force_error = np.abs(Fnl - np.array([0, 0.0, -4*Fs/np.pi, 0.0, 0.0, 0.0, -4*Fs/np.pi/3])).max()
 
 failed_flag = failed_flag or force_error > analytical_sol_tol_slip
+
+
 
 print('Fully Slipping Regime to Analytical Force Error: {:.4e} (expected: 9e-5 with Nt=1<<17)'.format(force_error))
 

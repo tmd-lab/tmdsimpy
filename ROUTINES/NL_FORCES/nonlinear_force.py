@@ -63,12 +63,14 @@ class NonlinearForce:
 
         Returns
         -------
-        Fnl : Nonlinear Hamonic Force Coefficients, (n * Nhc) x 1
+        Fnl : Nonlinear Hamonic Force Coefficients, (n * Nhc) 
         dFnldU : Jacobian of Fnl w.r.t. U, (n * Nhc) x (n * Nhc) 
+        dFnldU : Jacobian of Fnl w.r.t. w, (n * Nhc)
 
         """
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        dFnldw = np.zeros_like(U)
         
         return Fnl, dFnldU
     
@@ -133,6 +135,7 @@ class InstantaneousForce(NonlinearForce):
         """
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        dFnldw = np.zeros_like(U)
         
         Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components        
         Unl = (self.Q @ np.reshape(U, (self.Q.shape[1], Nhc), 'F')).T
@@ -172,10 +175,19 @@ class InstantaneousForce(NonlinearForce):
         for di in range(Ndnl):
             J[di::Ndnl, di::Ndnl] = dFdUnl[:, di, :]
         
+        
+        
+        # Convert to Global Coordinates
         Fnl = np.reshape(self.T @ F.T, (U.shape[0],), 'F')
         dFnldU = np.kron(np.eye(Nhc), self.T) @ J @ np.kron(np.eye(Nhc), self.Q)
         
-        return Fnl, dFnldU
+        if not (w == 0):
+            # Derivative of force w.r.t. frequency
+            dftdw = dfdud * (unltdot/w)
+            dFdw = hutils.get_fourier_coeff(h, dftdw)
+            dFnldw = np.reshape(self.T @ dFdw.T, (U.shape[0],), 'F')
+        
+        return Fnl, dFnldU, dFnldw
     
     
     
@@ -305,6 +317,8 @@ class HystereticForce(NonlinearForce):
         
         WARNING: Needs further verification for cases using multiple nonlinear 
         displacements and or nonlinear output forces.
+        
+        WARNING: Does not support velocity dependencies
 
         Parameters
         ----------
@@ -327,6 +341,7 @@ class HystereticForce(NonlinearForce):
         
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        dFnldw = np.zeros_like(U)
         
         Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components        
         Unl = (self.Q @ np.reshape(U, (self.Q.shape[1], Nhc), 'F')).T
@@ -347,7 +362,7 @@ class HystereticForce(NonlinearForce):
                                                    max_repeats=max_repeats, \
                                                    atol=atol, rtol=rtol)
         
-        # assert dfdud.sum() == 0, 'Gradient for instantaneous velocity -> force is not implemented'
+        # assert dfdudh.sum() == 0, 'Gradient for instantaneous velocity -> force is not implemented'
         
         F = hutils.get_fourier_coeff(h, ft)
         
@@ -368,6 +383,8 @@ class HystereticForce(NonlinearForce):
         Fnl = np.reshape(self.T @ F.T, (U.shape[0],), 'F')
         dFnldU = np.kron(np.eye(Nhc), self.T) @ J @ np.kron(np.eye(Nhc), self.Q)
         
-        return Fnl, dFnldU
+        dFnldw = np.reshape(dFnldw, (U.shape[0],), 'F')
+        
+        return Fnl, dFnldU, dFnldw
         
         

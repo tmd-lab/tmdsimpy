@@ -77,7 +77,7 @@ w = 1.732 # Test for various w, not 1.0 so velocity is clearly different from di
 
 print('Testing Simple First Harmonic Motion:')
 
-Fnl, dFnldU = nl_force.aft(U, w, h)
+Fnl, dFnldU, dFnldw = nl_force.aft(U, w, h)
 
 # # Analytically Verify Force expansion:
 # # X^3*cos^3(x) = X^3*( 3/4*cos(x) + 1/4*cos(3x) )
@@ -99,10 +99,15 @@ print('Difference Between numerical and analytical:', analytical_error)
 # np.hstack((Fnl, Fnl_analytical)).round(3)
 
 # Numerically Verify Gradient
-fun = lambda U: nl_force.aft(U, w, h)
+fun = lambda U: nl_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 #######################
 # Verify Zeroth Harmonic at a constant (both DOFs, all non-zero calpha)
@@ -128,11 +133,15 @@ U = np.random.rand(Nd*Nhc, 1)
 
 nl_force = CubicDamping(Q, T, calpha)
 
-fun = lambda U: nl_force.aft(U, w, h)
+fun = lambda U: nl_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 ######################
 # Test without zeroth harmonic
@@ -144,8 +153,14 @@ Nd = Q.shape[1]
 
 U = np.random.rand(Nd*Nhc, 1)
 
-fun = lambda U: nl_force.aft(U, w, h)
+fun = lambda U: nl_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 #######################

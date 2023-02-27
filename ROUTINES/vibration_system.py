@@ -45,6 +45,46 @@ class VibrationSystem:
         """
         
         self.nonlinear_forces = self.nonlinear_forces + [nlforce]
+    
+    def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7):
+        """
+        Apply Alternating Time Frequency Method to calculate nonlinear force
+        coefficients for all nonlinear forces in system
+        
+        Parameters
+        ----------
+        U : Harmonic DOFs, (n * Nhc) 
+        Fl : Applied forcing harmonic coefficients, (n * Nhc)
+        h : List of Harmonics
+        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : Tolerance for AFT. The default is 1e-7.
+
+        Returns
+        -------
+        Fnl : Nonlinear Force Harmonic Coefficients
+        dFnldU : Jacobian of Fnl w.r.t. Harmonic DOFs
+        dFnldw : Derivative of Fnl w.r.t. frequency
+        
+        """
+        
+        # Counting:
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        Ndof = self.M.shape[0]
+        
+        # Initialize Memory
+        Fnl = np.zeros((Nhc*Ndof,), np.double)
+        dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+        dFnldw = np.zeros((Nhc*Ndof,), np.double)
+        
+        # AFT for every set of nonlinear forces
+        for nlforce in self.nonlinear_forces:
+            Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
+            
+            Fnl += Fnl_curr
+            dFnldU += dFnldU_curr
+            dFnldw += dFnldw_curr
+            
+        return Fnl, dFnldU, dFnldw
 
     def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7):
         """
@@ -52,8 +92,8 @@ class VibrationSystem:
 
         Parameters
         ----------
-        Uw : Harmonic DOFs followed by frequency, (n * Nhc + 1) x 1
-        Fl : Applied forcing harmonic coefficients, (n * Nhc) x 1
+        Uw : Harmonic DOFs followed by frequency, (n * Nhc + 1)
+        Fl : Applied forcing harmonic coefficients, (n * Nhc)
         h : List of Harmonics
         Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
         aft_tol : Tolerance for AFT. The default is 1e-7.
@@ -65,30 +105,35 @@ class VibrationSystem:
         dRdw : Derivative of residual w.r.t. frequency
         """
         
-        # Counting:
-        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
-        Ndof = self.M.shape[0]
         
         # Frequency (rad/s)
         w = Uw[-1]
         
         E,dEdw = hutils.harmonic_stiffness(self.M, self.C, self.K, w, h)
         
-        Fnl = np.zeros((Nhc*Ndof,), np.double)
-        dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+        #### OLD AFT:
+        # # Counting:
+        # Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        # Ndof = self.M.shape[0]
         
-        # AFT for every set of nonlinear forces
-        for nlforce in self.nonlinear_forces:
-            Fnl_curr, dFnldU_curr = nlforce.aft(Uw[:-1], w, h, Nt, aft_tol)
+        # Fnl = np.zeros((Nhc*Ndof,), np.double)
+        # dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+        
+        # # AFT for every set of nonlinear forces
+        # for nlforce in self.nonlinear_forces:
+        #     Fnl_curr, dFnldU_curr = nlforce.aft(Uw[:-1], w, h, Nt, aft_tol)
             
-            Fnl += Fnl_curr
-            dFnldU += dFnldU_curr
+        #     Fnl += Fnl_curr
+        #     dFnldU += dFnldU_curr
+        
+        # Alternating Frequency Time Call
+        Fnl, dFnldU, dFnldw = self.total_aft(Uw[:-1], w, h, Nt=Nt, aft_tol=aft_tol)
         
         # Conditioning applied here in previous MATLAB version
         
         R = E @ Uw[:-1] + Fnl - Fl
         dRdU = E + dFnldU
-        dRdw = dEdw @ Uw[:-1]
+        dRdw = dEdw @ Uw[:-1] + dFnldw
         
         return R, dRdU, dRdw
         
@@ -222,15 +267,21 @@ class VibrationSystem:
         E,dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h)
         dEdxi,_ = hutils.harmonic_stiffness(self.M*0, -self.M, self.K*0, w, h)
         
-        Fnl = np.zeros((Nhc*Ndof,), np.double)
-        dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
         
-        # AFT for every set of nonlinear forces
-        for nlforce in self.nonlinear_forces:
-            Fnl_curr, dFnldU_curr = nlforce.aft(Ascale*Uwxa[:-3], w, h, Nt, aft_tol)
+        ########### # OLD AFT:
+        # Fnl = np.zeros((Nhc*Ndof,), np.double)
+        # dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+        
+        # # AFT for every set of nonlinear forces
+        # for nlforce in self.nonlinear_forces:
+        #     Fnl_curr, dFnldU_curr = nlforce.aft(Ascale*Uwxa[:-3], w, h, Nt, aft_tol)
             
-            Fnl += Fnl_curr
-            dFnldU += dFnldU_curr
+        #     Fnl += Fnl_curr
+        #     dFnldU += dFnldU_curr
+        
+        
+        # Alternating Frequency Time Call
+        Fnl, dFnldU, dFnldw = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, aft_tol=aft_tol)
         
         # Output Residual and Derivatives
         # Force Balance
@@ -248,7 +299,7 @@ class VibrationSystem:
         dRdUwx[:-2, :-2] = (E + dFnldU) * Ascale #.reshape(-1,1)
         
         # d Force Balance / d w
-        dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3])
+        dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3]) + dFnldw
         
         # d Force Balance / d xi
         dRdUwx[:-2, -1] = dEdxi @ (Ascale * Uwxa[:-3])
