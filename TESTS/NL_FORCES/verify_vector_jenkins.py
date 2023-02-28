@@ -38,6 +38,7 @@ failed_flag = False
 
 force_tol = 5e-15 # All should be exactly equal
 df_tol = 1e-14 # rounding error on the derivatives
+dfdw_tol = 1e-16 # everything should have zero derivative w.r.t. frequency
 
 ###############################################################################
 ###     Testing Function                                                    ###
@@ -102,7 +103,7 @@ num_times = 1
 start_time =  time.perf_counter()
 for i in range(num_times):
     fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-    # Fnl, dFnldU = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+    # Fnl, dFnldU = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)[0:2]
 end_time =  time.perf_counter()
 vec_time = (end_time - start_time)/num_times
 print('Vector Time: {:.4e} sec'.format(vec_time))
@@ -110,7 +111,7 @@ print('Vector Time: {:.4e} sec'.format(vec_time))
 start_time =  time.perf_counter()
 for i in range(num_times):
     fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-    # Fnl, dFnldU = jenkins_force.aft(Unl, w, h, Nt=Nt)
+    # Fnl, dFnldU = jenkins_force.aft(Unl, w, h, Nt=Nt)[0:2]
 end_time =  time.perf_counter()
 serial_time = (end_time - start_time)/num_times
 
@@ -143,16 +144,17 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 1')
 
 force_error = np.max(np.abs(fnl-fnl_vec))
 df_error = np.max(np.abs(dfduh-dfduh_vec))
 failed_flag = failed_flag or force_error > force_tol or df_error > df_tol
+
 
 print('Force error: {:.4e} and derivative error: {:.4e}'.format(force_error, df_error))
 
@@ -162,6 +164,9 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
+
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
@@ -174,10 +179,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 2')
 
@@ -194,6 +199,9 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
+
 print('')
 
 
@@ -205,10 +213,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 3')
 
@@ -225,6 +233,9 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
+
 print('')
 
 
@@ -236,10 +247,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 4')
 
@@ -257,6 +268,9 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
+
 print('')
 
 
@@ -269,10 +283,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_jenkins_force)
-FnlH_vec, dFnldUH_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, jenkins_force)
-FnlH, dFnldUH = jenkins_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 5')
 
@@ -289,6 +303,9 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
+
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 

@@ -38,6 +38,7 @@ failed_flag = False
 
 force_tol = 5e-15 # All should be exactly equal
 df_tol = 1e-14 # rounding error on the derivatives
+dfdw_tol = 1e-16 # everything should have zero derivative w.r.t. frequency
 
 ###############################################################################
 ###     Testing Function                                                    ###
@@ -139,10 +140,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
-FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
-FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 1')
 
@@ -161,6 +162,8 @@ print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
     
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
@@ -173,10 +176,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
-FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
-FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 2')
 
@@ -195,6 +198,8 @@ print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
     
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
@@ -207,10 +212,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
-FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
-FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 3')
 
@@ -229,6 +234,8 @@ print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
     
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
@@ -241,10 +248,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
-FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
-FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 5')
 
@@ -263,6 +270,8 @@ print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
     
 
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
@@ -276,10 +285,10 @@ unlt = hutils.time_series_deriv(Nt, h, Unl, 0) # Nt x Ndnl
 
 
 fnl_vec, dfduh_vec = time_series_forces(Unl, h, Nt, w, vector_force)
-FnlH_vec, dFnldUH_vec = vector_force.aft(Unl, w, h, Nt=Nt)
+FnlH_vec, dFnldUH_vec, dFnldw_vec = vector_force.aft(Unl, w, h, Nt=Nt)
 
 fnl, dfduh = time_series_forces(Unl, h, Nt, w, iwan_force)
-FnlH, dFnldUH = iwan_force.aft(Unl, w, h, Nt=Nt)
+FnlH, dFnldUH, dFnldw = iwan_force.aft(Unl, w, h, Nt=Nt)
 
 print('\nVerification 6')
     
@@ -297,6 +306,8 @@ failed_flag = failed_flag or FH_error > force_tol or dFH_error > df_tol
 print('Harmonic Force error: {:.4e} and derivative error: {:.4e}'\
       .format(FH_error, dFH_error))
     
+dfdw_error = np.max(np.abs(dFnldw - dFnldw_vec))
+failed_flag = failed_flag or dfdw_error > dfdw_tol
 
 print('')
 
