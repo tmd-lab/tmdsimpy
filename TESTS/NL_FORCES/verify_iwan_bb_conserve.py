@@ -14,12 +14,13 @@ failed_flag = False, changes to true if a test fails at any point
 
 import sys
 import numpy as np
+
+sys.path.append('../')
 import verification_utils as vutils
 
-sys.path.append('../../')
+sys.path.append('../../ROUTINES')
 import harmonic_utils as hutils
 
-sys.path.append('../../ROUTINES/')
 sys.path.append('../../ROUTINES/NL_FORCES')
 from iwan_bb_conserve import ConservativeIwanBB
 
@@ -232,8 +233,13 @@ print('\nTesting Simple First Harmonic Motion:')
 print('Mid Amplitude:')
 
 # Numerically Verify Gradient
-fun = lambda U: softening_force.aft(U, w, h)
+fun = lambda U: softening_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: softening_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 
@@ -242,19 +248,31 @@ print('High Amplitude:')
 softening_force.Fs = 1e-2*Fs
 
 # Numerically Verify Gradient
-fun = lambda U: softening_force.aft(U, w, h)
+fun = lambda U: softening_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=high_amp_grad_rtol)
 failed_flag = failed_flag or grad_failed
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: softening_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+
 softening_force.Fs = Fs
+
 
 print('Low Amplitude:')
 
 softening_force.Fs = 1e5*Fs
 
 # Numerically Verify Gradient
-fun = lambda U: softening_force.aft(U, w, h)
+fun = lambda U: softening_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: softening_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
 softening_force.Fs = Fs
@@ -287,10 +305,15 @@ U = np.random.rand(Nd*Nhc, 1)
 
 softening_force = ConservativeIwanBB(Q, T, kt, Fs, chi, beta)
 
-fun = lambda U: softening_force.aft(U, w, h)
+fun = lambda U: softening_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: softening_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 
 ######################
@@ -303,10 +326,14 @@ Nd = Q.shape[1]
 
 U = np.random.rand(Nd*Nhc, 1)
 
-fun = lambda U: softening_force.aft(U, w, h)
+fun = lambda U: softening_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol_grad)
 failed_flag = failed_flag or grad_failed
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: softening_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
+failed_flag = failed_flag or grad_failed
 
 ###############################################################################
 #### Test Result                                                           ####

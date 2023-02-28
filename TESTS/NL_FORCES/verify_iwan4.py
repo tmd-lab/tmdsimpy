@@ -215,54 +215,85 @@ print('\nStarting to check AFT Derivatives.')
 
 w = 2.7
 
+#######################
 # Basic with some slipping: 
 h = np.array([0, 1])
 U = np.array([[0.75, 0.2, 1.3]]).T
-fun = lambda U : hysteretic_force.aft(U, w, h)
+fun = lambda U : hysteretic_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: hysteretic_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
+#######################
 # Lots of harmonics and slipping check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.75, 0.2, 1.3, 2, 3, 4, 5]]).T
-fun = lambda U : hysteretic_force.aft(U, w, h)
+fun = lambda U : hysteretic_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: hysteretic_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
 
+#######################
 # Stuck Check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.1, -0.1, 0.3, 0.1, 0.05, -0.1, 0.1]]).T
-fun = lambda U : hysteretic_force.aft(U, w, h)
+fun = lambda U : hysteretic_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: hysteretic_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
+#######################
 # Lots of harmonics and slipping check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
-fun = lambda U : hysteretic_force.aft(U, w, h)
+fun = lambda U : hysteretic_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
 Fnl, dFnldU = fun(U)
 
 
+# Numerically Verify Frequency Gradient
+fun = lambda w: hysteretic_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
+#######################
 # Limit of Full Slip Analytical Check
 h = np.array([0, 1, 2, 3])
 U = np.array([[0.0, 1e30, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
-fun = lambda U : hysteretic_force.aft(U, w, h)
+fun = lambda U : hysteretic_force.aft(U, w, h)[0:2]
 grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad)
 failed_flag = failed_flag or grad_failed
+
+
+# Numerically Verify Frequency Gradient
+fun = lambda w: hysteretic_force.aft(U, w[0], h)[0::2]
+grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, atol=atol_grad)
+failed_flag = failed_flag or grad_failed
+
+#######################
 
 print('Finished Checking AFT Derivatives.')
 
 print('\nChecking against analytical fully slipped forces:')
 
 # Need lots of AFT Points to accurately converge slipping state:
-fun = lambda U : hysteretic_force.aft(U, w, h, Nt=1<<17)
+fun = lambda U : hysteretic_force.aft(U, w, h, Nt=1<<17)[0:2]
 Fnl, dFnldU = fun(U)
 
 force_error = np.abs(Fnl - np.array([0, 0.0, -4*Fs/np.pi, 0.0, 0.0, 0.0, -4*Fs/np.pi/3])).max()

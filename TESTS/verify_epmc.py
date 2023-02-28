@@ -21,6 +21,7 @@ sys.path.append('../ROUTINES/NL_FORCES')
 
 from cubic_stiffness import CubicForce
 from vector_jenkins import VectorJenkins
+from cubic_damping import CubicDamping
 from vibration_system import VibrationSystem
 
 from solvers import NonlinearSolver
@@ -107,6 +108,10 @@ Fs = 0.2 # N
 
 ab_damp = [c/m, 0]
 
+# Cubic damping parameters
+cnl = 0.03 # N/(m/s)^3 = N s^3 / m^3 = kg s / m^2
+
+
 
 ####### SDOF
 # Nonlinear Force
@@ -129,6 +134,12 @@ sdof_duffing.add_nl_force(duff_force)
 
 sdof_jenkins = VibrationSystem(M, K, ab=ab_damp)
 sdof_jenkins.add_nl_force(vector_jenkins_force)
+
+
+calpha = np.array([cnl])
+nl_damping = CubicDamping(Q, T, calpha)
+sdof_nldamp = VibrationSystem(M, K, ab=ab_damp)
+sdof_nldamp.add_nl_force(nl_damping)
 
 ####### 2-DOF Systems
 # Nonlinear Force
@@ -154,7 +165,7 @@ mdof_duffing.add_nl_force(duff_force)
 mdof_jenkins = VibrationSystem(M, K, ab=ab_damp)
 mdof_jenkins.add_nl_force(vector_jenkins_force)
 
-all_systems = [sdof_duffing, sdof_jenkins, mdof_duffing, mdof_jenkins]
+all_systems = [sdof_duffing, sdof_jenkins, sdof_nldamp, mdof_duffing, mdof_jenkins]
 
 ###############################################################################
 ###### Basic Consistency + Correctness Checks                            ######
@@ -189,16 +200,16 @@ for i in range(len(all_systems)):
     
     # print('\nDisplacement Gradient:')
     fun = lambda Uwx : sys.epmc_res(np.hstack((Uwx, Uwxa[-1])), Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-    grad_passed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
+    grad_failed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
     
-    failed_flag = failed_flag or grad_passed
+    failed_flag = failed_flag or grad_failed
     
     
     # print('Amplitude Gradient:')
     fun = lambda a : sys.epmc_res(np.hstack((Uwxa[:-1], a)), Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-    grad_passed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
+    grad_failed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8, rtol=5e-10)
 
-    failed_flag = failed_flag or grad_passed
+    failed_flag = failed_flag or grad_failed
     
 
 print('Finished gradient check with zeroth harmonic.')
@@ -232,15 +243,15 @@ for i in range(len(all_systems)):
     
     # print('\nDisplacement Gradient:')
     fun = lambda Uwx : sys.epmc_res(np.hstack((Uwx, Uwxa[-1])), Fl, h, Nt=128, aft_tol=1e-7)[0:2]
-    grad_passed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
+    grad_failed = vutils.check_grad(fun, Uwxa[:-1], verbose=False, atol=2e-8)
     
-    failed_flag = failed_flag or grad_passed
+    failed_flag = failed_flag or grad_failed
     
     # print('Amplitude Gradient:')
     fun = lambda a : sys.epmc_res(np.hstack((Uwxa[:-1], a)), Fl, h, Nt=128, aft_tol=1e-7)[0:3:2]
-    grad_passed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8)
+    grad_failed = vutils.check_grad(fun, np.atleast_1d(Uwxa[-1]), verbose=False, atol=2e-8, rtol=5e-10)
 
-    failed_flag = failed_flag or grad_passed
+    failed_flag = failed_flag or grad_failed
 
 print('Finished gradient check without zeroth harmonic.')
 
@@ -405,7 +416,6 @@ if not accept_error:
 
 
 print('\nFinished SDOF frequency checks.')
-
 
 ###############################################################################
 ###### Overall Test Result                                               ######

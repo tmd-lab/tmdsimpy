@@ -105,9 +105,14 @@ for i in range(len(uni_springs)):
     
     for j in range(U.shape[1]):
         
-        fun = lambda U: uni_springs[i].aft(U[:, j], w, h)
+        fun = lambda U: uni_springs[i].aft(U[:, j], w, h)[0:2]
         grad_failed = vutils.check_grad(fun, U, verbose=False, atol=atol_grad, rtol=rtol_grad)
         
+        failed_flag = failed_flag or grad_failed
+        
+        # Numerically Verify Frequency Gradient
+        fun = lambda w: uni_springs[i].aft(U[:, j], w[0], h)[0::2]
+        grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=rtol_grad)
         failed_flag = failed_flag or grad_failed
         
         
