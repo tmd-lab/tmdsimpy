@@ -9,15 +9,15 @@ failed_flag = False, changes to true if a test fails at any point
 
 import sys
 import numpy as np
-import verification_utils as vutils
 import matplotlib.pyplot as plt
 
-sys.path.append('../../')
-import harmonic_utils as hutils
+sys.path.append('../')
+import verification_utils as vutils
 
 # Python Utilities
 sys.path.append('../../ROUTINES/')
 sys.path.append('../../ROUTINES/NL_FORCES')
+import harmonic_utils as hutils
 
 from jenkins_element import JenkinsForce
 

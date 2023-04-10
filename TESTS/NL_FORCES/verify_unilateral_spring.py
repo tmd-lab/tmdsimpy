@@ -11,12 +11,11 @@ import sys
 import numpy as np
 
 sys.path.append('../')
-sys.path.append('../../')
 import verification_utils as vutils
-import harmonic_utils as hutils
 
 sys.path.append('../../ROUTINES/')
 sys.path.append('../../ROUTINES/NL_FORCES')
+import harmonic_utils as hutils
 from unilateral_spring import UnilateralSpring
 
 import matplotlib as mpl

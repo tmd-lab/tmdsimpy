@@ -10,13 +10,13 @@ failed_flag = False, changes to true if a test fails at any point
 import sys
 import numpy as np
 
-import verification_utils as vutils
 
 # Python Utilities
-sys.path.append('../../')
+sys.path.append('../')
 sys.path.append('../../ROUTINES/')
 sys.path.append('../../ROUTINES/NL_FORCES')
 
+import verification_utils as vutils
 from quintic_stiffness import QuinticForce
 
 
