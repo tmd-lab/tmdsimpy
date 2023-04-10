@@ -43,7 +43,7 @@ This section summarizes files in the TESTS folder that also serve as examples fo
 - *Nonlinear Forces* - see files under NL_FORCES folder.
     - *Alternating Frequency Time (AFT)* - see verify_aft.py (Duffing) and verify_hysteretic_aft.py (Jenkins)
     - The vector versions of Iwan and Jenkins are much faster than the normal version under some conditions.
-- *Continuation* - see verify_continuation.py - uses harmonic balance and duffing.
+- *Continuation* - see test_continuation.py - uses harmonic balance and duffing.
 - *Extended Periodic Motion Concept (EPMC)* - see verify_epmc.py - uses continuation, Duffing, and Jenkins as well.
 - *Harmonic Balance Method (HBM)* - see verify_hbm.py - uses MATLAB/python integration to verify against previous routines. There is a flag at the top that can be set to False to avoid the MATLAB calls so the test can be run without the MATLAB comparisons. This function also uses the solver to check a number of solutions. 
     - *HBM Utilities* - verify_harmonic_utils.py - requires MATLAB/python integration to verify against previous routines.
