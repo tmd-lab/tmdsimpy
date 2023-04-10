@@ -32,7 +32,7 @@ import verification_utils as vutils
 from continuation import Continuation
 
 
-def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
+def Continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
     """
     Define one function than can be repeatedly called to verify the important
     aspects of the continuation routine for different test cases. 

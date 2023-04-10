@@ -48,6 +48,6 @@ This section summarizes files in the TESTS folder that also serve as examples fo
 - *Harmonic Balance Method (HBM)* - see verify_hbm.py - uses MATLAB/python integration to verify against previous routines. There is a flag at the top that can be set to False to avoid the MATLAB calls so the test can be run without the MATLAB comparisons. This function also uses the solver to check a number of solutions. 
     - *HBM Utilities* - verify_harmonic_utils.py - requires MATLAB/python integration to verify against previous routines.
     - *HBM Base Excitation* - test_hbm_base.py - tests the base excitation HBM implementation.
-- *Nonlinear Solvers* - verify_solver.py. More detailed uses can be found with continuation. 
+- *Nonlinear Solvers* - test_solver.py. More detailed uses can be found with continuation. 
 
 
