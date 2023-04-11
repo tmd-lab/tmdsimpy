@@ -43,6 +43,9 @@ class Continuation:
                                      more than this amount past the start value 
                                      it will end before taking the maximum 
                                      number of steps. Has not been fully tested.
+                    verbose : Number of steps to output updates at. 
+                              If less than 0, all output is supressed. 
+                              If 0, some output is still printed. 
                     
         Returns
         -------
@@ -250,10 +253,18 @@ class Continuation:
 
         """
         
+        # Check about removing all output
+        silent = self.config['verbose'] < 0
+        
+        if silent:
+            self.config['verbose'] = 0
+        
+        # Initialize Memory
         XlamP_full = np.zeros((self.config['MaxSteps'], XlamP0.shape[0]))        
         
         # Solve at Initial Point
-        print('Starting Continuation from ', lam0, ' to ', lam1)
+        if not silent:
+            print('Starting Continuation from ', lam0, ' to ', lam1)
         
         # No continuation, fixed at initial lam0
         fun0 = lambda X : fun( np.hstack((X, lam0)) )[0:2]
@@ -261,10 +272,11 @@ class Continuation:
         X, R, dRdX, sol = self.solver.nsolve(fun0, XlamP0[:-1], \
                                              xtol=self.config['xtol'], \
                                              verbose=self.config['verbose'])
-        
+                
         assert sol['success'], 'Failed to converge to initial point, give a better initial guess.'
         
-        print('Converged to initial point! Starting continuation.')
+        if not silent:
+            print('Converged to initial point! Starting continuation.')
         
         # Define a Reference Direction as a previous solution for use in the 
         # predictor
@@ -333,7 +345,7 @@ class Continuation:
                     break
                 
                 
-            if(not sol['success']):
+            if(not sol['success'] and not silent):
                 print('Stopping since final solution failed to converge.')
                 break
             
@@ -366,7 +378,8 @@ class Continuation:
         # Only return solved history.
         XlamP_full = XlamP_full[:step]
         
-        print('Continuation complete, at lam=', XlamP_full[step-1, -1])
+        if not silent:
+            print('Continuation complete, at lam=', XlamP_full[step-1, -1])
         
         return XlamP_full
     

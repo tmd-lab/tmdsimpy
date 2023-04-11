@@ -32,7 +32,7 @@ import verification_utils as vutils
 from continuation import Continuation
 
 
-def Continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
+def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
     """
     Define one function than can be repeatedly called to verify the important
     aspects of the continuation routine for different test cases. 
@@ -62,7 +62,7 @@ def Continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
     fun = lambda U : vib_sys.hbm_res(np.hstack((U, Uw[-1])), \
                                      fmag*Fl, h, Nt=128, aft_tol=1e-7)[0:2]
     
-    X, R, dRdX, sol = solver.nsolve(fun, fmag*Uw[:-1])
+    X, R, dRdX, sol = solver.nsolve(fun, fmag*Uw[:-1], verbose=False)
     
     R_fun, dRdX_fun = fun(X)
         
@@ -265,7 +265,7 @@ class TestContinuation(unittest.TestCase):
         U0 = np.zeros_like(Fl)
         U0[Ndof:2*Ndof] = U0stat
 
-        X, R, dRdX, sol = solver.nsolve(fun, fmag*U0)
+        X, R, dRdX, sol = solver.nsolve(fun, fmag*U0, verbose=False)
 
         Uw0 = np.hstack((U0, lam0))
 
@@ -296,7 +296,8 @@ class TestContinuation(unittest.TestCase):
         
         # Settings for Specific Test
         fmag = 0.0000001
-        psuedo_config = {'corrector': 'Pseudo'}
+        psuedo_config = {'corrector': 'Pseudo',
+                         'verbose'  : -1}
 
         # Run test
         continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config, self)
@@ -316,7 +317,8 @@ class TestContinuation(unittest.TestCase):
         
         # Settings for Specific Test
         fmag = 1.0
-        psuedo_config = {'corrector': 'Pseudo'}
+        psuedo_config = {'corrector': 'Pseudo',
+                         'verbose'  : -1}
 
         # Run test
         continuation_test(fmag, Uw, Fl, h, solver, vib_sys, psuedo_config, self)
@@ -338,7 +340,8 @@ class TestContinuation(unittest.TestCase):
         
         # Settings for Specific Test
         fmag = 0.0000001
-        ortho_config = {'corrector': 'ortho'}
+        ortho_config = {'corrector': 'ortho',
+                         'verbose'  : -1}
 
         # Run test
         continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config, self)
@@ -360,7 +363,8 @@ class TestContinuation(unittest.TestCase):
         
         # Settings for Specific Test
         fmag = 1.0
-        ortho_config = {'corrector': 'ortho'}
+        ortho_config = {'corrector': 'ortho',
+                         'verbose'  : -1}
 
         # Run test
         continuation_test(fmag, Uw, Fl, h, solver, vib_sys, ortho_config, self)
@@ -383,7 +387,7 @@ class TestContinuation(unittest.TestCase):
                            'TargetNfev' : 200,
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
-                           'verbose'    : False,
+                           'verbose'    : -1,
                            'xtol'       : 5e-8*Uw0.shape[0], 
                            'corrector'  : 'Pseudo'}
         
@@ -427,7 +431,7 @@ class TestContinuation(unittest.TestCase):
                            'TargetNfev' : 200,
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
-                           'verbose'    : False,
+                           'verbose'    : -1,
                            'xtol'       : 5e-8*Uw0.shape[0], 
                            'corrector'  : 'Ortho'}
         

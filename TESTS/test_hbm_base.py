@@ -184,7 +184,7 @@ class TestHBMBase(unittest.TestCase):
                            'TargetNfev' : 200,
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
-                           'verbose'    : False,
+                           'verbose'    : -1,
                            'xtol'       : 5e-8*Uw0.shape[0], 
                            'corrector'  : 'Ortho'}
         

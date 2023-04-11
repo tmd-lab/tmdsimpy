@@ -62,7 +62,7 @@ def epmc_cont(vib_sys, a0, a1, h):
     fun = lambda Uwx : vib_sys.epmc_res(np.hstack((Uwx, a0)), \
                                      Fl, h, Nt=1<<10, aft_tol=1e-7)[0:2]
         
-    X, R, dRdX, sol = solver.nsolve(fun, Uwx0)
+    X, R, dRdX, sol = solver.nsolve(fun, Uwx0, verbose=False)
     
     Uwxa0 = np.hstack((X, a0))
     
@@ -74,7 +74,7 @@ def epmc_cont(vib_sys, a0, a1, h):
                     'TargetNfev' : 200,
                     'MaxSteps'   : 2000,
                     'dsmin'      : 0.001,
-                    'verbose'    : False,
+                    'verbose'    : -1,
                     'corrector'  : 'Ortho'}
     
     # Generate Continuation Model
