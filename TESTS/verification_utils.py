@@ -3,7 +3,7 @@ import numpy as np
 
 
 # Functions for verification work
-def compare_mats(M, M_matlab):
+def compare_mats(M, M_matlab, verbose=False):
     
     # Import MATLAB only if needed so can run some verification functions without
     import matlab.engine
@@ -13,7 +13,8 @@ def compare_mats(M, M_matlab):
     
     error = np.max(np.abs(M.reshape(M_mat_np.shape) - M_mat_np))
     
-    print(f'Max Error is: {error:e}')
+    if verbose:
+        print(f'Max Error is: {error:e}')
     
     return error
     
