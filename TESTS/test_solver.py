@@ -42,7 +42,7 @@ class TestSolver(unittest.TestCase):
 
         #x = solver.nsolve(fun, x0)
 
-        x, R, dRdX, sol = solver.nsolve(fun, x0, verbose=True)
+        x, R, dRdX, sol = solver.nsolve(fun, x0, verbose=False)
 
         self.assertLess(np.abs(R), 1e-12, 'Residual error is too high.')
         self.assertLess(np.abs(x - 3.0), 1e-12, 'Solution error is too high.')

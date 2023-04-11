@@ -94,7 +94,7 @@ def verify_hutils(nd, h, X0, test_obj, tol=1e-12):
     return
 
 
-class TestHBMBase(unittest.TestCase):
+class TestHarmonicUtils(unittest.TestCase):
     
     def test_with_h0(self):
         np.random.seed(1023)
