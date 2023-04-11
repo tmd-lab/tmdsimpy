@@ -10,6 +10,19 @@ import harmonic_utils as hutils
 
 class NonlinearForce:
     
+    
+    def nl_force_type(self):
+        """
+        Returns
+        -------
+        int
+            Value indicates the force type
+            0 - Instantaneous Force Type
+            1 - Hysteretic Force Type
+        """
+        
+        return 0
+    
     def __init__(self, Q, T):
         """
         Initialize a nonlinear force model
@@ -79,6 +92,9 @@ class InstantaneousForce(NonlinearForce):
     Class of forces that can be evaluated at current state without 
     knowledge of history
     """
+    
+    def nl_force_type(self):
+        return 0
     
     def local_force_history(self, unlt, unltdot):
         """
@@ -203,6 +219,10 @@ class HystereticForce(NonlinearForce):
     """
     __init__ may need to be updated for some hysteretic models. 
     """
+    
+    
+    def nl_force_type(self):
+        return 1
     
     def init_history(self, unlth0, h):
         pass
