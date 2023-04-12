@@ -198,3 +198,6 @@ class TestCubicDamping(unittest.TestCase):
         grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, rtol=self.rtol_grad)
         self.assertFalse(grad_failed, 'Incorrect gradient w.r.t. frequency.')
 
+
+if __name__ == '__main__':
+    unittest.main()

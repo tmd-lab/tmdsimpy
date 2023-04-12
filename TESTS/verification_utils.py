@@ -45,6 +45,8 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
     """
     h = 1e-5
     
+    U0 = U0*1.0 # ensure that there not integers where adding h would break test.
+    
     Fnl, dFnldU = fun(U0)
     
     if U0.shape[0] == 1:
