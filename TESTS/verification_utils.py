@@ -68,7 +68,8 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
     # matplotlib.pyplot.spy(np.abs(dFnldU - dFnldU_num)> 1e-6)
     
     abs_error = np.max(np.abs(dFnldU - dFnldU_num))
-    norm_error =  np.max(np.abs(dFnldU - dFnldU_num))/np.linalg.norm(dFnldU_num)
+    norm_error =  np.max(np.abs(dFnldU - dFnldU_num)) \
+                    /( np.linalg.norm(dFnldU_num) + (np.linalg.norm(dFnldU_num)==0))
     
     grad_failed = (abs_error > atol and norm_error > rtol)
     
