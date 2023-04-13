@@ -86,8 +86,7 @@ class TestQuinticAFT(unittest.TestCase):
         
         w = 1 # Test for various w
         
-        print('Testing Simple First Harmonic Motion:')
-        
+        # Testing Simple First Harmonic Motion        
         Fnl, dFnldU = nl_force.aft(U, w, h)[0:2]
         
         # # Analytically Verify Force expansion:
