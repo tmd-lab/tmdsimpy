@@ -51,4 +51,6 @@ This section summarizes files in the TESTS folder that also serve as examples fo
     - *HBM Base Excitation* - test_hbm_base.py - tests the base excitation HBM implementation.
 - *Nonlinear Solvers* - test_solver.py. More detailed uses can be found with continuation. 
 
+## Automatic Differentiation
 
+Automatic differentiation is a work in progress and is being attempted by using [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html).
