@@ -160,7 +160,7 @@ class TestHBMBase(unittest.TestCase):
         ####################################
         # Continuation Solution
         
-        Uw = np.ones(Ndof*Nhc+1)
+        # Uw = np.ones(Ndof*Nhc+1)
         Ubase = np.zeros(Nbase*Nhc)
         Ubase[1] = 1.0 # Cos, fundamental
         Ubase[2] = 0.75*0 # Sin, fundamental
@@ -170,8 +170,8 @@ class TestHBMBase(unittest.TestCase):
         lam0 = 0.01
         lam1 = 5.0
         
-        Uw0_1st = self.vib_sys.linear_frf_base(np.array(lam0), Ubase[1:3], \
-                                             self.base_flag, solver, neigs=3)
+        # Uw0_1st = self.vib_sys.linear_frf_base(np.array(lam0), Ubase[1:3], \
+        #                                      self.base_flag, solver, neigs=3)
         
         Uw0 = np.zeros(Nhc*Ndof+1)
         # Uw0[Ndof:3*Ndof] = Uw0_1st[:, :2*Ndof]
@@ -184,7 +184,7 @@ class TestHBMBase(unittest.TestCase):
                            'TargetNfev' : 200,
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
-                           'verbose'    : False,
+                           'verbose'    : -1,
                            'xtol'       : 5e-8*Uw0.shape[0], 
                            'corrector'  : 'Ortho'}
         

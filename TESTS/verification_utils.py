@@ -3,7 +3,7 @@ import numpy as np
 
 
 # Functions for verification work
-def compare_mats(M, M_matlab):
+def compare_mats(M, M_matlab, verbose=False):
     
     # Import MATLAB only if needed so can run some verification functions without
     import matlab.engine
@@ -13,7 +13,8 @@ def compare_mats(M, M_matlab):
     
     error = np.max(np.abs(M.reshape(M_mat_np.shape) - M_mat_np))
     
-    print(f'Max Error is: {error:e}')
+    if verbose:
+        print(f'Max Error is: {error:e}')
     
     return error
     
@@ -44,6 +45,8 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
     """
     h = 1e-5
     
+    U0 = U0*1.0 # ensure that there not integers where adding h would break test.
+    
     Fnl, dFnldU = fun(U0)
     
     if U0.shape[0] == 1:
@@ -67,7 +70,8 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
     # matplotlib.pyplot.spy(np.abs(dFnldU - dFnldU_num)> 1e-6)
     
     abs_error = np.max(np.abs(dFnldU - dFnldU_num))
-    norm_error =  np.max(np.abs(dFnldU - dFnldU_num))/np.linalg.norm(dFnldU_num)
+    norm_error =  np.max(np.abs(dFnldU - dFnldU_num)) \
+                    /( np.linalg.norm(dFnldU_num) + (np.linalg.norm(dFnldU_num)==0))
     
     grad_failed = (abs_error > atol and norm_error > rtol)
     
