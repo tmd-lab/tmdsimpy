@@ -7,6 +7,10 @@ These algorithms, still give exactly the same results as the normal
 implementations. Comparisons of the accuracy to the normal implementation
 is included in tests under 'TESTS/NL_FORCES'
 
+This script also shows the convergence for Jenkins w.r.t. number of time steps
+in the AFT procedure for a case of approaching a square wave due to lots of 
+slip
+
 """
 
 import sys
@@ -15,8 +19,8 @@ import time
 import matplotlib.pyplot as plt
 
 # Python Utilities
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
+sys.path.append('../ROUTINES/')
+sys.path.append('../ROUTINES/NL_FORCES')
 import harmonic_utils as hutils
 
 from jenkins_element import JenkinsForce
@@ -73,6 +77,52 @@ serial_time = (end_time - start_time)/num_times
 print('Averaged over {:} runs.'.format(num_times))
 print('Serial Time: {:.4e} sec'.format(serial_time))
 print('Speedup: {:.4f}'.format(serial_time/vec_time))
+
+###############################################################################
+###     AFT Convergence for Jenkins                                         ###
+###############################################################################
+
+
+h = np.array([0, 1, 2, 3])
+Unl = np.array([[0, 10000000000.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
+Fs = 1
+kt = 100000000
+
+vector_jenkins_force = VectorJenkins(Q, T, kt, Fs)
+
+Nhc = hutils.Nhc(h)
+
+Nt_test = np.arange(7,21,1)
+Fnl_test = np.zeros((Nt_test.shape[0], Nhc))
+
+for i in range(Nt_test.shape[0]):
+    Fnl_test[i, :] = vector_jenkins_force.aft(Unl, w, h, Nt=1<<Nt_test[i])[0]
+
+########### First Harmonic
+
+plt.plot(Nt_test, Fnl_test[:, 1]/vector_jenkins_force.Fs, label='Harmonic 1, cosine')
+# plt.plot(Nt_test, Fnl_test[:, 2]/vector_jenkins_force.Fs, label='Harmonic 1, sine')
+
+plt.ylabel('Harmonic Force Coefficient/Fs')
+plt.xlabel('log2(Nt)')
+plt.yscale('log')  
+# plt.ylim((0, 3.5))
+plt.legend()
+# plt.savefig('./Figs/.png', format='png', dpi=300)
+plt.show()
+
+########### Third Harmonic
+
+plt.plot(Nt_test, Fnl_test[:, 5]/vector_jenkins_force.Fs, label='Harmonic 3, cosine')
+# plt.plot(Nt_test, Fnl_test[:, 6]/vector_jenkins_force.Fs, label='Harmonic 3, sine')
+
+plt.ylabel('Harmonic Force Coefficient/Fs')
+plt.xlabel('log2(Nt)')
+plt.yscale('log')  
+# plt.ylim((0, 3.5))
+plt.legend()
+# plt.savefig('./Figs/.png', format='png', dpi=300)
+plt.show()
 
 
 ###############################################################################
