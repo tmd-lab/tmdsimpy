@@ -22,9 +22,13 @@ class JenkinsForce(HystereticForce):
             Nnl x n
         T : Transformation matrix from local nonlinear forces to global 
             nonlinear forces, n x Nnl
-        kalpha : Coefficient for cubic stiffness for each nonlinear DOF, 1D size Ndnl
+        kt : Tangential stiffness, tested for scalar, may work for vector of size 
+                Nnl
+        Fs : slip force, tested for scalar, may work for vector of size 
+                Nnl
 
         """
+        
         self.Q = Q
         self.T = T
         self.kt = kt
