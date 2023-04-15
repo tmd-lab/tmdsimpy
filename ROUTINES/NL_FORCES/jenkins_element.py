@@ -43,7 +43,7 @@ class JenkinsForce(HystereticForce):
         ----------
         unlt0 : 0th Harmonic Displacement as a reference configuration. 
                 Not required to use as slider reference, but makes a good 
-                invariant choice.
+                invariant choice. Could lead to non-unique solutions though.
         h : List of harmonics. Only use default if not interested in harmonic 
             information and derivatives.
             The default is [0].

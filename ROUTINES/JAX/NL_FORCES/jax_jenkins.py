@@ -30,11 +30,11 @@ class JenkinsForce(NonlinearForce):
     """
     Jenkins Slider Element Nonlinearity with JAX for automatic differentiation
 
-    The AFT formulation implicitly assumes that the spring starts at 0 force
+    The AFT formulation assumes that the spring starts at 0 force
     at zero displacement.    
     """
 
-    def __init__(self, Q, T, kt, Fs):
+    def __init__(self, Q, T, kt, Fs, u0=0):
         """
         Initialize a nonlinear force model
 
@@ -48,19 +48,21 @@ class JenkinsForce(NonlinearForce):
                 Nnl
         Fs : slip force, tested for scalar, may work for vector of size 
                 Nnl
+        u0 : initialization value for the slider. If u0 = None, then 
+                the zeroth harmonic is used to initialize the slider position.
 
         """
         self.Q = Q
         self.T = T
         self.kt = kt
         self.Fs = Fs
+        self.u0 = u0
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
         
-        TODO: Rearrange tolerances since this is not correct having multiple
-        probably need to have some be properties of the object since AFT
-        calls happen the same for all different types of nonlinearities.
+        Tolerances are ignored since Jenkins converges to steady-state with 
+        two cycles of the hysteresis loop, so that is done by default. 
 
         Parameters
         ----------
@@ -103,6 +105,16 @@ class JenkinsForce(NonlinearForce):
         
         
         #########################
+        # Determine Slider Starting Position
+        
+        if self.u0 is None:
+            # Initialize based on the zeroth harmonic.
+            u0 = Ulocal[0, :]
+        else:
+            u0 = self.u0
+        
+        
+        #########################
         # Conduct AFT in Local Coordinates with JAX
         Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
         
@@ -111,23 +123,25 @@ class JenkinsForce(NonlinearForce):
         # # If no Grad is needed use:
         # Flocal = _local_aft_jenkins(Uwlocal, pars, tuple(h), Nt)[0]
         
-        assert False, 'Have not figured out yet if this recompiles everytime'
-        # This may recompile every time
-        grad_fun = jax.jit(jax.jacfwd(_local_aft_jenkins, has_aux=True))
-        
-        dFdUwlocal, Flocal = grad_fun(Uwlocal, pars, tuple(h), Nt)
+        # Case with gradient and local force
+        dFdUwlocal, Flocal = _local_aft_jenkins_grad(Uwlocal, pars, u0, \
+                                                     tuple(h), Nt)
         
         
         #########################
         # Convert AFT to Global Coordinates
-                
-        assert False, 'Flocal is 1D array, things need to be reshaped for these to work.'
         
-        Fnl = np.reshape(self.T @ Flocal.T, (U.shape[0],), 'F')
+        # Reshape Flocal
+        Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
+                
+        # Global coordinates        
+        Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
         dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
                                                 @ np.kron(np.eye(Nhc), self.Q)
         
-        dFnldw = np.reshape(self.T @ dFdUwlocal[:, -1], (U.shape[0],), 'F')
+        dFnldw = np.reshape(self.T @ \
+                            np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
+                            (U.shape[0],), 'F')
         
         return Fnl, dFnldU, dFnldw
         
@@ -153,15 +167,15 @@ def _local_jenkins_loop_body(ind, ft, unlt, kt, Fs):
 
     """
     
-    fcurr = jnp.minimum(kt*(unlt[ind]-unlt[ind-1])+ft[ind-1], Fs)
+    fcurr = jnp.minimum(kt*(unlt[ind, :]-unlt[ind-1, :]) + ft[ind-1, :], Fs)
     
-    ft = ft.at[ind].set(jnp.maximum(fcurr, -Fs))
+    ft = ft.at[ind, :].set(jnp.maximum(fcurr, -Fs))
     
     return ft
  
 
-@partial(jax.jit, static_argnums=(2,3)) 
-def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
+@partial(jax.jit, static_argnums=(3,4)) 
+def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
     """
     Conducts AFT in a functional form that can be used with JAX and JIT
 
@@ -179,6 +193,7 @@ def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
                 then the next harmonic ect. Size (Nhc*Ndnl + 1,)
     pars : jax.numpy array with parameters [kt, Fs]. Bundled this way in case
             future work is interested in applying autodiff w.r.t. parameters
+    u0 : scalar value for the displacement to initialize the slider to
     htuple : tuple containing the list of harmonics. Tuple is used so the 
             argument can be made static. 
     Nt : Number of AFT time steps to be used. 
@@ -192,6 +207,9 @@ def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
                 gradient is calculated with JAX
 
     """
+    
+    ########################################
+    #### Initialization
     
     # Size Calculation
     Nhc = hutils.Nhc(np.array(htuple))
@@ -210,6 +228,9 @@ def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
     Ulocal = jnp.reshape(Uwlocal[:-1], (Ndnl, Nhc), 'F').T
 
     
+    ########################################
+    #### Displacements
+    
     # Nonlinear displacements, velocities in time
     # Nt x Ndnl
     unlt = jhutils.time_series_deriv(Nt, htuple, Ulocal, 0) # Nt x Ndnl
@@ -223,6 +244,16 @@ def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
     
     # Do a loop function for each update at index i
     loop_fun = lambda i,f : _local_jenkins_loop_body(i, f, unlt, kt, Fs)
+    
+    
+    ########################################
+    #### Start slider in desired position
+    
+    # The first evaluation is based on the last entry of ft and therefore 
+    # initialize the last entry of ft based on a linear spring
+    # slip limit does not need to be applied since this just needs to get stuck
+    # regime correct for the first step to be through zero. 
+    ft = ft.at[-1, :].set(kt*unlt[-1, :])
     
     # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
     # steady-state
@@ -241,5 +272,32 @@ def _local_aft_jenkins(Uwlocal, pars, htuple, Nt):
     return Flocal,Flocal
         
 
+@partial(jax.jit, static_argnums=(3,4)) 
+def _local_aft_jenkins_grad(Uwlocal, pars, u0, htuple, Nt):
+    """
+    Function that computes the gradient of AFT. Using Aux data allows for 
+    returning Flocal also from one function call. 
+
+    Parameters
+    ----------
+    Uwlocal : Displacements and frequency as defined for _local_aft_jenkins
+    pars : Parameters as defined for _local_aft_jenkins
+    u0 : scalar value for the displacement to initialize the slider to
+    htuple : List of harmonics, tuple, use tuple(h) so can be set to static.
+    Nt : Number of time steps used in AFT
+
+    Returns
+    -------
+    J : TYPE
+        DESCRIPTION.
+    F : TYPE
+        DESCRIPTION.
+
+    """
     
+    J,F = jax.jacfwd(_local_aft_jenkins, has_aux=True)(Uwlocal, pars, u0, 
+                                                       htuple, Nt)
     
+    return J,F
+
+
