@@ -110,8 +110,10 @@ class JenkinsForce(NonlinearForce):
         if self.u0 is None:
             # Initialize based on the zeroth harmonic.
             u0 = Ulocal[0, :]
+            u0h0 = True
         else:
             u0 = self.u0
+            u0h0 = False
         
         
         #########################
@@ -121,11 +123,11 @@ class JenkinsForce(NonlinearForce):
         pars = np.array([self.kt, self.Fs])
         
         # # If no Grad is needed use:
-        # Flocal = _local_aft_jenkins(Uwlocal, pars, tuple(h), Nt)[0]
+        # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
         
         # Case with gradient and local force
         dFdUwlocal, Flocal = _local_aft_jenkins_grad(Uwlocal, pars, u0, \
-                                                     tuple(h), Nt)
+                                                     tuple(h), Nt, u0h0)
         
         
         #########################
@@ -174,8 +176,8 @@ def _local_jenkins_loop_body(ind, ft, unlt, kt, Fs):
     return ft
  
 
-@partial(jax.jit, static_argnums=(3,4)) 
-def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
+@partial(jax.jit, static_argnums=(3,4,5)) 
+def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     """
     Conducts AFT in a functional form that can be used with JAX and JIT
 
@@ -197,6 +199,9 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
     htuple : tuple containing the list of harmonics. Tuple is used so the 
             argument can be made static. 
     Nt : Number of AFT time steps to be used. 
+    u0h0 : set to True if u0 should be taken from harmonic zero instead of from
+            the input u0. Cannot set u0 in that case outside function because
+            miss gradient pieces
     
 
     Returns
@@ -213,7 +218,7 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
     
     # Size Calculation
     Nhc = hutils.Nhc(np.array(htuple))
-    Ndnl = Uwlocal[:-1].shape[0] / Nhc
+    Ndnl = int(Uwlocal.shape[0] / Nhc)
     
     # Recover pars for convenience
     kt = pars[0]
@@ -249,11 +254,16 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
     ########################################
     #### Start slider in desired position
     
+    # if u0 comes from the zeroth harmonic, pull it from the jax traced 
+    # array rather than the separate input value, which is constant as far as 
+    # gradients are concerned.
+    u0 = jax.lax.select(u0h0, Ulocal[0, :], u0)
+    
     # The first evaluation is based on the last entry of ft and therefore 
     # initialize the last entry of ft based on a linear spring
     # slip limit does not need to be applied since this just needs to get stuck
     # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, :].set(kt*unlt[-1, :])
+    ft = ft.at[-1, :].set(kt*(unlt[-1, :] - u0))
     
     # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
     # steady-state
@@ -264,7 +274,7 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
         ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
     
     # Convert back into frequency domain
-    Flocal = hutils.get_fourier_coeff(htuple, ft)
+    Flocal = jhutils.get_fourier_coeff(htuple, ft)
     
     # Flatten back to a 1D array
     Flocal = jnp.reshape(Flocal.T, (-1,), 'F')
@@ -272,8 +282,8 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt):
     return Flocal,Flocal
         
 
-@partial(jax.jit, static_argnums=(3,4)) 
-def _local_aft_jenkins_grad(Uwlocal, pars, u0, htuple, Nt):
+@partial(jax.jit, static_argnums=(3,4,5)) 
+def _local_aft_jenkins_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
     """
     Function that computes the gradient of AFT. Using Aux data allows for 
     returning Flocal also from one function call. 
@@ -285,18 +295,19 @@ def _local_aft_jenkins_grad(Uwlocal, pars, u0, htuple, Nt):
     u0 : scalar value for the displacement to initialize the slider to
     htuple : List of harmonics, tuple, use tuple(h) so can be set to static.
     Nt : Number of time steps used in AFT
+    u0h0 : set to True if u0 should be taken from harmonic zero instead of from
+            the input u0. Cannot set u0 in that case outside function because
+            miss gradient pieces
 
     Returns
     -------
-    J : TYPE
-        DESCRIPTION.
-    F : TYPE
-        DESCRIPTION.
+    J : Jacobian of _local_aft_jenkins w.r.t. Uwlocal
+    F : Normal output argument (nonlinear force) of _local_aft_jenkins
 
     """
     
     J,F = jax.jacfwd(_local_aft_jenkins, has_aux=True)(Uwlocal, pars, u0, 
-                                                       htuple, Nt)
+                                                       htuple, Nt, u0h0)
     
     return J,F
 
