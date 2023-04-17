@@ -85,7 +85,7 @@ class NonlinearForce:
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
         dFnldw = np.zeros_like(U)
         
-        return Fnl, dFnldU
+        return Fnl, dFnldU, dFnldw
     
 class InstantaneousForce(NonlinearForce):
     """ 
@@ -343,7 +343,7 @@ class HystereticForce(NonlinearForce):
         Parameters
         ----------
         U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            Nhc*nd x 1
+            shape: (Nhc*nd,)
         w : Frequency, scalar
         h : List of harmonics that are considered, zeroth must be first
         Nt : Number of time points to evaluate at. 
