@@ -1,5 +1,4 @@
-# tmd-sim-py
-Tribomechadynamics Python Simulation Scripts 
+# TMDSimPy: Tribomechadynamics Simulations for Python  
 
 This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. Files intended for experimental analysis are not included here and can be found elsewhere. Some specific analyses are provided as examples. Specific projects are based in other repositories and use these shared modeling routines as a dependency.
 
@@ -66,7 +65,7 @@ The present implementation assumes that 64-bit precision is desired. Therefore, 
 ```
 from jax.config import config
 config.update("jax_enable_x64", True)
-'''
+```
 This should be done on every file that is importing JAX to ensure that it is done on start up. If JAX is imported into a top level script (this should not be needed as of now), then the command should be included there as well. 
 
 
