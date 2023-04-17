@@ -1,10 +1,8 @@
 import numpy as np
-from nonlinear_force import HystereticForce
+from .nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
-import sys
-sys.path.append('../')
-import harmonic_utils as hutils
+from .. import harmonic_utils as hutils
 
 
 class JenkinsForce(HystereticForce):

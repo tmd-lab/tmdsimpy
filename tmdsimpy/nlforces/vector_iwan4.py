@@ -1,15 +1,12 @@
 # Functions for vectorizing a Iwan (4-par) model AFT calculation
 
 import numpy as np
-from scipy.interpolate import interp1d
-from nonlinear_force import HystereticForce
+from .nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
-import sys
-sys.path.append('../')
-import harmonic_utils as hutils
+from .. import harmonic_utils as hutils
 
-from iwan4_element import Iwan4Force 
+from .iwan4_element import Iwan4Force 
 
 
 class VectorIwan4(Iwan4Force):

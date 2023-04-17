@@ -1,5 +1,5 @@
 import numpy as np
-import harmonic_utils as hutils
+from . import harmonic_utils as hutils
 
 
 class VibrationSystem:

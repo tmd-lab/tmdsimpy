@@ -4,7 +4,6 @@ Definition of Jenkins Element using JAX for automatic derivatives
 
 # Standard imports
 import numpy as np
-import sys
 
 # JAX imports
 import jax
@@ -14,16 +13,10 @@ import jax.numpy as jnp
 # Decoractions for Partial compilation
 from functools import partial
 
-
 # Imports of Custom Functions and Classes
-sys.path.append('../../')
-import harmonic_utils as hutils
-
-sys.path.append('../')
-import jax_harmonic_utils as jhutils
-
-sys.path.append('../../NL_FORCES/')
-from nonlinear_force import NonlinearForce
+from ... import harmonic_utils as hutils
+from .. import jax_harmonic_utils as jhutils
+from ...nlforces.nonlinear_force import NonlinearForce
 
 
 class JenkinsForce(NonlinearForce):

@@ -1,12 +1,5 @@
 import numpy as np
-
-# TODO: Fix dependency importing here.
-# Harmonic Functions for AFT
-import sys
-sys.path.append('../') # This does not actually work consistently since this path is 
-# relative to what is calling this not this file.
-
-import harmonic_utils as hutils
+from .. import harmonic_utils as hutils
 
 class NonlinearForce:
     

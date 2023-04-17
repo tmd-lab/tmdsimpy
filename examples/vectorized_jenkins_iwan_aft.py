@@ -18,16 +18,29 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 
-# Python Utilities
-sys.path.append('../ROUTINES/')
-sys.path.append('../ROUTINES/NL_FORCES')
-import harmonic_utils as hutils
 
-from jenkins_element import JenkinsForce
-from vector_jenkins import VectorJenkins
 
-from iwan4_element import Iwan4Force 
-from vector_iwan4 import VectorIwan4
+sys.path.append('..')
+# import tmdsimpy
+
+from tmdsimpy.nlforces.jenkins_element import JenkinsForce
+from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
+
+from tmdsimpy.nlforces.iwan4_element import Iwan4Force
+from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
+
+import tmdsimpy.harmonic_utils as hutils
+
+# # Python Utilities
+# sys.path.append('../ROUTINES/')
+# sys.path.append('../ROUTINES/NL_FORCES')
+# import harmonic_utils as hutils
+
+# from jenkins_element import JenkinsForce
+# from vector_jenkins import VectorJenkins
+
+# from iwan4_element import Iwan4Force 
+# from vector_iwan4 import VectorIwan4
 
 
 

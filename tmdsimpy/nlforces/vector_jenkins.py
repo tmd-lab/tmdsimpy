@@ -1,15 +1,11 @@
 # Functions for vectorizing a Jenkins model AFT calculation
 
 import numpy as np
-from scipy.interpolate import interp1d
-from nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
-import sys
-sys.path.append('../')
-import harmonic_utils as hutils
+from .. import harmonic_utils as hutils
 
-from jenkins_element import JenkinsForce 
+from .jenkins_element import JenkinsForce 
 
 
 class VectorJenkins(JenkinsForce):

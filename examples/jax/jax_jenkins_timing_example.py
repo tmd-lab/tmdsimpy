@@ -16,19 +16,17 @@ import timeit
 # # Decoractions for Partial compilation
 # from functools import partial
 
+
 # Imports of Custom Functions and Classes
-sys.path.append('../../ROUTINES/')
-import harmonic_utils as hutils
+sys.path.append('..')
+import tmdsimpy.harmonic_utils as hutils
+# import tmdsimpy.jax.jax_harmonic_utils as jhutils
 
-sys.path.append('../../ROUTINES/JAX/')
-import jax_harmonic_utils as jhutils
-
-sys.path.append('../../ROUTINES/NL_FORCES/')
-sys.path.append('../../ROUTINES/JAX/NL_FORCES/')
-from jax_jenkins import JenkinsForce
+# JAX version w/o vectorization
+from tmdsimpy.jax.nlforces.jax_jenkins import JenkinsForce
 
 # Compare to vectorized (non JAX version)
-from vector_jenkins import VectorJenkins
+from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 
 ###############################################################################
 ###  Create Jenkins Model                                                   ###
