@@ -8,12 +8,11 @@ import numpy as np
 import unittest
 
 # Python Utilities
-sys.path.append('../')
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-
+sys.path.append('..')
 import verification_utils as vutils
-from quintic_stiffness import QuinticForce
+
+sys.path.append('../..')
+from tmdsimpy.nlforces.quintic_stiffness import QuinticForce
 
 
 class TestQuinticAFT(unittest.TestCase):

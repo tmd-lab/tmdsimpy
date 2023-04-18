@@ -1,7 +1,7 @@
 # Functions for vectorizing a Iwan (4-par) model AFT calculation
 
 import numpy as np
-from .nonlinear_force import HystereticForce
+# from .nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
 from .. import harmonic_utils as hutils

@@ -7,13 +7,13 @@ import sys
 import numpy as np
 import unittest
 
-sys.path.append('../')
+# Python Utilities
+sys.path.append('..')
 import verification_utils as vutils
 
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-import harmonic_utils as hutils
-from unilateral_spring import UnilateralSpring
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.nlforces.unilateral_spring import UnilateralSpring
 
 
 class TestUniSpring(unittest.TestCase):

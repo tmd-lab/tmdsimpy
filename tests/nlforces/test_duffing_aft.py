@@ -8,14 +8,11 @@ import numpy as np
 import unittest
 
 # Python Utilities
-sys.path.append('../')
+sys.path.append('..')
 import verification_utils as vutils
 
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-
-from cubic_stiffness import CubicForce
-
+sys.path.append('../..')
+from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 
 
 class TestDuffingAFT(unittest.TestCase):

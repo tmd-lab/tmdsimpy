@@ -18,7 +18,7 @@ import timeit
 
 
 # Imports of Custom Functions and Classes
-sys.path.append('..')
+sys.path.append('../..')
 import tmdsimpy.harmonic_utils as hutils
 # import tmdsimpy.jax.jax_harmonic_utils as jhutils
 

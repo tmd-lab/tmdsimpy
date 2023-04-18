@@ -15,12 +15,10 @@ import numpy as np
 import unittest
 
 # Python Utilities
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-import harmonic_utils as hutils
-
-from iwan4_element import Iwan4Force 
-from vector_iwan4 import VectorIwan4
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.nlforces.iwan4_element import Iwan4Force
+from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 
 
 

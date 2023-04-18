@@ -16,25 +16,14 @@ import numpy as np
 import sys
 import unittest
 
-# # JAX imports
-# import jax
-# jax.config.update("jax_enable_x64", True)
-# import jax.numpy as jnp
+# Python Utilities
+sys.path.append('../..')
 
-# Imports of Custom Functions and Classes
-sys.path.append('../../ROUTINES/')
-# import harmonic_utils as hutils
+# vectorized (non JAX version)
+from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 
-sys.path.append('../../ROUTINES/JAX/')
-# import jax_harmonic_utils as jhutils
-
-sys.path.append('../../ROUTINES/NL_FORCES/')
-sys.path.append('../../ROUTINES/JAX/NL_FORCES/')
-from jax_jenkins import JenkinsForce
-
-# Compare to vectorized (non JAX version)
-from vector_jenkins import VectorJenkins
-
+# JAX version
+from tmdsimpy.jax.nlforces.jax_jenkins import JenkinsForce 
 
 
 ###############################################################################

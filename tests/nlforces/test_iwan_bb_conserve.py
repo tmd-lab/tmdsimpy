@@ -10,15 +10,13 @@ import sys
 import numpy as np
 import unittest
 
-sys.path.append('../')
+# Python Utilities
+sys.path.append('..')
 import verification_utils as vutils
 
-sys.path.append('../../ROUTINES')
-import harmonic_utils as hutils
-
-sys.path.append('../../ROUTINES/NL_FORCES')
-from iwan_bb_conserve import ConservativeIwanBB
-
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.nlforces.iwan_bb_conserve import ConservativeIwanBB
 
 
 class TestIwanBB(unittest.TestCase):

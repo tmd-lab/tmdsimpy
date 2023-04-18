@@ -7,21 +7,18 @@ Automatically checks if MATLAB is present and gives a warning if it is not.
 
 import sys
 import numpy as np
+from scipy import io as sio
 import unittest
 
-# Path to Harmonic balance / vibration system 
-sys.path.append('../ROUTINES/')
-sys.path.append('../ROUTINES/NL_FORCES')
-
-from cubic_stiffness import CubicForce
-from cubic_damping import CubicDamping
-
-
-from vibration_system import VibrationSystem
-from solvers import NonlinearSolver
-import harmonic_utils as hutils
 import verification_utils as vutils
 
+sys.path.append('..')
+from tmdsimpy.nlforces.cubic_stiffness import CubicForce
+from tmdsimpy.nlforces.cubic_damping import CubicDamping
+
+from tmdsimpy.vibration_system import VibrationSystem
+from tmdsimpy.solvers import NonlinearSolver
+from tmdsimpy import harmonic_utils as hutils
 
 
 class TestHarmonicBalance(unittest.TestCase):
@@ -54,23 +51,6 @@ class TestHarmonicBalance(unittest.TestCase):
         self.nearlin_tol = 1e-12 # Tolerance for linear analytical v. HBM check
 
         
-        try: 
-            # Try to load MATLAB
-            
-            # Location of mat file to compare
-            import os
-            wdir = os.getcwd()
-            import matlab.engine
-            eng = matlab.engine.start_matlab()
-            eng.cd(wdir + '/MATLAB_VERSIONS/')
-            
-            self.check_matlab = True
-            self.matlab_eng = eng
-            
-        except:
-            # MATLAB Load Failed, so don't use
-            self.check_matlab = False
-            
         #######################################################################
         ###### Setup Nonlinear System                                    ######
         #######################################################################
@@ -160,8 +140,8 @@ class TestHarmonicBalance(unittest.TestCase):
         None.
 
         """
-        self.assertTrue(self.check_matlab, 
-                        'MATLAB integration failed to load, so the test fails.')
+        # self.assertTrue(self.check_matlab, 
+        #                 'MATLAB integration failed to load, so the test fails.')
         
         ###########################
         # Evaluate Harmonic Balance Residual
@@ -183,20 +163,20 @@ class TestHarmonicBalance(unittest.TestCase):
         ###########################
         # Compare to the MATLAB Solution
 
-        mat_sol = self.matlab_eng.load('duffing_3DOF', 'R', 'dRdU', 'dRdw')
+        mat_sol = sio.loadmat('./MATLAB_VERSIONS/duffing_3DOF.mat')
         
         # Residual
-        error = vutils.compare_mats(R, mat_sol['R'])
+        error = np.linalg.norm(mat_sol['R'][:, 0] - R)
         self.assertLess(error, self.matlab_tol, 
                         'Calculated residual is different than expected.')
         
         # Gradient
-        error = vutils.compare_mats(dRdU, mat_sol['dRdU'])
+        error = np.linalg.norm(mat_sol['dRdU'] - dRdU)
         self.assertLess(error, self.matlab_tol, 
                         'Calculated gradient is different than expected.')
         
         # Gradient w.r.t. w [frequency]
-        error = vutils.compare_mats(dRdw, mat_sol['dRdw'])
+        error = np.linalg.norm(mat_sol['dRdw'][:, 0] - dRdw)
         self.assertLess(error, self.matlab_tol, 
                         'Calculated gradient w.r.t. w is different than expected.')
 
