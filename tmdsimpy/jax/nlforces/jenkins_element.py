@@ -7,7 +7,6 @@ import numpy as np
 
 # JAX imports
 import jax
-jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 
 # Decoractions for Partial compilation
@@ -15,7 +14,7 @@ from functools import partial
 
 # Imports of Custom Functions and Classes
 from ... import harmonic_utils as hutils
-from .. import jax_harmonic_utils as jhutils
+from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ...nlforces.nonlinear_force import NonlinearForce
 
 

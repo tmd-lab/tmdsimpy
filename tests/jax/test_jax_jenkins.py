@@ -23,7 +23,7 @@ sys.path.append('../..')
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 
 # JAX version
-from tmdsimpy.jax.nlforces.jax_jenkins import JenkinsForce 
+from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce 
 
 
 ###############################################################################
