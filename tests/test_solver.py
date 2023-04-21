@@ -13,10 +13,8 @@ import sys
 import numpy as np
 import unittest
 
-# Path to Solver Routine
-sys.path.append('../ROUTINES/')
-
-from solvers import NonlinearSolver
+sys.path.append('..')
+from tmdsimpy.solvers import NonlinearSolver
 
 
 class TestSolver(unittest.TestCase):

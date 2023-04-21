@@ -8,8 +8,6 @@ use JAX.
 
 import numpy as np
 
-from jax.config import config
-config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 
 # Imports for decorating functions with jit calls at this level

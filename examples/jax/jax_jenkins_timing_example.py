@@ -18,12 +18,11 @@ import timeit
 
 
 # Imports of Custom Functions and Classes
-sys.path.append('..')
+sys.path.append('../..')
 import tmdsimpy.harmonic_utils as hutils
-# import tmdsimpy.jax.jax_harmonic_utils as jhutils
 
 # JAX version w/o vectorization
-from tmdsimpy.jax.nlforces.jax_jenkins import JenkinsForce
+from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce
 
 # Compare to vectorized (non JAX version)
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins

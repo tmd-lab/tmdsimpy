@@ -16,17 +16,13 @@ import sys
 import numpy as np
 import unittest
 
-
-# Path to Harmonic balance / vibration system 
-sys.path.append('../ROUTINES/')
-sys.path.append('../ROUTINES/NL_FORCES')
-
-from vibration_system import VibrationSystem
-from solvers import NonlinearSolver
-from continuation import Continuation
-
-import harmonic_utils as hutils
 import verification_utils as vutils
+
+sys.path.append('..')
+from tmdsimpy.vibration_system import VibrationSystem
+from tmdsimpy.solvers import NonlinearSolver
+from tmdsimpy.continuation import Continuation
+import tmdsimpy.harmonic_utils as hutils
 
 
 class TestHBMBase(unittest.TestCase):

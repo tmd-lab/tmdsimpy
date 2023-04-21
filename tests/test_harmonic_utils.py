@@ -11,9 +11,11 @@ import numpy as np
 import unittest
 
 # Python Utilities
-sys.path.append('../ROUTINES/')
-import harmonic_utils as hutils
 import verification_utils as vutils
+
+sys.path.append('..')
+import tmdsimpy.harmonic_utils as hutils
+
 
 # MATLAB Utilities
 import os

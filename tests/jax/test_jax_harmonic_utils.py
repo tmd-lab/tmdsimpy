@@ -19,12 +19,9 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 # Python Utilities
-sys.path.append('../../ROUTINES/')
-import harmonic_utils as hutils
-
-sys.path.append('../../ROUTINES/JAX/')
-import jax_harmonic_utils as jhutils
-
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.jax.harmonic_utils as jhutils
 
 
 def verify_hutils(nd, h, X0, test_obj, tol=1e-11):

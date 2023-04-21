@@ -8,17 +8,13 @@ import sys
 import numpy as np
 import unittest
 
-sys.path.append('../')
+# Python Utilities
+sys.path.append('..')
 import verification_utils as vutils
 
-# Python Utilities
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-import harmonic_utils as hutils
-
-from jenkins_element import JenkinsForce
-
-
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.nlforces.jenkins_element import JenkinsForce
 
 
 ###############################################################################

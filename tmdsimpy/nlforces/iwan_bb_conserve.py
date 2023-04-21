@@ -1,5 +1,5 @@
 import numpy as np
-from nonlinear_force import InstantaneousForce
+from ..nlforces.nonlinear_force import InstantaneousForce
 
 class ConservativeIwanBB(InstantaneousForce):
     """

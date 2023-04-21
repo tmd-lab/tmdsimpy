@@ -16,12 +16,10 @@ import numpy as np
 import unittest
 
 # Python Utilities
-sys.path.append('../../ROUTINES/')
-sys.path.append('../../ROUTINES/NL_FORCES')
-import harmonic_utils as hutils
-
-from jenkins_element import JenkinsForce
-from vector_jenkins import VectorJenkins
+sys.path.append('../..')
+import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.nlforces.jenkins_element import JenkinsForce
+from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 
 
 
