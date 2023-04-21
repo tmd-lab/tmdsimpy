@@ -42,13 +42,19 @@ class JenkinsForce(NonlinearForce):
                 Nnl
         u0 : initialization value for the slider. If u0 = None, then 
                 the zeroth harmonic is used to initialize the slider position.
+                For JAX, u0 must be an appropriately sized np array and not a 
+                scalar quantity
 
         """
         self.Q = Q
         self.T = T
         self.kt = kt
         self.Fs = Fs
-        self.u0 = u0
+        
+        if type(u0) == np.ndarray:
+            self.u0 = u0
+        else:
+            self.u0 = np.array([u0])
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
