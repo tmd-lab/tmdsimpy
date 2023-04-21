@@ -8,19 +8,16 @@
 import sys
 import numpy as np
 
-# Path to Harmonic balance / vibration system 
-sys.path.append('../DEPENDENCIES/tmd-sim-py/ROUTINES')
-sys.path.append('../DEPENDENCIES/tmd-sim-py/ROUTINES/NL_FORCES')
-sys.path.append('../DEPENDENCIES/tmd-sim-py/TESTS/')
 
 
-from cubic_stiffness import CubicForce
-from vibration_system import VibrationSystem
+sys.path.append('..')
+# import tmdsimpy
 
-from solvers import NonlinearSolver
-from continuation import Continuation
-
-import harmonic_utils as hutils
+from tmdsimpy.nlforces.cubic_stiffness import CubicForce
+from tmdsimpy.vibration_system import VibrationSystem
+from tmdsimpy.solvers import NonlinearSolver
+from tmdsimpy.continuation import Continuation
+import tmdsimpy.harmonic_utils as hutils
 
 
 import matplotlib as mpl
