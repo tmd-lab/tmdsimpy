@@ -131,7 +131,7 @@ class TestVectorIwan4(unittest.TestCase):
         self.assertLess(df_error, df_tol, 
                         'Incorrect vectorized Iwan 4 timeseries gradient.')
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -188,7 +188,7 @@ class TestVectorIwan4(unittest.TestCase):
         self.assertLess(df_error, df_tol, 
                         'Incorrect vectorized Iwan 4 timeseries gradient.')
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -244,7 +244,7 @@ class TestVectorIwan4(unittest.TestCase):
         self.assertLess(df_error, df_tol, 
                         'Incorrect vectorized Iwan 4 timeseries gradient.')
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -300,7 +300,7 @@ class TestVectorIwan4(unittest.TestCase):
         self.assertLess(df_error, df_tol, 
                         'Incorrect vectorized Iwan 4 timeseries gradient.')
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -358,7 +358,7 @@ class TestVectorIwan4(unittest.TestCase):
         self.assertLess(df_error, df_tol, 
                         'Incorrect vectorized Iwan 4 timeseries gradient.')
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 

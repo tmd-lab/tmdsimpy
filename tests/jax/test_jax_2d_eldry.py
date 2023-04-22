@@ -11,6 +11,8 @@ TODO :
     
     2. Also verify that a second harmonic of the normal force induces a second 
     harmonic of the tangential force
+    
+    3. Verify that if fully separated all forces are zero.
 
 """
 
@@ -37,33 +39,68 @@ import verification_utils as vutils
 ###     Testing Class                                                       ###
 ###############################################################################
 
-def run_comparison(obj, Unl, w, h, Nt, force_tol):
+def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, delta_grad=1e-5):
        
         FnlH_vec, dFnldUH_vec, dFnldw_vec \
             = obj.jenkins_force_low.aft(Unl[::2, :], w, h, Nt=Nt)
         
         FnlH, dFnldUH, dFnldw = obj.eldry_force.aft(Unl, w, h, Nt=Nt)
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        kn = obj.eldry_force.kn
+                
+        FH_error = np.max(np.abs(FnlH[::2]-FnlH_vec))
+        
+        if Unl[3::2].sum() == 0:
+            FH_error = FH_error + (FnlH[1] - max(kn*Unl[1], 0.0)) \
+                            + np.max(np.abs(FnlH[3::2]))
         
         obj.assertLess(FH_error, force_tol, 
                         'Incorrect elastic dry friction force.')
+        
+        ###############
+        # Tangent - Tangent Gradient
+        dFH_error = np.max(np.abs(dFnldUH[::2, ::2]-dFnldUH_vec))
+        
+        obj.assertLess(dFH_error, df_tol, 
+                        'Incorrect Tangential AFT gradient.')
+        
+        
+        ###############
+        # Normal - Normal Gradient
+        Un_grad = dFnldUH[1::2, 1::2]
+        Un_grad = Un_grad - np.eye(Un_grad.shape[0])*kn
+        
+        dFH_error = np.max(np.abs(Un_grad))
+        
+        obj.assertLess(dFH_error, df_tol, 
+                    'Incorrect Normal U/Normal F AFT gradient.')
+        
+        ###############
+        # dNormal / dTangent Gradient
+        
+        dFndUt = dFnldUH[1::2, 0::2]
+        
+        obj.assertLess(np.max(np.abs(dFndUt)), df_tol, 
+                    'Incorrect dFn/dUtan AFT gradient.')
+        
+        ###############
+        # Numeric Gradient check, should capture dTangent/dNormal terms
         
         # Check gradient - Unl
         fun = lambda U : obj.eldry_force.aft(U, w, h, Nt=Nt)[0:2]
         
         grad_failed = vutils.check_grad(fun, Unl, verbose=False, 
-                                        atol=obj.atol_grad)
+                                        atol=obj.atol_grad, h=delta_grad)
         
         obj.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Unl.')
         
         # Gradient w
-        fun = lambda w : obj.eldry_force.aft(Unl, w, h, Nt=Nt)[0:2]
+        fun = lambda w : obj.eldry_force.aft(Unl, w, h, Nt=Nt)[0::2]
         
         grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, 
                                         atol=obj.atol_grad)
         
-        obj.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Unl.')
+        obj.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. w.')
 
 class TestJAXEldry(unittest.TestCase):
     
@@ -105,10 +142,14 @@ class TestJAXEldry(unittest.TestCase):
         Fs_low = self.un_low * kn * mu
         Fs_high = self.un_high * kn * mu
         
-        self.jenkins_force_low = JenkinsForce(Q_jenk, T_jenk, kt, Fs_low, u0=0.0)
-        self.jenkins_force_high = JenkinsForce(Q_jenk, T_jenk, kt, Fs_high, u0=0.0)
+        self.jenkins_force_low = JenkinsForce(Q_jenk, T_jenk, kt, Fs_low, 
+                                              u0=np.array([0.0]))
         
-        self.eldry_force = ElasticDryFriction2D(Q, T, kt, kn, mu, u0=0.0)
+        self.jenkins_force_high = JenkinsForce(Q_jenk, T_jenk, kt, Fs_high, 
+                                               u0=np.array([0.0]))
+        
+        self.eldry_force = ElasticDryFriction2D(Q, T, kt, kn, mu, 
+                                                u0=np.array([0.0]))
         
         
         # Create Two eldry Force options with different u0 and verify in the 
@@ -145,7 +186,7 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*5
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
         
         return
         
@@ -176,7 +217,7 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*0.2
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
         
 
     def test_eldry3(self):
@@ -207,7 +248,7 @@ class TestJAXEldry(unittest.TestCase):
         Unl = Unl.reshape(-1,1)
         
         
-        run_comparison(self, Unl, w, h, Nt, force_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
         
 
     def test_eldry4(self):
@@ -238,7 +279,7 @@ class TestJAXEldry(unittest.TestCase):
         Unl = Unl.reshape(-1,1)
         
         
-        run_comparison(self, Unl, w, h, Nt, force_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, delta_grad=3e-6)
         
 
 
@@ -270,7 +311,7 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*5
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
         
         
     def test_h0_force_opts(self):

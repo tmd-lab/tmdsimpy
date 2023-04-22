@@ -4,10 +4,21 @@ import numpy as np
 
 # Functions for verification work
 def compare_mats(M, M_matlab, verbose=False):
-    
-    # Import MATLAB only if needed so can run some verification functions without
-    import matlab.engine
+    """
+    Compare a matrix to an equivalent version that was loaded via MATLAB engine
 
+    Parameters
+    ----------
+    M : Numpy matrix
+    M_matlab : Matrix from matlab
+    verbose : Option to print error
+
+    Returns
+    -------
+    error : TYPE
+        DESCRIPTION.
+
+    """
     
     M_mat_np = np.array(M_matlab._data).reshape(M_matlab.size, order='F')
     
@@ -19,7 +30,7 @@ def compare_mats(M, M_matlab, verbose=False):
     return error
     
 
-def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
+def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
     """
     Default prints if verbose is True or if both atol and rtol are exceeded 
     
@@ -35,6 +46,8 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
         DESCRIPTION. The default is 1e-10.
     rtol : TYPE, optional
         DESCRIPTION. The default is 0.0.
+    h  : finite difference step size
+            The default is 1e-5
 
     Returns
     -------
@@ -43,14 +56,35 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0):
                     incorrect.
 
     """
-    h = 1e-5
     
     U0 = U0*1.0 # ensure that there not integers where adding h would break test.
     
     Fnl, dFnldU = fun(U0)
     
+    ########## Check dimensions to make sure valid inputs are passed.
+    
+    # Vector Length
+    U0len = U0.shape[0]
+    if U0len == 1 and len(U0.shape) == 2:
+        U0len = U0.shape[1] # In case of 2D arrays
+        
+    # Grad Shape
+    if len(dFnldU.shape) == 2:
+        # Normal rectangular array / gradient
+        gradlen = dFnldU.shape[1]
+    elif U0len == 1: 
+        # 1D array since taking derivative w.r.t. scalar
+        gradlen = 1
+    else:
+        # possible 1D array since taking derivative of a scalar w.r.t. a vector
+        gradlen = dFnldU.shape[0]
+    
+    assert gradlen == U0len, 'Derivative dimensions do not match input vector.'
+    
     if U0.shape[0] == 1:
         dFnldU = np.atleast_2d(dFnldU).T
+    
+    ########## Numerical Derivative
     
     dFnldU_num = np.zeros_like(dFnldU)
         

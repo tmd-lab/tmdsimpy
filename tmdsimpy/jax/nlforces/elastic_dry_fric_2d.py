@@ -63,10 +63,7 @@ class ElasticDryFriction2D(NonlinearForce):
         self.kn = kn
         self.mu = mu
         
-        if type(u0) == np.ndarray:
-            self.u0 = u0
-        else:
-            self.u0 = np.array([u0])
+        self.u0 = u0
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """

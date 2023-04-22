@@ -105,7 +105,7 @@ class TestJAXJenkins(unittest.TestCase):
         
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -151,7 +151,7 @@ class TestJAXJenkins(unittest.TestCase):
         
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -197,7 +197,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
        
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -243,7 +243,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -291,7 +291,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
