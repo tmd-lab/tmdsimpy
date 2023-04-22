@@ -44,6 +44,8 @@ class JenkinsForce(NonlinearForce):
                 the zeroth harmonic is used to initialize the slider position.
                 For JAX, u0 must be an appropriately sized np array and not a 
                 scalar quantity
+                Highly recommended not to use u0=None because may result in
+                non-unique solutions.
 
         """
         self.Q = Q

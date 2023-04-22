@@ -51,7 +51,10 @@ class ElasticDryFriction2D(NonlinearForce):
                 Nnl
         u0 : initialization value for the slider. If u0 = None, then 
                 the zeroth harmonic is used to initialize the slider position.
-                u0 should be size of number of tangential DOFs (e.g., 1 right now)
+                u0 should be size of number of tangential DOFs 
+                (e.g., 1 right now)
+                Highly recommended not to use u0=None because may result in
+                non-unique solutions. Not fully verified for None option.
 
         """
         self.Q = Q
@@ -178,9 +181,9 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
     """
     
     fcurr = jnp.minimum(kt*(unlt[ind, 0]-unlt[ind-1, 0]) + ft[ind-1, 0],
-                            mu*ft[ind,1])
+                            mu*ft[ind, 1])
     
-    ft = ft.at[ind, :].set(jnp.maximum(fcurr, -mu*ft[ind,1]))
+    ft = ft.at[ind, 0].set(jnp.maximum(fcurr, -mu*ft[ind, 1]))
     
     return ft
  
@@ -276,8 +279,8 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # initialize the last entry of ft based on a linear spring
     # slip limit does not need to be applied since this just needs to get stuck
     # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, :].set(kt*(unlt[-1, :] - u0))
-    
+    ft = ft.at[-1, 0].set(kt*(unlt[-1, 0] - u0[0]))
+        
     # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
     # steady-state
     for out_ind in range(2):
@@ -320,8 +323,7 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
     """
     
     J,F = jax.jacfwd(_local_aft_eldry, has_aux=True)(Uwlocal, pars, u0, 
-                                                       htuple, Nt, u0h0)
-    
+                                                       htuple, Nt, u0h0)    
     return J,F
 
 
