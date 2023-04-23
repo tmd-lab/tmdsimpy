@@ -3,16 +3,12 @@
 Script for testing the accuracy of the elastic dry friction implementation 
 that uses JAX - Compares AFT results to those from vector Jenkins
 
-Also verify that a second harmonic of the normal force induces a second 
-harmonic of the tangential force
-
-TODO : 
-    1. Repeat all tests at high normal displacment + against high jenkins force
-    
-    2. Also verify that a second harmonic of the normal force induces a second 
-    harmonic of the tangential force
-    
-    3. Verify that if fully separated all forces are zero.
+Tests include:
+    1. Low and high normal displacement checks against Jenkins with different
+    values of Fs
+    2. Verify second harmonic of normal induces second harmonic of
+    tangential force when slipping is present (tests 3 and 5)
+    3. Verify if separated that all is zero.
 
 """
 
@@ -39,10 +35,11 @@ import verification_utils as vutils
 ###     Testing Class                                                       ###
 ###############################################################################
 
-def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, delta_grad=1e-5):
+def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, jenkins, 
+                   delta_grad=1e-5):
        
         FnlH_vec, dFnldUH_vec, dFnldw_vec \
-            = obj.jenkins_force_low.aft(Unl[::2, :], w, h, Nt=Nt)
+            = jenkins.aft(Unl[::2, :], w, h, Nt=Nt)
         
         FnlH, dFnldUH, dFnldw = obj.eldry_force.aft(Unl, w, h, Nt=Nt)
         
@@ -186,7 +183,14 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*5
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_low)
+        
+        Unl[1] = self.un_high
+        
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_high)
+        
         
         return
         
@@ -217,8 +221,14 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*0.2
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_low)
         
+        
+        Unl[1] = self.un_high
+        
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_high)
 
     def test_eldry3(self):
         """
@@ -248,7 +258,21 @@ class TestJAXEldry(unittest.TestCase):
         Unl = Unl.reshape(-1,1)
         
         
-        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_low)
+        
+        
+        Unl[1] = self.un_high
+        
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_high)
+        
+        # Verify that 2nd harmonic of normal would induce same in tangent
+        # [t0, n0, t1c, n1c, t1s, n1s, t2c, n2c, ]
+        FnlH, dFnldUH, dFnldw = self.eldry_force.aft(Unl, w, h, Nt=Nt)
+        
+        self.assertGreater(np.abs(dFnldUH[6,7]), 0.1, 
+                           'Normal load may not be influencing tangent force.')
         
 
     def test_eldry4(self):
@@ -279,10 +303,16 @@ class TestJAXEldry(unittest.TestCase):
         Unl = Unl.reshape(-1,1)
         
         
-        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, delta_grad=3e-6)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_low, delta_grad=3e-6)
         
 
-
+        
+        Unl[1] = self.un_high
+        
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_high)
+        
     def test_eldry5(self):
         """
         Test moderate amplitude case
@@ -311,8 +341,21 @@ class TestJAXEldry(unittest.TestCase):
         Unl[:, 0] = Unl[:, 0]*5
         Unl = Unl.reshape(-1,1)
         
-        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol)
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_low)
         
+        
+        Unl[1] = self.un_high
+        
+        run_comparison(self, Unl, w, h, Nt, force_tol, df_tol, 
+                       self.jenkins_force_high)
+        
+        # Verify that 2nd harmonic of normal would induce same in tangent
+        # [t0, n0, t1c, n1c, t1s, n1s, t2c, n2c, ]
+        FnlH, dFnldUH, dFnldw = self.eldry_force.aft(Unl, w, h, Nt=Nt)
+        
+        self.assertGreater(np.abs(dFnldUH[6,7]), 0.01, 
+                           'Normal load may not be influencing tangent force.')
         
     def test_h0_force_opts(self):
         """
@@ -371,7 +414,54 @@ class TestJAXEldry(unittest.TestCase):
         
         self.assertFalse(grad_failed, 'Incorrect Gradient from u0 setting.')
         # Gradients are correct?
+    
+    def test_separation(self):
+        """
+        Test separated contact forces
+
+        Returns
+        -------
+        None.
+
+        """
         
+        ##### Get models from class
+        force_tol, df_tol, dfdw_tol = self.tols
+        
+        
+        ###### Test Parameters
+        Nt = 1 << 10
+        w = 1.7
+        h = np.array([0, 1, 2, 3])
+        
+        ##### Verification
+        
+        h = np.array([0, 1, 2, 3])
+        Unl = np.array([[4.29653115, 4.29165565, 2.8307871 , 4.17186848, 3.37441948,\
+                           0.80543152, 3.55638299],
+                          [-0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
+        
+        Unl[:, 0] = Unl[:, 0]*5
+        Unl = Unl.reshape(-1,1)
+        
+        
+        FnlH, dFnldUH, dFnldw = self.eldry_force.aft(Unl, w, h, Nt=Nt)
+        
+        self.assertEqual(FnlH.sum(), 0, 
+                         'Contact forces should be zero when out of contact')
+        
+        self.assertEqual(dFnldUH.sum(), 0, 
+                         'Contact gradient should be zero when out of contact')
+        
+        # Verify at zero in contact that there are not NaN's in gradient etc.
+        Unl[1] = 0
+        FnlH, dFnldUH, dFnldw = self.eldry_force.aft(Unl, w, h, Nt=Nt)
+
+        self.assertEqual(FnlH.sum(), 0, 
+                         'NaNs in contact force when barely in contact')
+        
+        self.assertFalse(np.isnan(dFnldUH.sum()), 
+                         'NaNs in gradient when just barely in contact')
 
 if __name__ == '__main__':
     unittest.main()
