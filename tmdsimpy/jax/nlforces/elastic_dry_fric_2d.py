@@ -270,7 +270,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
     # gradients are concerned.
-    u0 = jax.lax.select(u0h0, Ulocal[0, 0:1], u0)
+    u0 = jnp.where(u0h0, Ulocal[0, 0:1], u0)
     
     # The first evaluation is based on the last entry of ft and therefore 
     # initialize the last entry of ft based on a linear spring

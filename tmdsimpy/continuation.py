@@ -60,7 +60,7 @@ class Continuation:
         else:
             assert len(CtoP.shape) == 1, 'Conditioning vector is expected to be 1D'
             self.setCtoPto1 = False
-            self.CtoP = CtoP
+            self.CtoP = np.abs(CtoP)
             
         if RPtoC is None:
             self.RPtoC = 1

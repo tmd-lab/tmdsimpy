@@ -58,15 +58,10 @@ Automatic differentiation is a work in progress and is being attempted by using 
 
 Using JAX, the code is setup to use Just In Time Compilation (JIT). However, there are strict rules on what can be done with JIT. Read the JAX documentation carefully before editting these routines. 
 
-The JIT versions of the code assume that the same list of harmonics and the same number of time steps for AFT are used everywhere. If this is not the case, the routines will be forced to be repeatedly compiled and the code will be very slow. 
+The JIT versions of the code assume that the same list of harmonics and the same number of time steps for AFT are used everywhere. If this is not the case, the routines will be forced to compile multiple versions for different sets of harmonics.
 
 
-The present implementation assumes that 64-bit precision is desired. Therefore, on start up, the following needs to be applied within the python script/function
-```
-from jax.config import config
-config.update("jax_enable_x64", True)
-```
-This should be done on every file that is importing JAX to ensure that it is done on start up. If JAX is imported into a top level script (this should not be needed as of now), then the command should be included there as well. 
+The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
 
 
 
