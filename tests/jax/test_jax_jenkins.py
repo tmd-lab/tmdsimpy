@@ -26,6 +26,10 @@ from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce 
 
 
+sys.path.append('..')
+import verification_utils as vutils
+
+
 ###############################################################################
 ###     Testing Class                                                       ###
 ###############################################################################
@@ -60,6 +64,13 @@ class TestJAXJenkins(unittest.TestCase):
         
         self.vector_jenkins_force = VectorJenkins(Q, T, kt, Fs)
         self.jenkins_force = JenkinsForce(Q, T, kt, Fs, u0=None)
+        
+        
+        # Create Two Jenkins Force options with different u0 and verify in the 
+        # stuck regime that they give the correct forces for harmonic 0
+        self.jenkins_force2 = JenkinsForce(Q, T, kt, Fs, u0=np.array([0.0]))
+        self.jenkins_force3 = JenkinsForce(Q, T, kt, Fs, u0=np.array([0.2]))
+        self.atol_grad = 1e-12
 
 
     def test_vec_jenk1(self):
@@ -94,7 +105,7 @@ class TestJAXJenkins(unittest.TestCase):
         
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -140,7 +151,7 @@ class TestJAXJenkins(unittest.TestCase):
         
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -186,7 +197,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
        
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -232,7 +243,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -280,7 +291,7 @@ class TestJAXJenkins(unittest.TestCase):
         FnlH, dFnldUH, dFnldw = jenkins_force.aft(Unl, w, h, Nt=Nt)
         
         
-        FH_error = np.max(np.abs(FnlH_vec-FnlH_vec))
+        FH_error = np.max(np.abs(FnlH-FnlH_vec))
         dFH_error = np.max(np.abs(dFnldUH-dFnldUH_vec))
         
         self.assertLess(FH_error, force_tol, 
@@ -297,6 +308,64 @@ class TestJAXJenkins(unittest.TestCase):
         
 
 
+    def test_h0_force_opts(self):
+        """
+        Test moderate amplitude case
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        h = np.array([0, 1, 2, 3])
+        Unl = np.zeros((7,1))
+        Unl[0] = 0.15
+        
+        w = 1.75
+        Nt = 1 << 7
+        
+        
+        # Force Values for harmonic zero
+        
+        #################
+        # U0 < Unl[0]
+        FnlH2, dFnldUH, dFnldw = self.jenkins_force2.aft(Unl, w, h, Nt=Nt)
+
+        error2 = FnlH2[0] - (Unl[0] - self.jenkins_force2.u0)*self.jenkins_force2.kt
+        
+        self.assertLess(error2, 1e-18, 
+                        'Static force from prestressed state is incorrect.')
+        
+        
+        # Check gradient
+        fun = lambda U : self.jenkins_force2.aft(U, w, h)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Unl, verbose=False, 
+                                        atol=self.atol_grad)
+        
+        self.assertFalse(grad_failed, 'Incorrect Gradient from u0 setting.')
+        
+        #################
+        # U0 > Unl[0]
+        FnlH3, dFnldUH, dFnldw = self.jenkins_force3.aft(Unl, w, h, Nt=Nt)
+        
+        
+        error3 = FnlH3[0] - (Unl[0] - self.jenkins_force3.u0)*self.jenkins_force3.kt
+        
+        self.assertLess(error3, 1e-18, 
+                        'Static force from prestressed state is incorrect.')
+        
+        
+        # Check gradient
+        fun = lambda U : self.jenkins_force3.aft(U, w, h)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Unl, verbose=False, 
+                                        atol=self.atol_grad)
+        
+        self.assertFalse(grad_failed, 'Incorrect Gradient from u0 setting.')
+        # Gradients are correct?
+        
 
 if __name__ == '__main__':
     unittest.main()

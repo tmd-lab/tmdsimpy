@@ -42,12 +42,17 @@ class JenkinsForce(NonlinearForce):
                 Nnl
         u0 : initialization value for the slider. If u0 = None, then 
                 the zeroth harmonic is used to initialize the slider position.
+                For JAX, u0 must be an appropriately sized np array and not a 
+                scalar quantity
+                Highly recommended not to use u0=None because may result in
+                non-unique solutions.
 
         """
         self.Q = Q
         self.T = T
         self.kt = kt
         self.Fs = Fs
+        
         self.u0 = u0
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
@@ -249,7 +254,7 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
     # gradients are concerned.
-    u0 = jax.lax.select(u0h0, Ulocal[0, :], u0)
+    u0 = jnp.where(u0h0, Ulocal[0, 0:1], u0)
     
     # The first evaluation is based on the last entry of ft and therefore 
     # initialize the last entry of ft based on a linear spring
