@@ -101,7 +101,8 @@ continue_config = {'DynamicCtoP': True,
                    'xtol'       : 1e-9*Fl.shape[0], 
                    'corrector'  : 'Ortho'} # Ortho, Pseudo
 
-Xmax = len(fmag) * [None]
+Xmax = len(fmag) * [None] # Tangent
+Xnmax = len(fmag) * [None] # Normal
 XlamPList = len(fmag) * [None]
 
 
@@ -138,6 +139,10 @@ for ind in range(len(fmag)):
     # Maximum Displacement Form of Response
     Xt = hutils.time_series_deriv(1<<10, h, XlamP_full[:,  0:-1:2].T, 0)
     Xmax[ind] = np.max(np.abs(Xt), axis=0)
+    
+    # Normal direction
+    Xt = hutils.time_series_deriv(1<<10, h, XlamP_full[:,  1:-1:2].T, 0)
+    Xnmax[ind] = np.max(np.abs(Xt), axis=0)
     
     XlamPList[ind] = XlamP_full
 
@@ -180,10 +185,17 @@ fun = lambda Uwxa : vib_sys.epmc_res(Uwxa, Fl, h, Nt=1<<10)
 Uwxa_bb = cont_solver.continuation(fun, Uwxa0, a0, a1)
     
 
-# Maximum Displacement Form of Response
-Xt_epmc = hutils.time_series_deriv(1<<10, h, Uwxa_bb[:,  0:-3:2].T, 0)
+# Maximum Displacement Form of Response - Tangent
+Xharm =  Uwxa_bb[:,  0:-3:2].T
+Xharm[1:, :] = Xharm[1:, :]*(10**Uwxa_bb[:, -1:].T) # Amplitude scaling of all except zeroth
+Xt_epmc = hutils.time_series_deriv(1<<10, h, Xharm, 0)
 Xt_epmc = np.max(np.abs(Xt_epmc), axis=0)
-Xt_epmc = Xt_epmc*(10**Uwxa_bb[:, -1])
+
+# Normal direction
+Xharm =  Uwxa_bb[:,  1:-3:2].T
+Xharm[1:, :] = Xharm[1:, :]*(10**Uwxa_bb[:, -1:].T) # Amplitude scaling of all except zeroth
+Xn_epmc = hutils.time_series_deriv(1<<10, h, Xharm, 0)
+Xn_epmc = np.max(np.abs(Xn_epmc), axis=0)
 
 ###############################################################################
 ####### Plotting                                                        #######
@@ -206,3 +218,17 @@ plt.legend()
 plt.show()
 
 
+
+for ind in range(len(fmag)):
+    plt.plot(XlamPList[ind][:, -1], Xnmax[ind], 
+             label='Fscale={}'.format(fmag[ind]))
+    
+plt.plot(Uwxa_bb[:, -3], Xn_epmc, 'k--', label='EPMC')
+    
+plt.ylabel('Maximum Displacement [m]')
+plt.xlabel('Frequency [rad/s]')
+plt.xlim((lam0, lam1))
+# plt.ylim((0.0, 2.0))
+plt.yscale('log')
+plt.legend()
+plt.show()
