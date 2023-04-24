@@ -69,10 +69,10 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
         U0len = U0.shape[1] # In case of 2D arrays
         
     # Grad Shape
-    if len(dFnldU.shape) == 2:
+    if (not isinstance(dFnldU, float)) and len(dFnldU.shape) == 2:
         # Normal rectangular array / gradient
         gradlen = dFnldU.shape[1]
-    elif U0len == 1: 
+    elif U0len == 1 or isinstance(dFnldU, float): 
         # 1D array since taking derivative w.r.t. scalar
         gradlen = 1
     else:
