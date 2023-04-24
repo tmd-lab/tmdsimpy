@@ -177,10 +177,10 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
 
     """
     
-    fcurr = jnp.minimum(kt*(unlt[ind, 0]-unlt[ind-1, 0]) + ft[ind-1, 0],
-                            mu*ft[ind, 1])
+    fcurr = jnp.minimum(kt*(unlt[ind, 0::2]-unlt[ind-1, 0::2]) + ft[ind-1, 0::2],
+                            mu*ft[ind, 1::2])
     
-    ft = ft.at[ind, 0].set(jnp.maximum(fcurr, -mu*ft[ind, 1]))
+    ft = ft.at[ind, 0::2].set(jnp.maximum(fcurr, -mu*ft[ind, 1::2]))
     
     return ft
  
@@ -258,7 +258,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     ft = jnp.zeros_like(unlt)
     
     # Normal Force
-    ft = ft.at[:, 1].set(jnp.maximum(unlt[:, 1]*kn, 0.0))
+    ft = ft.at[:, 1::2].set(jnp.maximum(unlt[:, 1::2]*kn, 0.0))
     
     # Do a loop function for each update at index i
     loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)
@@ -270,13 +270,13 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
     # gradients are concerned.
-    u0 = jnp.where(u0h0, Ulocal[0, 0:1], u0)
+    u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0)
     
     # The first evaluation is based on the last entry of ft and therefore 
     # initialize the last entry of ft based on a linear spring
     # slip limit does not need to be applied since this just needs to get stuck
     # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, 0].set(kt*(unlt[-1, 0] - u0[0]))
+    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0[0::2]))
         
     # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
     # steady-state

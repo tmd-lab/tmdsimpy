@@ -26,6 +26,8 @@ from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce
 # JAX version for elastic dry friction
 from tmdsimpy.jax.nlforces.elastic_dry_fric_2d import ElasticDryFriction2D 
 
+import tmdsimpy.harmonic_utils as hutils
+
 
 sys.path.append('..')
 import verification_utils as vutils
@@ -153,7 +155,24 @@ class TestJAXEldry(unittest.TestCase):
         # stuck regime that they give the correct forces for harmonic 0
         self.eldry_force2 = ElasticDryFriction2D(Q, T, kt, kn, mu, u0=np.array([0.0]))
         self.eldry_force3 = ElasticDryFriction2D(Q, T, kt, kn, mu, u0=np.array([0.2]))
-
+        
+        
+        # 1.5 Times Eldry
+        Q_15 = np.array([[1.0, 0.0], 
+                         [0.0, 1.0],
+                         [1.0, 0.0], 
+                         [0.0, 1.0]])
+        
+        T_15 = np.array([[1.0, 0.0, 0.5, 0.0], 
+                         [0.0, 1.0, 0.0, 0.5]])
+        
+        self.eldry_force15 = ElasticDryFriction2D(Q_15, T_15, kt, kn, mu, u0=0.0)
+        
+        # Split Eldry
+        Qsplit = np.eye(4)
+        Tsplit = np.diag([0.5, 0.5, 1.5, 1.5])
+        
+        self.eldry_force_split = ElasticDryFriction2D(Qsplit, Tsplit, kt, kn, mu, u0=0.0)
 
     def test_eldry1(self):
         """
@@ -462,6 +481,106 @@ class TestJAXEldry(unittest.TestCase):
         
         self.assertFalse(np.isnan(dFnldUH.sum()), 
                          'NaNs in gradient when just barely in contact')
+        
+    def test_mdof_eldry(self):
+        """
+        Test an elastic dry friction version with multiple degrees of freedom
+        and multiple independent 
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        compare_tol = 1e-16
+        
+        # Friction Versions
+        eldry_sdof = self.eldry_force
+        eldry_times_1p5 = self.eldry_force15
+        eldry_split = self.eldry_force_split
+        
+        Tsplit = eldry_split.T
+        
+        # Misc Parameters to use
+        Nt = 1 << 10
+        w = 1.7
+        h = np.array([0, 1, 2, 3])
+        Nhc = hutils.Nhc(h)
+        
+        # Generate some baseline vectors for the first and second DOFs
+        np.random.seed(1023)
+        U1 = np.random.rand(Nhc*2)
+        U2 = np.random.rand(Nhc*2)
+        # All random values are positive, so will be in contact
+        
+        # Allow tangential displacements to be positive and negative
+        U1[::2] = U1[::2] - 0.5
+        U2[::2] = U2[::2] - 0.5
+        
+        # Scale the tangential displacements by different values
+        scale_tan = [0.1, 1.0, 10.0, 100.0]
+
+        for scale in scale_tan:
+            
+            # Baseline from U1
+            U1scale = np.copy(U1)
+            U1scale[::2] = scale*U1scale[::2]
+            
+            F1 = eldry_sdof.aft(U1scale, w, h, Nt=Nt)[0]
+            
+            # Baseline from U2
+            U2scale = np.copy(U2)
+            U2scale[::2] = scale*U2scale[::2]
+            
+            F2 = eldry_sdof.aft(U2scale, w, h, Nt=Nt)[0]
+            
+            ############################
+            # Combined Solution for 1.5 times
+            F_15 = eldry_times_1p5.aft(U1scale, w, h, Nt=Nt)[0]
+            
+            self.assertLess(np.abs(F_15 - 1.5*F1).max(), compare_tol, 
+                            'Using 2 DOFs to scale force failed.')
+            
+            ############ Gradient
+            
+            fun = lambda U : eldry_times_1p5.aft(U, w, h)[0:2]
+            
+            grad_failed = vutils.check_grad(fun, U1scale, verbose=False, 
+                                            atol=self.atol_grad)
+            
+            self.assertFalse(grad_failed, 
+                             'Incorrect Gradient for 1.5 times scaling force.')
+        
+            #######################
+            # Split Solution
+            Ucombo = np.zeros(Nhc*4)
+            Ucombo[::4] = U1[::2]*scale # Tanget
+            Ucombo[1::4] = U1[1::2] # Normal
+            Ucombo[2::4] = U2[::2]*scale # Tangent 
+            Ucombo[3::4] = U2[1::2] # Normal
+            
+            Fcombo = eldry_split.aft(Ucombo, w, h, Nt=Nt)[0]
+            
+            Fcombo_ref = np.zeros_like(Fcombo)
+            Fcombo_ref[::4]  = Tsplit[0,0]*F1[::2] # Tanget
+            Fcombo_ref[1::4] = Tsplit[1,1]*F1[1::2] # Normal
+            Fcombo_ref[2::4] = Tsplit[2,2]*F2[::2] # Tangent 
+            Fcombo_ref[3::4] = Tsplit[3,3]*F2[1::2] # Normal
+            
+            self.assertLess(np.abs(Fcombo - Fcombo_ref).max(), compare_tol, 
+                            'Using 2 DOFs to scale force failed.')
+            
+            
+            ############ Gradient
+            fun = lambda U : eldry_split.aft(U, w, h)[0:2]
+            
+            grad_failed = vutils.check_grad(fun, Ucombo, verbose=False, 
+                                            atol=self.atol_grad)
+            
+            self.assertFalse(grad_failed, 
+                             'Incorrect Gradient for combined two force test.')
+        
 
 if __name__ == '__main__':
     unittest.main()
