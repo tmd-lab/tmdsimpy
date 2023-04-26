@@ -1,0 +1,11 @@
+numpy 
+scipy 
+
+# for running test files, not required for utilizing functions or examples
+unittest
+
+# for subset of routines using JAX and auto diff 
+"jax[cpu]"
+
+# MATLAB integration is also required for a single test. You can find instructions for installing MATLAB for python with MATLAB’s documentation. 
+
