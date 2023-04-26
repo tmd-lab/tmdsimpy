@@ -25,7 +25,8 @@ from ...nlforces.nonlinear_force import NonlinearForce
 
 class ElasticDryFriction2D(NonlinearForce):
     """
-    Jenkins Slider Element Nonlinearity with JAX for automatic differentiation
+    Elastic Dry friction Slider Element Nonlinearity with JAX for automatic 
+    differentiation
 
     The AFT formulation assumes that the spring starts at 0 force
     at zero displacement.    
@@ -38,6 +39,10 @@ class ElasticDryFriction2D(NonlinearForce):
         Implementation currently assumes that Nnl=2 (two nonlinear DOFs)
         The Nonlinear DOFs must first be tangential displacement then normal
         displacement
+        
+        Has been updated to allow for multiple elastic dry friction sliders. 
+        However, that may be memory inefficient since the Jacobians that are 
+        calculated aren't sparse.
 
         Parameters
         ----------
