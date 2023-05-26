@@ -292,23 +292,29 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     ########################################
     #### Special Loop w/ vectorized for filling in between critical points
     
-    for i in range(Ncrit):
+    # Options here
+    
+    # 1.
+    # Just evaluating the blocks between critical points does not work with JAX
+    # because the indices are dynamic and it is a JIT function. 
+    
+    # 2.
+    # Alternatively full matrices of ftprev and a rotated unlt could be 
+    # constructed based on the critical indices to do everything in one vector 
+    # operation. Such an approach adds computations and memory requirements, 
+    # so is not considered.
+    
+    # 3.
+    # Run the same loop as the normal jax jenkins, but only once. 
+    # This approach is adopted since it is the simplest and lowest memory.
+    
+    # Do a loop function for each update at index i
+    loop_fun = lambda i,f : _local_jenkins_loop_body(i, f, unlt, kt, Fs)
+    
+    # save a single computation since know that index 0 was chosen as a critical
+    # point for convenience in indexing
+    ft = jax.lax.fori_loop(1, Nt, loop_fun, ft)
 
-        start = inds[i]+1
-        stop  = inds[i+1] # want to end on the previous index (e.g., this minus 1)
-        
-        stop = stop + Nt*(stop == 0) # Wrap at end
-    
-        # May need to add logic here for conditional on stop > start
-    
-        ft = ft.at[start:stop].set( \
-                            jnp.minimum(kt*(unlt[start:stop, :]\
-                                            -unlt[start-1, :]) \
-                            + ft[start-1, :], Fs) \
-                                   )
-        
-        ft = ft.at[start:stop].set(jnp.maximum(ft[start:stop], -Fs))
-    
     ########################################
     #### Final Conversions
     

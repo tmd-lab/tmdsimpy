@@ -63,5 +63,7 @@ The JIT versions of the code assume that the same list of harmonics and the same
 
 The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
 
-
+JAX/JIT examples have been created for Jenkins and Elastic Dry Friction nonlinearities (AFT only). 
+It is not recommended to use the JAX versions for Jenkins since they perform worse than the vectorized Jenkins algorithm for large Nt. A non-JAX implementation of Elastic Dry Friction is not provided and future work will likely exploit JAX for auto diff to decrease development time. 
+It is noted that the traditional AFT algorithm for Jenkins is much faster with JAX/JIT than traditional code.
 
