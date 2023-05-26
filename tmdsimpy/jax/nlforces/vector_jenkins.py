@@ -254,12 +254,16 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     dup = unlt - jnp.roll(unlt, 1, axis=0) # du to current
     dun = jnp.roll(unlt, -1, axis=0) - unlt # du to next
     
-    vector_set = jnp.not_equal(np.sign(dup), np.sign(dun))
-    vector_set[0] = True # This makes it much easier to write the loop below and is assumed.
+    vector_set = jnp.not_equal(jnp.sign(dup), jnp.sign(dun))
+    vector_set = vector_set.at[0].set(True) # This makes it much easier to write the loop below and is assumed.
     
-    _,inds = jax.lax.top_k(vector_set, htuple[-1]*2+1)
+    # Maximum number of critical points is 2*(Hmax)
+    # Add 1 for ease of implementation by including the first time instant
+    Ncrit = htuple[-1]*2+1
     
-   
+    _,inds = jax.lax.top_k(vector_set.T, Ncrit)
+    
+    inds = jnp.sort(inds)[0, :] #reset the transpose back to a row
     
     ########################################
     #### Traditional Loop over Critical Point Subset
@@ -267,39 +271,46 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     
     #### Start Slider in correct position for subset
     
+    u0 = jnp.where(u0h0, Ulocal[0, 0:1], u0)
     
+    ft = ft.at[inds[-1], :].set(kt*(unlt[inds[-1], :] - u0))
+    
+    #### Do loop
+    # If there are a lot of harmonics, one may want to use a lax loop
+    # expect that it should be fine to unroll the loop for the compiler since 
+    # it is relatively small
+    for outer in range(2):
+        for cind in range(Ncrit):
+            
+            fcurr = jnp.minimum(kt*(unlt[inds[cind], :]-unlt[inds[cind-1], :]) \
+                                + ft[inds[cind-1], :], Fs)
+            
+            ft = ft.at[inds[cind], :].set(jnp.maximum(fcurr, -Fs))
+            
+    inds = jnp.hstack((inds, np.array([Nt])))
+            
     ########################################
     #### Special Loop w/ vectorized for filling in between critical points
     
-    
-    ########################################
-    #### Old version
-    
-    # Do a loop function for each update at index i
-    loop_fun = lambda i,f : _local_jenkins_loop_body(i, f, unlt, kt, Fs)
-    
-    
-    ########################################
-    #### Start slider in desired position
-    
-    # if u0 comes from the zeroth harmonic, pull it from the jax traced 
-    # array rather than the separate input value, which is constant as far as 
-    # gradients are concerned.
-    u0 = jnp.where(u0h0, Ulocal[0, 0:1], u0)
-    
-    # The first evaluation is based on the last entry of ft and therefore 
-    # initialize the last entry of ft based on a linear spring
-    # slip limit does not need to be applied since this just needs to get stuck
-    # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, :].set(kt*(unlt[-1, :] - u0))
-    
-    # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
-    # steady-state
-    for out_ind in range(2):
+    for i in range(Ncrit):
+
+        start = inds[i]+1
+        stop  = inds[i+1] # want to end on the previous index (e.g., this minus 1)
         
-        # This construct must be used otherwise compiling tries writing out
-        # all Nt steps of the loop updates and is excessively slow
-        ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
+        stop = stop + Nt*(stop == 0) # Wrap at end
+    
+        # May need to add logic here for conditional on stop > start
+    
+        ft = ft.at[start:stop].set( \
+                            jnp.minimum(kt*(unlt[start:stop, :]\
+                                            -unlt[start-1, :]) \
+                            + ft[start-1, :], Fs) \
+                                   )
+        
+        ft = ft.at[start:stop].set(jnp.maximum(ft[start:stop], -Fs))
+    
+    ########################################
+    #### Final Conversions
     
     # Convert back into frequency domain
     Flocal = jhutils.get_fourier_coeff(htuple, ft)
