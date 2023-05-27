@@ -172,6 +172,33 @@ def _local_jenkins_loop_body(ind, ft, unlt, kt, Fs):
     
     return ft
  
+def _local_jenkins_loop_body_crit(ind, ft, unlt, kt, Fs, crit):
+    """
+    Function for calculating a single force update for Jenkins. This is
+    constructed as a loop body function for JAX and thus evaluates for a 
+    specific index given the full arrays for the force and displacement 
+    time series.
+
+    Parameters
+    ----------
+    ind : Index that is being updated for this loop step.
+    ft : Array of force values for all time (Nt,)
+    unlt : Displacements for Jenkins for all times (Nt,)
+    kt : Tangential stiffness parameter
+    Fs : Slip Force parameter
+    crit : index of the critical point to always use as history variable
+
+    Returns
+    -------
+    ft : Force array with the entry at ind updated for Jenkins nonlinear force
+
+    """
+    
+    fcurr = jnp.minimum(kt*(unlt[ind, :]-unlt[crit, :]) + ft[crit, :], Fs)
+    
+    ft = ft.at[ind, :].set(jnp.maximum(fcurr, -Fs))
+    
+    return ft
 
 @partial(jax.jit, static_argnums=(3,4,5)) 
 def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
@@ -314,6 +341,21 @@ def _local_aft_jenkins(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # save a single computation since know that index 0 was chosen as a critical
     # point for convenience in indexing
     ft = jax.lax.fori_loop(1, Nt, loop_fun, ft)
+    
+    # 4. 
+    # Run a set of individual loops between critical points to fill in the 
+    # center. Hopefully LAX will realize they can be vectorized.
+    # This is a rough outline of how 4 would be implemented, but fails the test
+    # Also, quick timing indicates this isn't really any faster than option 3. 
+    
+    # for i in range( len(inds)-1 ):
+    #     start = inds[i]+1
+    #     stop  = inds[i+1] # want to end on the previous index (e.g., this minus 1)
+        
+    #     crit_loop_fun = lambda i,f : _local_jenkins_loop_body_crit(i, f, unlt, kt, Fs, inds[i])
+        
+    #     ft = jax.lax.fori_loop(start, stop, crit_loop_fun, ft)
+        
 
     ########################################
     #### Final Conversions
