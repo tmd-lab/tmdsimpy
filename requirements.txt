@@ -7,5 +7,15 @@ unittest
 # for subset of routines using JAX and auto diff 
 "jax[cpu]"
 
+# Examples:
+matplotlib
+
 # MATLAB integration is also required for a single test. You can find instructions for installing MATLAB for python with MATLAB’s documentation. 
 
+# Precise dependencies that were used for testing are listed below. 
+# Python 3.10.11
+# numpy==1.21.5
+# scipy==1.7.3
+# jax[cpu]==0.3.25
+# jaxlib==0.3.25
+# matplotlib==3.5.2
