@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: 'TMDSimPy: Tribomechadynamics Simulations for Python'
+message: >-
+  If you use this software, please cite the relevant papers
+  (see README.md) and the code base using the metadata from
+  this file. 
+type: software
+authors:
+  - given-names: Justin H.
+    family-names: Porter
+    affiliation: Rice University
+  - given-names: Matthew R. W.
+    family-names: Brake
+    affiliation: Rice University
+abstract: >-
+  Simulation tools for nonlinear vibrations with a specific
+  focus on friction and jointed connections.
+license: MIT

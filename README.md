@@ -2,9 +2,17 @@
 
 This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. Files intended for experimental analysis are not included here and can be found elsewhere. Some specific analyses are provided as examples. Specific projects are based in other repositories and use these shared modeling routines as a dependency.
 
-## Acknowledgments
+## Reference
 
-In future - add details for citing the repository and/or relevant papers here.
+If using this code, please cite the relevant journal paper:
+```
+@article{porterTowardsAPredictive2023,
+    title = {Tracking Superharmonic Resonances for Nonlinear Vibration},
+    author = {Justin H. Porter and Matthew R.W. Brake},
+    year = {In Preparation}
+}
+```
+
 
 ## Usage
 
@@ -63,5 +71,36 @@ The JIT versions of the code assume that the same list of harmonics and the same
 
 The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
 
+JAX/JIT examples have been created for Jenkins and Elastic Dry Friction nonlinearities (AFT only). 
+It is not recommended to use the JAX versions for Jenkins since they perform worse than the vectorized Jenkins algorithm for large Nt. A non-JAX implementation of Elastic Dry Friction is not provided and future work will likely exploit JAX for auto diff to decrease development time. 
+It is noted that the traditional AFT algorithm for Jenkins is much faster with JAX/JIT than traditional code.
 
+
+## Acknowledgements and Funding
+
+This material is based upon work
+	supported by the U.S. Department of Energy, Office of
+	Science, Office of Advanced Scientific Computing
+	Research, Department of Energy Computational Science
+	Graduate Fellowship under Award Number(s) DE-SC0021110.
+The authors are thankful for the support of the National
+Science Foundation under Grant Number 1847130.
+
+This report was prepared as an account of
+work sponsored by an agency of the United States
+Government. Neither the United States Government nor
+any agency thereof, nor any of their employees, makes
+any warranty, express or implied, or assumes any legal
+liability or responsibility for the accuracy, completeness,
+or usefulness of any information, apparatus, product, or
+process disclosed, or represents that its use would not
+infringe privately owned rights. Reference herein to any
+specific commercial product, process, or service by trade
+name, trademark, manufacturer, or otherwise does not
+necessarily constitute or imply its endorsement,
+recommendation, or favoring by the United States
+Government or any agency thereof. The views and
+opinions of authors expressed herein do not necessarily
+state or reflect those of the United States Government or
+any agency thereof.
 
