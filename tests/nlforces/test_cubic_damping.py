@@ -102,11 +102,11 @@ class TestCubicDamping(unittest.TestCase):
         # #     cos -> -sin
         # #     sin -> cos
         Fnl_analytical = np.zeros_like(Fnl) 
-        Fnl_analytical[2*Nd+0] = -T[0,0]*( 0.75*calpha[0]*(Q[0,0]*U[Nd+0]*w)**3 )
-        Fnl_analytical[6*Nd+0] = T[0,0]*( 0.25*calpha[0]*(Q[0,0]*U[Nd+0]*w)**3 )
+        Fnl_analytical[2*Nd+0] = -T[0,0]*( 0.75*calpha[0]*(Q[0,0]*U[Nd+0, 0]*w)**3 )
+        Fnl_analytical[6*Nd+0] = T[0,0]*( 0.25*calpha[0]*(Q[0,0]*U[Nd+0, 0]*w)**3 )
         
-        Fnl_analytical[1*Nd+1] = T[1,2]*( 0.75*calpha[2]*(Q[2,1]*U[2*Nd+1]*w)**3 )
-        Fnl_analytical[5*Nd+1] = T[1,2]*( 0.25*calpha[2]*(Q[2,1]*U[2*Nd+1]*w)**3 )
+        Fnl_analytical[1*Nd+1] = T[1,2]*( 0.75*calpha[2]*(Q[2,1]*U[2*Nd+1, 0]*w)**3 )
+        Fnl_analytical[5*Nd+1] = T[1,2]*( 0.25*calpha[2]*(Q[2,1]*U[2*Nd+1, 0]*w)**3 )
         
         analytical_error = np.linalg.norm(Fnl - Fnl_analytical)
         

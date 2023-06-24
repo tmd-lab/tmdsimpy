@@ -1,11 +1,8 @@
 numpy 
 scipy 
 
-# for running test files, not required for utilizing functions or examples
-unittest
-
 # for subset of routines using JAX and auto diff 
-"jax[cpu]"
+jax[cpu]
 
 # Examples:
 matplotlib
@@ -19,3 +16,4 @@ matplotlib
 # jax[cpu]==0.3.25
 # jaxlib==0.3.25
 # matplotlib==3.5.2
+# unittest comes with distribution

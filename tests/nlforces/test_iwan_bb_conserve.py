@@ -182,10 +182,10 @@ class TestIwanBB(unittest.TestCase):
         FnlH_analytical = np.zeros_like(FnlH)
         
         # Cosine Term
-        FnlH_analytical[Nd+0]    = softening_force.kt*U[Nd+0]
+        FnlH_analytical[Nd+0]    = softening_force.kt*U[Nd+0, 0]
         
         # Sine Term
-        FnlH_analytical[2*Nd+1]  = softening_force.kt*U[2*Nd+1] # 1st
+        FnlH_analytical[2*Nd+1]  = softening_force.kt*U[2*Nd+1, 0] # 1st
         
         error =  np.linalg.norm(FnlH - FnlH_analytical)
         
