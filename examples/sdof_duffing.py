@@ -30,6 +30,9 @@ knl = 1 # N/m^3 # Nonlinear Stiffness
 
 ab_damp = [c/m, 0]
 
+# Flag to produce shooting results and compare to HBM (or False=don't do it)
+run_shooting = True
+
 ###############################################################################
 ####### Model Construction                                              #######
 ###############################################################################
@@ -121,6 +124,53 @@ fun = lambda Uw : vib_sys.hbm_res(Uw, fmag*Fl, h)
 XlamP_full = cont_solver.continuation(fun, Uw0, lam0, lam1)
 
 
+###############################################################################
+####### Shooting Calculations                                           #######
+###############################################################################
+
+if run_shooting:
+    
+    
+    lam0_shoot = 0.4
+    
+    Uw0_shoot = np.zeros(2*Ndof+1)
+    
+    Uw0_shoot[:2*Ndof] = Ulin_lam0[0][0:2*Ndof]
+    Uw0_shoot[Ndof:2*Ndof] = lam0_shoot*Uw0_shoot[Ndof:2*Ndof]
+    Uw0_shoot[-1] = lam0_shoot
+    
+    Fl_shoot = Fl[Ndof:3*Ndof] # Cosine and Sine of HBM vector
+    
+    # Initial Solve
+    fun = lambda U : vib_sys.shooting_res(np.hstack((U, lam0_shoot)), Fl_shoot)[0:2]
+
+    # Initial Nonlinear Solution Point
+    X, R, dRdX, sol = solver.nsolve(fun, Uw0_shoot[:-1])
+
+    Uw0_shoot2 = np.hstack((X, lam0_shoot))
+    
+    continue_config_shoot = {'DynamicCtoP': True, 
+                               'TargetNfev' : 10,
+                               'MaxSteps'   : 100,
+                               'dsmin'      : 0.001,
+                               'dsmax'      : 0.1 , # 0.015 for plotting
+                               'verbose'    : 10,
+                               'xtol'       : 1e-9*Uw0_shoot.shape[0], 
+                               'corrector'  : 'Ortho'} # Ortho, Pseudo
+    
+    
+    CtoP = np.array([1, 1/lam0_shoot, 1/lam0_shoot])
+    
+    # Set up an object to do the continuation
+    cont_solver = Continuation(solver, ds0=0.01, CtoP=CtoP, RPtoC=None, config=continue_config_shoot)
+        
+    # Set up a function to pass to the continuation
+    fun = lambda Uw : vib_sys.shooting_res(Uw, Fl_shoot)
+    
+    # Actually solve the continuation problem. 
+    XlamP_shoot = cont_solver.continuation(fun, Uw0_shoot2, lam0_shoot, lam1)
+
+    
 
 ###############################################################################
 ####### Plot Frequency Response (Various)                               #######

@@ -33,6 +33,46 @@ class TestDuffingAFT(unittest.TestCase):
         
         self.rtol_grad = 1e-11 # Relative gradient tolerance
 
+    def test_force_fun(self):
+        """
+        Test the basic force function for cubic stiffness
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        ####################
+        # Simple Mapping to spring displacements
+        Q = np.array([[1.0, 0], \
+                      [-1.0, 1.0], \
+                      [0, 1.0]])
+        
+        # Weighted / integrated mapping back for testing purposes
+        T = np.array([[1.0, 0.25, 0.0], \
+                      [0.0, 0.25, 1.0]])
+        
+        kalpha = np.array([3, 1, 7])
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        X = np.array([2, 3])
+        
+        gold_F = np.array([24.25, 189.25])
+        
+        F,dFdX = duff_force.force(X)
+        
+        
+        self.assertLess(np.linalg.norm(F - gold_F), self.analytical_sol_tol,
+                        'Simple nalytical force is not as expected.')
+        
+        # Check gradient of analytical force
+        fun = lambda X: duff_force.force(X)
+        grad_failed = vutils.check_grad(fun, X, verbose=False, rtol=3*self.rtol_grad)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for simple force function.')
+
     def test_simple_analytical(self):
         """
         First set of test cases. Move the first harmonic and check against 
