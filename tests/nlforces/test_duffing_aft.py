@@ -129,11 +129,11 @@ class TestDuffingAFT(unittest.TestCase):
         # # X^3*cos^3(x) = X^3*( 3/4*cos(x) + 1/4*cos(3x) )
         # # X^3*sin^3(x) = X^3*(3/4*sin(x) - 1/4*sin(3x)
         Fnl_analytical = np.zeros_like(Fnl) 
-        Fnl_analytical[Nd+0] = T[0,0]*( 0.75*kalpha[0]*(Q[0,0]*U[Nd+0])**3 )
-        Fnl_analytical[5*Nd+0] = T[0,0]*( 0.25*kalpha[0]*(Q[0,0]*U[Nd+0])**3 )
+        Fnl_analytical[Nd+0] = T[0,0]*( 0.75*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**3 )
+        Fnl_analytical[5*Nd+0] = T[0,0]*( 0.25*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**3 )
         
-        Fnl_analytical[2*Nd+1] = T[1,2]*( 0.75*kalpha[2]*(Q[2,1]*U[2*Nd+1])**3 )
-        Fnl_analytical[6*Nd+1] = T[1,2]*( -0.25*kalpha[2]*(Q[2,1]*U[2*Nd+1])**3 )
+        Fnl_analytical[2*Nd+1] = T[1,2]*( 0.75*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**3 )
+        Fnl_analytical[6*Nd+1] = T[1,2]*( -0.25*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**3 )
         
         analytical_sol_error = np.linalg.norm(Fnl - Fnl_analytical)
         

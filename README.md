@@ -18,6 +18,20 @@ If using this code, please cite the relevant journal paper:
 
 This repository is intended to be cloned into a repository to provide necessary functions that are used for many different modeling cases.
 
+Installing requirements (it is possible to run many items without jax, but it is included in the requirements to be comprehensive):
+```
+python3 -m pip install --upgrade -r requirements.txt 
+```
+Running tests:
+```
+cd tests
+python3 -m unittest discover
+
+# If jax is installed, also check those tests
+cd jax
+python3 -m unittest discover
+```
+
 
 ## Tests and Examples
 
@@ -34,7 +48,7 @@ All new routines added to this repository should have tests that verify that the
 
 All tests should use the unittest framework. This requires that all tests start with the word "test" in the filename. This allows for easier running of tests and integration with existing tools for continuous testing. Unittest also requires that values be checked using class assertion statements (e.g., self.assertLess()).
 
-Tests written in the unittest framework can be run by navigating to the TESTS folder and running
+Tests written in the unittest framework can be run by navigating to the TESTS folder and running (substitute python3 for python if necessary)
 ```
 python -m unittest discover
 ```
