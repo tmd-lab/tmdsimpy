@@ -465,7 +465,7 @@ class VibrationSystem:
         
         return Xw
         
-    def shooting_res(self, Uw, Fl, Nt=128):
+    def shooting_res(self, Uw, Fl, Nt=128, return_aux=False):
         """
         Residual for shooting calculations
 
@@ -480,6 +480,7 @@ class VibrationSystem:
              size: (2*Ndof,)
         Nt : Number of time steps to use.
             DESCRIPTION. The default is 128.
+        return_aux : flag to return extra outputs (e.g., timeseries and Jacobian)
 
         Returns
         -------
@@ -532,7 +533,20 @@ class VibrationSystem:
         dRdU = Yfinal[2*Ndof:-2*Ndof].reshape(2*Ndof, 2*Ndof) - np.eye(2*Ndof)
         dRdw = Yfinal_dot[:2*Ndof] * (2 * np.pi) * (-1.0 / Uw[-1]**2) + dYfinaldF_dFdw
         
-        return R, dRdU, dRdw
+        
+        if return_aux:
+            
+            monodromy = Yfinal[2*Ndof:-2*Ndof].reshape(2*Ndof, 2*Ndof)
+            
+            y_t = ivp_res['y'][:Ndof, :]
+            ydot_t = ivp_res['y'][Ndof:2*Ndof, :]
+            
+            aux = (monodromy, y_t, ydot_t, ivp_res)
+            
+            return R, dRdU, dRdw, aux
+            
+        else:
+            return R, dRdU, dRdw
     
     
     

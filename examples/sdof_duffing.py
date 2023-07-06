@@ -17,6 +17,7 @@ from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
 import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.shooting_utils as sutils
 
 
 ###############################################################################
@@ -130,8 +131,8 @@ XlamP_full = cont_solver.continuation(fun, Uw0, lam0, lam1)
 
 if run_shooting:
     
-    
-    lam0_shoot = 0.4
+    # lam0_shoot = 0.4 # Mostly follows the 3:1 IR
+    lam0_shoot = 0.8 # Does a good job of the primary resonance in 100 steps
     
     Uw0_shoot = np.zeros(2*Ndof+1)
     
@@ -169,6 +170,13 @@ if run_shooting:
     
     # Actually solve the continuation problem. 
     XlamP_shoot = cont_solver.continuation(fun, Uw0_shoot2, lam0_shoot, lam1)
+    
+    print('Post processing shooting results.')
+    y_shoot, ydot_shoot, stable, max_eig = sutils.postproc_shooting(vib_sys, XlamP_shoot, Fl_shoot, Nt=128)
+    
+    print('Finished post processing shooting.')
+    
+    print('Warning: Shooting and continuation are not well tuned and show some poor behavior.')
 
     
 
@@ -211,6 +219,21 @@ Xmax = np.max(np.abs(Xt), axis=0)
 
 
 plt.plot(XlamP_full[:, -1], Xmax, label='Total Max')
+
+if run_shooting:
+    
+    y_max_stable = y_shoot.max(axis=0)
+    y_max_stable[np.logical_not(stable)] = np.nan
+    
+    y_max_unstable = y_shoot.max(axis=0)
+    y_max_unstable[stable] = np.nan
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_stable, '--', 
+             label='Stable Shooting')
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_unstable, ':', 
+             label='Unstable Shooting')
+    
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((lam0, lam1))
@@ -223,7 +246,17 @@ plt.show()
 phih3 = np.arctan2(XlamP_full[:, 2*3*Ndof+dof], XlamP_full[:, (2*3-1)*Ndof+dof])
 phih1 = np.arctan2(XlamP_full[:, 2*Ndof+dof], XlamP_full[:, Ndof+dof])
 
+
 plt.plot(XlamP_full[:, -1], Xmax, label='Total Max')
+
+if run_shooting:
+
+    plt.plot(XlamP_shoot[:, -1], y_max_stable, '--', 
+             label='Stable Shooting')
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_unstable, ':', 
+             label='Unstable Shooting')
+
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((lam0, 1))
