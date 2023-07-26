@@ -95,7 +95,7 @@ class Iwan4Force(HystereticForce):
                              (R * self.phisliders[:-1]**(self.chi)*delta_phis, \
                               np.atleast_1d(S)) )
         
-        assert self.Q[0] == 1, 'Not tested for simultaneous Iwan elements.'
+        assert self.Q.shape[0] == 1, 'Not tested for simultaneous Iwan elements.'
     
     def init_history(self, unlth0, h=np.array([0])):
         """
