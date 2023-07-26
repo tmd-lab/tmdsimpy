@@ -1,5 +1,6 @@
 import numpy as np
 from . import harmonic_utils as hutils
+from scipy.integrate import solve_ivp
 
 
 class VibrationSystem:
@@ -464,3 +465,161 @@ class VibrationSystem:
         
         return Xw
         
+    def shooting_res(self, Uw, Fl, Nt=128, return_aux=False):
+        """
+        Residual for shooting calculations
+
+        Parameters
+        ----------
+        Uw : Vector of statespace initial states - all displacements, 
+                                                    then all velocities
+                                                    then frequency (rad/s)
+                                                    size: (2*Ndof+1,)
+        Fl : Forcing vector of size 2*Ndofs - first Ndofs are cos forcing. 
+             Second Ndofs are sin forcing
+             size: (2*Ndof,)
+        Nt : Number of time steps to use.
+            DESCRIPTION. The default is 128.
+        return_aux : flag to return extra outputs (e.g., timeseries and Jacobian)
+
+        Returns
+        -------
+        None.
+        
+        Notes: 
+            1. Only supports instantaneous nonlinear forces.
+            2. Implementation also does not support cubic damping
+            3. WARNING: Most instantaneous nonlinear force calculations are 
+                untested since unit tests focused on HBM/AFT.
+
+        """
+        
+        Ndof = self.M.shape[0]
+        
+        # R = np.zeros(2*Ndof)
+        # dRdU = np.zeros(2*Ndof, 2*Ndof)
+        # dRdw = np.zeros(2*Ndof)
+        
+        # Check that only instantaneous force used. 
+        for nlforce in self.nonlinear_forces:
+            force_type = nlforce.nl_force_type()
+            assert force_type == 0, 'Only instantaneous nonlinear forces are' \
+                    + ' supported by this shooting implementation'
+        
+        assert Uw[:-1].shape[0] == 2*Ndof, 'Wrong size input for shooting.'
+                    
+        # Run Time Integration
+        UV_dUVdUV0 = np.hstack((Uw[:-1], np.eye(2*Ndof).reshape(-1), np.zeros(2*Ndof) ))
+        Period = 2*np.pi/Uw[-1]
+        
+        
+        ydotfun = lambda t,y : _shooting_state_space(t, y, self, Fl, Uw[-1])
+    
+        
+        ivp_res = solve_ivp(ydotfun, (0.0, Period), UV_dUVdUV0, 
+                        max_step=Period/Nt,
+                        t_eval=np.array(range(Nt+1))*Period/Nt) 
+        
+        Yfinal = ivp_res['y'][:, -1]
+        Yfinal_dot = ydotfun(Period, Yfinal)
+        
+        # Derivative of the final state w.r.t. the frequency influence on the
+        # external forcing period.
+        dYfinaldF_dFdw = Yfinal[-2*Ndof:]
+        
+        
+        # Prepare Outputs
+        R = Yfinal[:2*Ndof] - Uw[:-1]
+        dRdU = Yfinal[2*Ndof:-2*Ndof].reshape(2*Ndof, 2*Ndof) - np.eye(2*Ndof)
+        dRdw = Yfinal_dot[:2*Ndof] * (2 * np.pi) * (-1.0 / Uw[-1]**2) + dYfinaldF_dFdw
+        
+        
+        if return_aux:
+            
+            monodromy = Yfinal[2*Ndof:-2*Ndof].reshape(2*Ndof, 2*Ndof)
+            
+            y_t = ivp_res['y'][:Ndof, :]
+            ydot_t = ivp_res['y'][Ndof:2*Ndof, :]
+            
+            aux = (monodromy, y_t, ydot_t, ivp_res)
+            
+            return R, dRdU, dRdw, aux
+            
+        else:
+            return R, dRdU, dRdw
+    
+    
+    
+def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
+    """
+    Returns the state space representation time derivative for shooting
+
+    Parameters
+    ----------
+    vib_sys : TYPE
+        DESCRIPTION.
+    U : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    Ndof = vib_sys.M.shape[0]
+    
+    U = UV_dUVdUV0[:Ndof] # Displacement
+    V = UV_dUVdUV0[Ndof:2*Ndof] # Velocity
+    dUVdUV0 = UV_dUVdUV0[2*Ndof:-2*Ndof].reshape(2*Ndof, 2*Ndof)
+    dUVdw = UV_dUVdUV0[-2*Ndof:]
+
+    
+    Fnltot = np.zeros_like(U)
+    dFnldUtot = np.zeros((Ndof, Ndof))
+    
+    # Internal Nonlinear Forces
+    for nlforce in vib_sys.nonlinear_forces:
+        Fnl, dFdU = nlforce.force(U)
+        
+        Fnltot += Fnl
+        dFnldUtot += dFdU
+        
+    # External Forcing
+    Fext = Fl[:Ndof]*np.cos(omega*t) + Fl[Ndof:2*Ndof]*np.sin(omega*t)
+    
+    # State Derivatives
+    Udot = V
+    
+    rhs = -(vib_sys.C @ V + vib_sys.K @ U + Fnl) + Fext
+    Minv = np.linalg.inv(vib_sys.M)
+    Vdot = Minv @ rhs
+    
+    # Time Derivatives of States w.r.t. Initial Conditions
+    # Equation (14) of Second NNM Paper - by Peeters, 2009
+    # g(z) = time derivative vector of states (Udot, Vdot)
+    
+    dg_dz = np.vstack((np.hstack(( np.zeros((Ndof, Ndof)), np.eye(Ndof) )), \
+                      np.hstack(( Minv @ (-vib_sys.K -dFnldUtot), \
+                                  Minv @ (-vib_sys.C))) ))
+        
+    dUVdUV0_dot = dg_dz @ dUVdUV0
+    
+    # The NNM paper does not include external force and the derivative of that 
+    # force w.r.t. frequency of the shooting period. 
+    # These lines add those components
+    dFextdw = -t*Fl[:Ndof]*np.sin(omega*t) + t*Fl[Ndof:2*Ndof]*np.cos(omega*t)
+    
+    dgdF_dFdw = np.hstack((np.zeros(Ndof), Minv @ dFextdw))
+    
+    dgdX_dXdw = dg_dz @ dUVdw
+    
+    # Combined Derivative Vector
+    UV_dUVdUV0_dot = np.hstack((Udot, Vdot, dUVdUV0_dot.reshape(-1), 
+                                dgdF_dFdw + dgdX_dXdw))
+    
+    return UV_dUVdUV0_dot
+    
+    
+    
+    

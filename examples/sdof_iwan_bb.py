@@ -75,7 +75,7 @@ Fl = np.zeros(Nhc*Ndof)
 Fl[1] = 1 # Cosine Forcing at Fundamental Harmonic
 
 # Solution at initial point
-solver = NonlinearSolver
+solver = NonlinearSolver()
 
 fun = lambda U : vib_sys.hbm_res(np.hstack((U, lam0)), fmag*Fl, h)[0:2]
 
@@ -187,7 +187,7 @@ mpl.rcParams['lines.linewidth'] = 3
 mpl.rc('text', usetex=True)
 mpl.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
-mpl.style.use('seaborn-colorblind')
+mpl.style.use('seaborn-v0_8-colorblind')
 
 import matplotlib.pyplot as plt
 plt.rcParams['font.size'] = 14 # Default 10
@@ -211,7 +211,7 @@ plt.xlim((0.26, 0.36))
 plt.ylim((0, 2.75))
 plt.legend()
 
-# plt.savefig('iwanbb_h3_superharmonic.eps', bbox_inches='tight')
+# plt.savefig('iwanbb_h3_superharmonic.png', bbox_inches='tight', dpi=300)
 
 plt.show()
 

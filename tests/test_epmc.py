@@ -34,7 +34,7 @@ from tmdsimpy.nlforces.cubic_damping import CubicDamping
 
 def epmc_cont(vib_sys, a0, a1, h):
     
-    solver = NonlinearSolver 
+    solver = NonlinearSolver()
     
     #### Select Mode of Interest + Initial State
     # eigvals,eigvecs = solver.eigs(vib_sys.K, vib_sys.M)

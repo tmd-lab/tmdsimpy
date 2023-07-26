@@ -36,7 +36,7 @@ class TestSolver(unittest.TestCase):
 
         x0 = np.array([3.5])
 
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
 
         #x = solver.nsolve(fun, x0)
 

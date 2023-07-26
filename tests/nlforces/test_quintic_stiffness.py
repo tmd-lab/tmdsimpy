@@ -92,13 +92,13 @@ class TestQuinticAFT(unittest.TestCase):
         # # X^5*cos^5(x) = X^5*( 10/16*cos(x) + 5/16*cos(3x) + 1/16*cos(5x) )
         # # X^5*sin^5(x) = X^5*( 10/16*sin(x) - 5/16*sin(3x) + 1/16*sin(5x) )
         Fnl_analytical = np.zeros_like(Fnl) 
-        Fnl_analytical[Nd+0] = T[0,0]*( 10/16*kalpha[0]*(Q[0,0]*U[Nd+0])**5 )
-        Fnl_analytical[5*Nd+0] = T[0,0]*( 5/16*kalpha[0]*(Q[0,0]*U[Nd+0])**5 )
-        Fnl_analytical[9*Nd+0] = T[0,0]*( 1/16*kalpha[0]*(Q[0,0]*U[Nd+0])**5 )
+        Fnl_analytical[Nd+0] = T[0,0]*( 10/16*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**5 )
+        Fnl_analytical[5*Nd+0] = T[0,0]*( 5/16*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**5 )
+        Fnl_analytical[9*Nd+0] = T[0,0]*( 1/16*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**5 )
         
-        Fnl_analytical[2*Nd+1] = T[1,2]*( 10/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
-        Fnl_analytical[6*Nd+1] = T[1,2]*( -5/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
-        Fnl_analytical[10*Nd+1] = T[1,2]*( 1/16*kalpha[2]*(Q[2,1]*U[2*Nd+1])**5 )
+        Fnl_analytical[2*Nd+1] = T[1,2]*( 10/16*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**5 )
+        Fnl_analytical[6*Nd+1] = T[1,2]*( -5/16*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**5 )
+        Fnl_analytical[10*Nd+1] = T[1,2]*( 1/16*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**5 )
         
         
         error = np.linalg.norm(Fnl - Fnl_analytical)

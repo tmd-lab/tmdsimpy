@@ -144,7 +144,7 @@ class TestHBMBase(unittest.TestCase):
         #####################################
         # Setup
         
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
         
         h = np.array(range(3+1))
         Nhc = hutils.Nhc(h)

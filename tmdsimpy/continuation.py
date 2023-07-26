@@ -1,5 +1,4 @@
 import numpy as np
-# from solvers import NonlinearSolver
 from scipy.linalg import svd
 
 class Continuation:

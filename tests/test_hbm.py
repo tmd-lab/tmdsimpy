@@ -87,7 +87,7 @@ class TestHarmonicBalance(unittest.TestCase):
         vib_sys = VibrationSystem(M, K, C)
         
         # Verify Mass and Stiffness Matrices are Appropriate
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
         
         # lam,V = solver.eigs(M) # M must be positive definite.
         # lam,V = solver.eigs(K) # K should be at least positive semi-definite.
@@ -228,7 +228,7 @@ class TestHarmonicBalance(unittest.TestCase):
         h, UwMisc, ab_damp = self.baseline_data
 
         
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
         lam,V = solver.eigs(vib_sys.K, vib_sys.M)
         
         
@@ -300,13 +300,11 @@ class TestHarmonicBalance(unittest.TestCase):
         
         vib_sys = self.vib_sys2
         h, UwMisc, ab_damp = self.baseline_data
-        
-        solver = NonlinearSolver
-        
+                
         ###################
         # Initial Linear Details
         
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
         lam,V = solver.eigs(vib_sys.K, vib_sys.M)
         
         

@@ -33,6 +33,46 @@ class TestDuffingAFT(unittest.TestCase):
         
         self.rtol_grad = 1e-11 # Relative gradient tolerance
 
+    def test_force_fun(self):
+        """
+        Test the basic force function for cubic stiffness
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        ####################
+        # Simple Mapping to spring displacements
+        Q = np.array([[1.0, 0], \
+                      [-1.0, 1.0], \
+                      [0, 1.0]])
+        
+        # Weighted / integrated mapping back for testing purposes
+        T = np.array([[1.0, 0.25, 0.0], \
+                      [0.0, 0.25, 1.0]])
+        
+        kalpha = np.array([3, 1, 7])
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        X = np.array([2, 3])
+        
+        gold_F = np.array([24.25, 189.25])
+        
+        F,dFdX = duff_force.force(X)
+        
+        
+        self.assertLess(np.linalg.norm(F - gold_F), self.analytical_sol_tol,
+                        'Simple nalytical force is not as expected.')
+        
+        # Check gradient of analytical force
+        fun = lambda X: duff_force.force(X)
+        grad_failed = vutils.check_grad(fun, X, verbose=False, rtol=3*self.rtol_grad)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for simple force function.')
+
     def test_simple_analytical(self):
         """
         First set of test cases. Move the first harmonic and check against 
@@ -89,11 +129,11 @@ class TestDuffingAFT(unittest.TestCase):
         # # X^3*cos^3(x) = X^3*( 3/4*cos(x) + 1/4*cos(3x) )
         # # X^3*sin^3(x) = X^3*(3/4*sin(x) - 1/4*sin(3x)
         Fnl_analytical = np.zeros_like(Fnl) 
-        Fnl_analytical[Nd+0] = T[0,0]*( 0.75*kalpha[0]*(Q[0,0]*U[Nd+0])**3 )
-        Fnl_analytical[5*Nd+0] = T[0,0]*( 0.25*kalpha[0]*(Q[0,0]*U[Nd+0])**3 )
+        Fnl_analytical[Nd+0] = T[0,0]*( 0.75*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**3 )
+        Fnl_analytical[5*Nd+0] = T[0,0]*( 0.25*kalpha[0]*(Q[0,0]*U[Nd+0, 0])**3 )
         
-        Fnl_analytical[2*Nd+1] = T[1,2]*( 0.75*kalpha[2]*(Q[2,1]*U[2*Nd+1])**3 )
-        Fnl_analytical[6*Nd+1] = T[1,2]*( -0.25*kalpha[2]*(Q[2,1]*U[2*Nd+1])**3 )
+        Fnl_analytical[2*Nd+1] = T[1,2]*( 0.75*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**3 )
+        Fnl_analytical[6*Nd+1] = T[1,2]*( -0.25*kalpha[2]*(Q[2,1]*U[2*Nd+1, 0])**3 )
         
         analytical_sol_error = np.linalg.norm(Fnl - Fnl_analytical)
         

@@ -19,7 +19,7 @@ class NonlinearSolver:
         """
         pass
     
-    def nsolve(fun, X0, verbose=True, xtol=None):
+    def nsolve(self, fun, X0, verbose=True, xtol=None):
         
         if xtol is None:
             xtol = 1e-6*X0.shape[0]
@@ -43,7 +43,7 @@ class NonlinearSolver:
         
         return X, R, dRdX, sol
     
-    def eigs(K, M=None, subset_by_index=[0, 2]):
+    def eigs(self, K, M=None, subset_by_index=[0, 2]):
         
         subset_by_index[1] = min(subset_by_index[1], K.shape[0]-1)
         

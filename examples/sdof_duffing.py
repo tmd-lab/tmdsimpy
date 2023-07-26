@@ -17,6 +17,7 @@ from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
 import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.shooting_utils as sutils
 
 
 ###############################################################################
@@ -29,6 +30,9 @@ k = 1 # N/m
 knl = 1 # N/m^3 # Nonlinear Stiffness
 
 ab_damp = [c/m, 0]
+
+# Flag to produce shooting results and compare to HBM (or False=don't do it)
+run_shooting = True
 
 ###############################################################################
 ####### Model Construction                                              #######
@@ -74,7 +78,7 @@ Fl = np.zeros(Nhc*Ndof)
 Fl[1] = 1 # Cosine Forcing at Fundamental Harmonic
 
 # Solution at initial point
-solver = NonlinearSolver
+solver = NonlinearSolver()
 
 fun = lambda U : vib_sys.hbm_res(np.hstack((U, lam0)), fmag*Fl, h)[0:2]
 
@@ -121,6 +125,60 @@ fun = lambda Uw : vib_sys.hbm_res(Uw, fmag*Fl, h)
 XlamP_full = cont_solver.continuation(fun, Uw0, lam0, lam1)
 
 
+###############################################################################
+####### Shooting Calculations                                           #######
+###############################################################################
+
+if run_shooting:
+    
+    # lam0_shoot = 0.4 # Mostly follows the 3:1 IR
+    lam0_shoot = 0.8 # Does a good job of the primary resonance in 100 steps
+    
+    Uw0_shoot = np.zeros(2*Ndof+1)
+    
+    Uw0_shoot[:2*Ndof] = Ulin_lam0[0][0:2*Ndof]
+    Uw0_shoot[Ndof:2*Ndof] = lam0_shoot*Uw0_shoot[Ndof:2*Ndof]
+    Uw0_shoot[-1] = lam0_shoot
+    
+    Fl_shoot = Fl[Ndof:3*Ndof] # Cosine and Sine of HBM vector
+    
+    # Initial Solve
+    fun = lambda U : vib_sys.shooting_res(np.hstack((U, lam0_shoot)), Fl_shoot)[0:2]
+
+    # Initial Nonlinear Solution Point
+    X, R, dRdX, sol = solver.nsolve(fun, Uw0_shoot[:-1])
+
+    Uw0_shoot2 = np.hstack((X, lam0_shoot))
+    
+    continue_config_shoot = {'DynamicCtoP': True, 
+                               'TargetNfev' : 10,
+                               'MaxSteps'   : 100,
+                               'dsmin'      : 0.001,
+                               'dsmax'      : 0.1 , # 0.015 for plotting
+                               'verbose'    : 10,
+                               'xtol'       : 1e-9*Uw0_shoot.shape[0], 
+                               'corrector'  : 'Ortho'} # Ortho, Pseudo
+    
+    
+    CtoP = np.array([1, 1/lam0_shoot, 1/lam0_shoot])
+    
+    # Set up an object to do the continuation
+    cont_solver = Continuation(solver, ds0=0.01, CtoP=CtoP, RPtoC=None, config=continue_config_shoot)
+        
+    # Set up a function to pass to the continuation
+    fun = lambda Uw : vib_sys.shooting_res(Uw, Fl_shoot)
+    
+    # Actually solve the continuation problem. 
+    XlamP_shoot = cont_solver.continuation(fun, Uw0_shoot2, lam0_shoot, lam1)
+    
+    print('Post processing shooting results.')
+    y_shoot, ydot_shoot, stable, max_eig = sutils.postproc_shooting(vib_sys, XlamP_shoot, Fl_shoot, Nt=128)
+    
+    print('Finished post processing shooting.')
+    
+    print('Warning: Shooting and continuation are not well tuned and show some poor behavior.')
+
+    
 
 ###############################################################################
 ####### Plot Frequency Response (Various)                               #######
@@ -161,6 +219,21 @@ Xmax = np.max(np.abs(Xt), axis=0)
 
 
 plt.plot(XlamP_full[:, -1], Xmax, label='Total Max')
+
+if run_shooting:
+    
+    y_max_stable = y_shoot.max(axis=0)
+    y_max_stable[np.logical_not(stable)] = np.nan
+    
+    y_max_unstable = y_shoot.max(axis=0)
+    y_max_unstable[stable] = np.nan
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_stable, '--', 
+             label='Stable Shooting')
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_unstable, ':', 
+             label='Unstable Shooting')
+    
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((lam0, lam1))
@@ -173,7 +246,17 @@ plt.show()
 phih3 = np.arctan2(XlamP_full[:, 2*3*Ndof+dof], XlamP_full[:, (2*3-1)*Ndof+dof])
 phih1 = np.arctan2(XlamP_full[:, 2*Ndof+dof], XlamP_full[:, Ndof+dof])
 
+
 plt.plot(XlamP_full[:, -1], Xmax, label='Total Max')
+
+if run_shooting:
+
+    plt.plot(XlamP_shoot[:, -1], y_max_stable, '--', 
+             label='Stable Shooting')
+    
+    plt.plot(XlamP_shoot[:, -1], y_max_unstable, ':', 
+             label='Unstable Shooting')
+
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((lam0, 1))
