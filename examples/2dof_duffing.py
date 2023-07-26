@@ -74,7 +74,7 @@ Fl = np.zeros(Nhc*Ndof)
 Fl[2*Ndof] = 1 # Sine Forcing at Fundamental Harmonic on first DOF
 
 # Solution at initial point
-solver = NonlinearSolver
+solver = NonlinearSolver()
 
 fun = lambda U : vib_sys.hbm_res(np.hstack((U, lam0)), fmag*Fl, h)[0:2]
 

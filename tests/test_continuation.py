@@ -192,7 +192,7 @@ class TestContinuation(unittest.TestCase):
         vib_sys = VibrationSystem(M, K, C)
         
         # Verify Mass and Stiffness Matrices are Appropriate
-        solver = NonlinearSolver
+        solver = NonlinearSolver()
         
         # lam,V = solver.eigs(M) # M must be positive definite.
         # lam,V = solver.eigs(K) # K should be at least positive semi-definite.

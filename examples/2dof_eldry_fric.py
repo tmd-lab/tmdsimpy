@@ -90,7 +90,7 @@ Ndof = M_mat.shape[0]
 Fl = np.zeros(Nhc*Ndof)
 
 # Solution at initial point
-solver = NonlinearSolver
+solver = NonlinearSolver()
 
 continue_config = {'DynamicCtoP': True, 
                    'TargetNfev' : 200,
