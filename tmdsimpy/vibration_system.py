@@ -549,6 +549,105 @@ class VibrationSystem:
             return R, dRdU, dRdw
     
     
+    def vprnm_res(self, UwF, h, rhi, Fl, Nt=128, aft_tol=1e-7):
+        """
+        Function implements a residual option for Variable Phase Resonance 
+        Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems.
+        
+        Parameters
+        ----------
+        UwF : Vector of Displacements, Frequency, Force Magnitude scaling of Fl
+        h : Vector of harmonics to include
+        rhi : index in h of higher harmonic in the superharmonic resonance 
+        Fl : external force direction experienced by system 
+                (to be scaled by UwF[-1])
+        Nt : Number of AFT Time steps
+            DESCRIPTION. The default is 128.
+        aft_tol : AFT Tolerance
+            DESCRIPTION. The default is 1e-7.
+
+        Returns
+        -------
+        R : Residual
+        dRdUw : Derivative w.r.t. Uw
+        dRdF : Derivative vector w.r.t. F
+
+        """
+        
+        #############
+        # Initialization
+        
+        # Initialize output shapes
+        R = np.zeros_like(UwF[:-1])
+        dRdUw = np.zeros((R.shape[0], R.shape[0]))
+        dRdF = np.zeros_like(R)
+        
+        # Harmonic indices
+        Nhc = hutils.Nhc(h)
+        Ndof = self.M.shape[0]
+        rhi_index = hutils.Nhc(h[:rhi]) # the index of the first rhi harmonic component
+        
+        
+        #############
+        # Baseline HBM for first set of Equations
+        
+        # Evaluate the N Harmonic Balance Equations
+        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(UwF[:-1], UwF[-1]*Fl, h, Nt=Nt, aft_tol=aft_tol)
+        
+        #############
+        # VPRNM Equation
+        
+        # Eliminate higher harmonics to determine Fbroad
+        Uw_fundamental = np.copy(UwF[:-1])
+        Uw_fundamental[Ndof*rhi_index:-1] = 0.0 # remove higher harmonics
+        
+        # Evaluate the special case of the nonlinear forces here
+        Fint, dFintdU, dFintdw = self.total_aft(Uw_fundamental[:-1], 
+                                                Uw_fundamental[-1], 
+                                                h, Nt=Nt, aft_tol=aft_tol)
+            
+            
+        # Excitation of rhi acting as an external force
+        Frhi = -Fint[Ndof*rhi_index:Ndof*(rhi_index+2)]
+    
+        # Preserve derivative info w.r.t. harmonics up to rhi - 1
+        dFrhidU01 = -dFintdU[Ndof*rhi_index:Ndof*(rhi_index+2), 0:Ndof*rhi_index] 
+        
+        dFrhidw = -dFintdw[Ndof*rhi_index:Ndof*(rhi_index+2)]
+        
+        # Normalize the force vector to be of unit length
+        Fnorm = np.sqrt(np.sum(Frhi**2))
+        
+        #############
+        # Assemble Full Gradient and Residual
+        
+        # Add Orthogonality constrait using Frhi 
+        # (harmonic rhi orthogonal to forcing for resonance)
+        R = np.hstack((Rhbm, (Frhi @ UwF[Ndof*rhi_index:Ndof*(rhi_index+2)])/Fnorm))
+        dRdUw[:Ndof*Nhc, :Ndof*Nhc] = dRhbmdU
+        dRdUw[:Ndof*Nhc, -1]   = dRhbmdw
+                
+        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
+        
+        dRdUw[-1, :Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / Fnorm \
+                    - (Frhi @ Xrhi) / Fnorm**3 * (dFrhidU01.T @ Frhi)
+
+        dRdUw[-1, Ndof*rhi_index:Ndof*(rhi_index+2)] = Frhi / Fnorm
+        
+        dRdUw[-1, -1] = (dFrhidw @ Xrhi) / Fnorm \
+                    - (Frhi @ Xrhi) / Fnorm**3 * (dFrhidw @ Frhi)
+        
+        # negative since HBM is internal minus external force
+        dRdF[:Fl.shape[0]] = -Fl
+        
+        
+        # Return outputs include those needed for arclength equation        
+        return R, dRdUw, dRdF
+    
+    
+    
+    
+    
     
 def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
     """
