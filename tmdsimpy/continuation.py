@@ -77,7 +77,8 @@ class Continuation:
                         'xtol'    : None, 
                         'corrector': 'Ortho', # Psuedo or Ortho
                         'FracLamList' : [], # List of vectors/numbers to multiply predictor by
-                        'backtrackStop': np.inf # Limit in how much backtracking past the start is allowed.
+                        'backtrackStop': np.inf, # Limit in how much backtracking past the start is allowed.
+                        'MaxIncrease': 1.2 # maximum factor that the step can be increased by after 1 step.
                         }
         
         
@@ -363,7 +364,8 @@ class Continuation:
                       ' ds=', ds, ' and nfev=', sol['nfev'])
             
             # Heuristic For updating ds
-            ds = ds * self.config['TargetNfev'] / sol['nfev']
+            ds = ds * min(self.config['TargetNfev'] / sol['nfev'], 
+                          self.config['MaxIncrease'])
             
             ds = min(max(ds, self.config['dsmin']), self.config['dsmax'])
             
