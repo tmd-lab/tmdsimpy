@@ -63,11 +63,12 @@ vib_sys.add_nl_force(duff_force)
 ###############################################################################
 
 # Curve Parameters
-h_max = 8 # 8 is consistent with the PRNM Paper, maximum number of super harmonics
+h_max = 12 # 8 is consistent with the PRNM Paper, maximum number of super harmonics
 h = np.array(range(h_max+1))
 fmag = 1 #N
 lam0 = 0.01 # Starting Frequency
 lam1 = 10 #lam1 = 10 to recreate PRNM Paper. (Ending Frequency)
+Nt = 128 # get reasonable results with 128
 
 # Setup
 Ndof = 1
@@ -80,7 +81,7 @@ Fl[1] = 1 # Cosine Forcing at Fundamental Harmonic
 # Solution at initial point
 solver = NonlinearSolver()
 
-fun = lambda U : vib_sys.hbm_res(np.hstack((U, lam0)), fmag*Fl, h)[0:2]
+fun = lambda U : vib_sys.hbm_res(np.hstack((U, lam0)), fmag*Fl, h, Nt=Nt)[0:2]
 
 # Initial Linear Guess
 Ulin_lam0 = vib_sys.linear_frf(np.array([lam0]), Fl[Ndof:2*Ndof], solver, neigs=1)
@@ -119,7 +120,7 @@ RPtoC = 1/np.max(np.abs(np.diag(dRdXC)))
 cont_solver = Continuation(solver, ds0=0.01, CtoP=CtoP, RPtoC=RPtoC, config=continue_config)
 
 # Set up a function to pass to the continuation
-fun = lambda Uw : vib_sys.hbm_res(Uw, fmag*Fl, h)
+fun = lambda Uw : vib_sys.hbm_res(Uw, fmag*Fl, h, Nt=Nt)
 
 # Actually solve the continuation problem. 
 XlamP_full = cont_solver.continuation(fun, Uw0, lam0, lam1)
@@ -278,6 +279,55 @@ plt.xlim((lam0, lam1))
 plt.legend()
 plt.show()
 
+
+
+###############################################################################
+####### Plot Frequency Response 3:1 Decomposition                       #######
+###############################################################################
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+mpl.rcParams['lines.linewidth'] = 2
+plt.rcParams['figure.dpi'] = 300
+plt.rcParams['savefig.dpi'] = 300
+
+plt.rcParams['font.size'] = 16 # Default 10
+
+mpl.rc('text', usetex=True)
+mpl.rc('text.latex', preamble=r'\usepackage{amsmath}')
+
+dof = 0 # SDOF, can only do dof=0 here.
+
+# Maximum Displacement Form of Response
+Xt = hutils.time_series_deriv(128, h, XlamP_full[:,  :-1].T, 0)
+Xmax = np.max(np.abs(Xt), axis=0)
+
+# Harmonic Amplitude Responses
+x1h1mag = np.sqrt(XlamP_full[:, Ndof+dof]**2 + XlamP_full[:, 2*Ndof+dof]**2)
+if h_max >= 3:
+    x1h3mag = np.sqrt(XlamP_full[:, 5*Ndof+dof]**2 + XlamP_full[:, 5*Ndof+Ndof+dof]**2)
+
+
+plt.plot(XlamP_full[:, -1], Xmax, '-', color='0.0', label='Total Max')
+
+plt.plot(XlamP_full[:, -1], x1h1mag, '--', color='#0072B2', label='Harmonic 1')
+# color = '0.4' or '#0072B2' 
+
+if h_max >= 3:
+    plt.plot(XlamP_full[:, -1], x1h3mag, '-.', color='#D55E00', label='Harmonic 3')
+    # color = '0.6' or '#D55E00'
+    
+ax = plt.gca()
+ax.tick_params(bottom=True, top=True, left=True, right=True,direction="in")
+
+plt.ylabel('Amplitude [m]')
+plt.xlabel('Forcing Frequency [rad/s]')
+plt.xlim((0.345, 0.63))
+plt.ylim((0.0, 1.6))
+plt.legend(framealpha=1.0, frameon=False)
+plt.savefig('duffing_superharmonic.eps', bbox_inches='tight')
+plt.show()
 
 
 ###############################################################################
