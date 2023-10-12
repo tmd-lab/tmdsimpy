@@ -7,6 +7,9 @@ jax[cpu]
 # Examples:
 matplotlib
 
+# Rough Contact Tests (reference saved expected outputs from previous project version)
+pyyaml
+
 # MATLAB integration is also required for a single test. You can find instructions for installing MATLAB for python with MATLAB’s documentation. 
 
 # Precise dependencies that were used for testing are listed below. 
