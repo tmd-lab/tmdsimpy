@@ -25,11 +25,11 @@ from functools import partial
 
 # Imports of Custom Functions and Classes
 from ... import harmonic_utils as hutils
-from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
-from ...nlforces.nonlinear_force import NonlinearForce
+from ....jax import harmonic_utils as jhutils # Jax version of harmonic utils
+from ....nlforces.nonlinear_force import NonlinearForce
 
 # Import of functions stored in a different file
-import _asperity_functions as asp_funs
+from . import _asperity_functions as asp_funs
 
 
 class RoughContactFriction(NonlinearForce):
@@ -99,7 +99,7 @@ class RoughContactFriction(NonlinearForce):
         C = 1.295*np.exp(0.736*self.poisson);
         
         # displacement of one sphere against a rigid flat to cause yielding.
-        delta_y1s = (np.pi*C*self.sys/(2*(2*self.Estar)))^2*(2*self.Re); 
+        delta_y1s = (np.pi*C*self.sys/(2*(2*self.Estar)))**2*(2*self.Re); 
         
         self.delta_y = delta_y1s*2
         
@@ -233,10 +233,10 @@ def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     """
     
     # Recover deltam for each asperity based on previous maximum displacement
-    deltam = unmax - meso_gap - gap_weights
+    deltam = unmax - meso_gap - gaps
     
     # Calculate normal displacement of each aspertiy
-    un = uxyn[-1] - meso_gap - gap_weights
+    un = uxyn[-1] - meso_gap - gaps
 
     fn_curr, a, deltabar, Rebar = asp_funs._normal_asperity_general(un, deltam, Fm_prev, 
                                  Re, Possion, Estar, Emod, Etan, delta_y, Sys)

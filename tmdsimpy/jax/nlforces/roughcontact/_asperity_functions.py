@@ -169,8 +169,9 @@ def _normal_asperity_unloading(un, deltam, Fm, Re, Estar):
     deltabar = deltam*(1 - Fm/(4/3*Estar*jnp.sqrt(Re)*deltam**1.5))
         
     pos_un = jnp.where((un-deltabar)>=0, x=(un-deltabar), y=0)
+    pos_deltam = jnp.where((deltam-deltabar)>=0, x=(deltam-deltabar), y=0)
     
-    Rebar = Fm**2/( (4/3*Estar)**2 * (pos_un)**3)
+    Rebar = Fm**2/( (4/3*Estar)**2 * (pos_deltam)**3)
     
     a = jnp.sqrt(Rebar*pos_un)
     
@@ -181,7 +182,7 @@ def _normal_asperity_unloading(un, deltam, Fm, Re, Estar):
     return fn, a, deltabar, Rebar
 
 
-@partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9))  # want to compile larger chunks
+# @partial(jax.jit, static_argnums=(3, 4, 5, 6, 7, 8, 9))  # want to compile larger chunks
 def _normal_asperity_general(un, deltam, Fm, 
                              Re, Possion, Estar, Emod, Etan, delta_y, Sys):
     """
@@ -224,7 +225,7 @@ def _normal_asperity_general(un, deltam, Fm,
                                                             Fm, Re, Estar)
     
     # Split Elastic v. Elastic Unloading After Plasticity
-    elastic_flag = jnp.logical_and(un>1.9*delta_y, deltam<1.9*delta_y)
+    elastic_flag = jnp.logical_and(un<1.9*delta_y, deltam<1.9*delta_y)
     
     fn       = jnp.where(elastic_flag, x=fn_el,       y=fn_pu)
     a        = jnp.where(elastic_flag, x=a_el,        y=a_pu)
@@ -235,12 +236,13 @@ def _normal_asperity_general(un, deltam, Fm,
     # Strictly greater because want the unloading gradient if recall at the 
     # same displacement - this gives a more consistent linear eigenanalysis
     # about the prestressed state.
-    yielding_flag = un > deltam
+    yielding_flag = jnp.logical_and(un>deltam, un>1.9*delta_y)
     
     fn       = jnp.where(yielding_flag, x=fn_pl,       y=fn)
     a        = jnp.where(yielding_flag, x=a_pl,        y=a)
     deltabar = jnp.where(yielding_flag, x=deltabar_pl, y=deltabar)
     Rebar    = jnp.where(yielding_flag, x=Rebar_pl,    y=Rebar)
     
+    # import pdb; pdb.set_trace()
     
     return fn, a, deltabar, Rebar
