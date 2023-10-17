@@ -157,14 +157,61 @@ class TestRoughContact(unittest.TestCase):
                                  'Incorrect Gradient w.r.t. Uxyn, Asperity Model: {}, load index: {}'.format(ind, j))
                 
                 # Update history
-                F, dFdX = model.force(uxyn, update_hist=True)
+                F, dFdX, aux = model.force(uxyn, update_hist=True, return_aux=True)
+                new_contact_rad = aux[3]
+                
+                self.assertLessEqual(np.abs(new_contact_rad - contact_rad[j]), 
+                                     np.abs(contact_rad[j])*self.rel_force_tol, 
+                                     'Asperity Model: {}, load index: {}'.format(ind, j))
+                
                 
             
-        
-        
     def test_two_normal_asp(self):
-        pass
+        """
+        Test vectorized version of two asperities with normal contact
+
+        Returns
+        -------
+        None.
+
+        """
         
+        model = self.two_asp_model
         
+        model.init_history()
+        
+        un = self.two_asp_disp
+        fn = self.two_asp_force
+        
+        for j in range(len(un)):
+            
+            # Evaluate Force
+            uxyn = np.zeros((3))
+            uxyn[-1] = un[j]
+            
+            F, dFdX = model.force(uxyn, update_hist=False)
+            
+            # if j ==4:
+            #     import pdb; pdb.set_trace()
+            
+            self.assertLessEqual(np.abs(F[-1] - fn[j]), 
+                                 np.abs(fn[j])*self.rel_force_tol, 
+                                 'Two Asperity Model, load index: {}'.format(j))
+            
+            # Verify Gradient
+            fun = lambda X : model.force(X, update_hist=False)
+            
+            grad_failed = vutils.check_grad(fun, uxyn, verbose=False, 
+                                        atol=self.atol_grad,
+                                        rtol=self.rtol_grad,
+                                        h=1e-5*un[-1])
+            
+            self.assertFalse(grad_failed, 
+                             'Incorrect Gradient w.r.t. Uxyn, Two Asperity Model, load index: {}'.format(j))
+            
+            # Update history
+            F, dFdX = model.force(uxyn, update_hist=True)
+            
+            
 if __name__ == '__main__':
     unittest.main()

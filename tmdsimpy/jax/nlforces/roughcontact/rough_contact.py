@@ -130,7 +130,7 @@ class RoughContactFriction(NonlinearForce):
         self.Fm_prev = Fm_curr
         
     
-    def force(self, X, update_hist=False):
+    def force(self, X, update_hist=False, return_aux=False):
         """
         Static Force Evaluation
         
@@ -149,6 +149,7 @@ class RoughContactFriction(NonlinearForce):
             DESCRIPTION.
         update_hist : TYPE, optional
             DESCRIPTION. The default is False.
+        return_aux : flag to return extra results about the simulation (aux)
 
         Returns
         -------
@@ -156,6 +157,11 @@ class RoughContactFriction(NonlinearForce):
             DESCRIPTION.
         dFdX : TYPE
             DESCRIPTION.
+        aux : Tuple of extra results includes (Fm_prev, deltabar, Rebar, a)
+                Fm_prev : previous maximum normal force per asperity
+                deltabar : permanent deformation displacement of each asperity
+                Rebar : flattened (new) radius of each asperity
+                a : radius of contact area of each asperity.
 
         """
         uxyn = self.Q @ X
@@ -179,12 +185,15 @@ class RoughContactFriction(NonlinearForce):
         if update_hist:
             self.update_history(uxyn, Fm_curr)
             
-        
-        return F, dFdX
+        if return_aux:
+            return F, dFdX, aux[1:]
+            
+        else:
+            return F, dFdX
     
     
     
-@partial(jax.jit, static_argnums=(7, 8, 9, 10, 11, 12, 13)) 
+# @partial(jax.jit, static_argnums=(7, 8, 9, 10, 11, 12, 13)) 
 def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
                   Re, Possion, Estar, Emod, Etan, delta_y, Sys):
     """
@@ -250,7 +259,7 @@ def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     
     # Extra outputs
     #   includes force so have the undifferentiated force when calling jax.jacfwd
-    aux = (fxyn, Fm_prev, deltabar, Rebar)
+    aux = (fxyn, Fm_prev, deltabar, Rebar, a)
     
     return fxyn, aux
 
