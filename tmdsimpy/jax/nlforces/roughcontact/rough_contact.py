@@ -123,11 +123,15 @@ class RoughContactFriction(NonlinearForce):
         
         self.unmax = 0
         self.Fm_prev = np.zeros_like(self.gap_weights)
+        self.fxy0 = np.zeros((self.gap_weights.shape[0], 2))
+        self.uxyn0 = np.zeros(3)
     
-    def update_history(self, uxyn, Fm_curr):
+    def update_history(self, uxyn, Fm_curr, fxy_curr):
         
         self.unmax = np.maximum(uxyn[-1], self.unmax)
         self.Fm_prev = Fm_curr
+        self.fxy0 = fxy_curr
+        self.uxyn0 = uxyn
         
     
     def force(self, X, update_hist=False, return_aux=False):
@@ -167,15 +171,17 @@ class RoughContactFriction(NonlinearForce):
         uxyn = self.Q @ X
         
         # Local Force evaluation based on unl
-        dfnldunl, fnl, aux = _static_force_grad(uxyn, self.unmax, self.Fm_prev, 
+        dfnldunl, fnl, aux = _static_force_grad(uxyn, self.uxyn0, self.fxy0, 
+                                            self.unmax, self.Fm_prev, 
                                             self.mu, self.meso_gap, self.gaps, 
                                             self.gap_weights, self.Re, 
                                             self.poisson, self.Estar, 
                                             self.elastic_mod, 
                                             self.tangent_mod, self.delta_y, 
-                                            self.sys)
+                                            self.sys, self.Gstar)
         
         Fm_curr = aux[1]
+        fxy_curr = aux[2]
         
         # Convert Back to Physical
         F = self.T @ fnl
@@ -183,7 +189,7 @@ class RoughContactFriction(NonlinearForce):
         dFdX = self.T @ dfnldunl @ self.Q
         
         if update_hist:
-            self.update_history(uxyn, Fm_curr)
+            self.update_history(uxyn, Fm_curr, fxy_curr)
             
         if return_aux:
             return F, dFdX, aux[1:]
@@ -194,8 +200,8 @@ class RoughContactFriction(NonlinearForce):
     
     
 # @partial(jax.jit, static_argnums=(7, 8, 9, 10, 11, 12, 13)) 
-def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
-                  Re, Possion, Estar, Emod, Etan, delta_y, Sys):
+def _static_force(uxyn, uxyn0, fxy0, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
+                  Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar):
     """
     Calculates the static Rough Contact Force between two surfaces at a single
     quadrature point of the FEM model.
@@ -211,6 +217,8 @@ def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     ----------
     uxyn : Displacements in x,y,n directions at point. normal is positive into 
             surface
+    uxyn : Displacements in x,y,n directions at previous instant
+    fxy0 : Previous tangential forces for each asperity (Nasp, 2)
     unmax : Maximum previous displacement in normal direction at point (not 
                                                         including this step)
     Fm_prev : Previous maximum asperity contact forces for each asperity 
@@ -228,6 +236,7 @@ def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     Etan : Hardening modulus for plasticity regime
     delta_y : Displacement of asperities that causes yielding to occur
     Sys : Yield strength of asperities
+    Gstar : Combined shear modulus used for Mindlin tangential contact stiffness
 
     Returns
     -------
@@ -250,22 +259,25 @@ def _static_force(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     fn_curr, a, deltabar, Rebar = asp_funs._normal_asperity_general(un, deltam, Fm_prev, 
                                  Re, Possion, Estar, Emod, Etan, delta_y, Sys)
     
+    fxy_curr = asp_funs._tangential_asperity(uxyn[:2], uxyn0[:2], fxy0, 
+                                             fn_curr, a, Gstar, mu)
+    
     # Update normal history variables
     Fm_prev = jnp.maximum(fn_curr, Fm_prev)
     
-    
     fxyn = jnp.zeros(3)
     fxyn = fxyn.at[-1].set(fn_curr @ gap_weights)
+    fxyn = fxyn.at[:2].set(gap_weights @ fxy_curr)
     
     # Extra outputs
     #   includes force so have the undifferentiated force when calling jax.jacfwd
-    aux = (fxyn, Fm_prev, deltabar, Rebar, a)
+    aux = (fxyn, Fm_prev, fxy_curr, deltabar, Rebar, a)
     
     return fxyn, aux
 
-@partial(jax.jit, static_argnums=(7, 8, 9, 10, 11, 12, 13)) 
-def _static_force_grad(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
-                       Re, Possion, Estar, Emod, Etan, delta_y, Sys):
+@partial(jax.jit, static_argnums=tuple(range(9, 17))) 
+def _static_force_grad(uxyn, uxyn0, fxy0, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
+                       Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar):
     """
     Returns Jacobian, Force, and Aux Data from "_static_force"
     
@@ -275,8 +287,8 @@ def _static_force_grad(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
     
     jax_diff_fun = jax.jacfwd(_static_force, has_aux=True) 
     
-    J, aux = jax_diff_fun(uxyn, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
-                           Re, Possion, Estar, Emod, Etan, delta_y, Sys)
+    J, aux = jax_diff_fun(uxyn, uxyn0, fxy0, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
+                           Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar)
     
     F = aux[0]
     

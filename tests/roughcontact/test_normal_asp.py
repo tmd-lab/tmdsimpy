@@ -68,7 +68,7 @@ class TestRoughContact(unittest.TestCase):
         T = np.eye(3)
         
         normal_asp_models = (len(ref_dict['E']) )* [None]
-        mu = 1.0
+        mu = 1e20
         
         for ind in range(len(ref_dict['E'])):
         
@@ -84,9 +84,15 @@ class TestRoughContact(unittest.TestCase):
             normal_asp_models[ind] = curr_model
             
         self.normal_asp_models = normal_asp_models
-        self.normal_asp_disp = ref_dict['normal_disp']
-        self.normal_asp_force = ref_dict['normal_force']
+        
+        self.normal_asp_un = ref_dict['normal_disp']
+        self.normal_asp_fn = ref_dict['normal_force']
         self.normal_asp_rad = ref_dict['contact_radius']
+        
+        self.normal_asp_ux = ref_dict['x_disp']
+        self.normal_asp_fx = ref_dict['x_force']
+        self.normal_asp_uy = ref_dict['y_disp']
+        self.normal_asp_fy = ref_dict['y_force']
             
         # Create a model that uses the repeated parameters from ind=[0,1], 
         # but uses a list of gaps and adds the forces.
@@ -98,14 +104,23 @@ class TestRoughContact(unittest.TestCase):
                                           ref_dict['Et'][1], 
                                           ref_dict['Sys'][1], 
                                           mu, u0=0, meso_gap=0, 
-                                          gaps=np.array([offset, 0.0]), 
-                                          gap_weights=np.array([1.0, 0.5]))
+                                          gaps=np.array([offset, 0.0, 0.0]), 
+                                          gap_weights=np.array([1.0, 0.5, 0.0]))
         
         self.two_asp_model = two_asp_model
-        self.two_asp_disp = ref_dict['normal_disp'][1]
-        self.two_asp_force = np.array(ref_dict['normal_force'][0]) \
+        self.two_asp_un = ref_dict['normal_disp'][1]
+        self.two_asp_ux = ref_dict['x_disp'][1]
+        self.two_asp_uy = ref_dict['y_disp'][1]
+        
+        
+        self.two_asp_fn = np.array(ref_dict['normal_force'][0]) \
                                 + 0.5*np.array(ref_dict['normal_force'][1])
         
+        self.two_asp_fx = np.array(ref_dict['x_force'][0]) \
+                                + 0.5*np.array(ref_dict['x_force'][1])
+                                
+        self.two_asp_fy = np.array(ref_dict['y_force'][0]) \
+                                + 0.5*np.array(ref_dict['y_force'][1])
         
     def test_normal_asperity(self):
         """
@@ -126,23 +141,29 @@ class TestRoughContact(unittest.TestCase):
             
             model.init_history()
             
-            un = self.normal_asp_disp[ind]
-            fn = self.normal_asp_force[ind]
+            ux = self.normal_asp_ux[ind]
+            uy = self.normal_asp_uy[ind]
+            un = self.normal_asp_un[ind]
+            
+            fx = self.normal_asp_fx[ind]
+            fy = self.normal_asp_fy[ind]
+            fn = self.normal_asp_fn[ind]
             contact_rad = self.normal_asp_rad[ind]
             
             for j in range(len(un)):
                 
                 # Evaluate Force
                 uxyn = np.zeros((3))
+                uxyn[0] = ux[j]
+                uxyn[1] = uy[j]
                 uxyn[-1] = un[j]
                 
+                fxyn_ref = np.array([fx[j], fy[j], fn[j]])
+                
                 F, dFdX = model.force(uxyn, update_hist=False)
-                
-                # if j ==4:
-                #     import pdb; pdb.set_trace()
-                
-                self.assertLessEqual(np.abs(F[-1] - fn[j]), 
-                                     np.abs(fn[j])*self.rel_force_tol, 
+                                
+                self.assertLessEqual(np.linalg.norm(F - fxyn_ref), 
+                                     np.linalg.norm(fxyn_ref)*self.rel_force_tol, 
                                      'Asperity Model: {}, load index: {}'.format(ind, j))
                 
                 # Verify Gradient
@@ -157,13 +178,13 @@ class TestRoughContact(unittest.TestCase):
                                  'Incorrect Gradient w.r.t. Uxyn, Asperity Model: {}, load index: {}'.format(ind, j))
                 
                 # Update history
-                F, dFdX, aux = model.force(uxyn, update_hist=True, return_aux=True)
-                new_contact_rad = aux[3]
+                F, dFdX, aux = model.force(uxyn*np.array([0,0,1]), 
+                                           update_hist=True, return_aux=True)
+                new_contact_rad = aux[4]
                 
                 self.assertLessEqual(np.abs(new_contact_rad - contact_rad[j]), 
                                      np.abs(contact_rad[j])*self.rel_force_tol, 
                                      'Asperity Model: {}, load index: {}'.format(ind, j))
-                
                 
             
     def test_two_normal_asp(self):
@@ -180,24 +201,26 @@ class TestRoughContact(unittest.TestCase):
         
         model.init_history()
         
-        un = self.two_asp_disp
-        fn = self.two_asp_force
+        ux = self.two_asp_ux
+        uy = self.two_asp_uy
+        un = self.two_asp_un
+        
+        fx = self.two_asp_fx
+        fy = self.two_asp_fy
+        fn = self.two_asp_fn
         
         for j in range(len(un)):
             
             # Evaluate Force
-            uxyn = np.zeros((3))
-            uxyn[-1] = un[j]
+            uxyn = np.array([ux[j], uy[j], un[j]])
+            fxyn_ref = np.array([fx[j], fy[j], fn[j]])
             
             F, dFdX = model.force(uxyn, update_hist=False)
             
-            # if j ==4:
-            #     import pdb; pdb.set_trace()
-            
-            self.assertLessEqual(np.abs(F[-1] - fn[j]), 
-                                 np.abs(fn[j])*self.rel_force_tol, 
+            self.assertLessEqual(np.linalg.norm(F - fxyn_ref), 
+                                 np.linalg.norm(fxyn_ref)*self.rel_force_tol, 
                                  'Two Asperity Model, load index: {}'.format(j))
-            
+                
             # Verify Gradient
             fun = lambda X : model.force(X, update_hist=False)
             
@@ -210,7 +233,7 @@ class TestRoughContact(unittest.TestCase):
                              'Incorrect Gradient w.r.t. Uxyn, Two Asperity Model, load index: {}'.format(j))
             
             # Update history
-            F, dFdX = model.force(uxyn, update_hist=True)
+            F, dFdX = model.force(uxyn*np.array([0,0,1]), update_hist=True)
             
             
 if __name__ == '__main__':

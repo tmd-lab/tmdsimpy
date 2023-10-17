@@ -14,6 +14,10 @@ import jax.numpy as jnp
 # Decoractions for Partial compilation
 from functools import partial
 
+###############################################################################
+######## Normal Contact of Asperities                                  ########
+###############################################################################
+
 ##########
 # PLAN FOR NOW: 
 #   -Use un as delta or the interference of the individual asperity. 
@@ -250,3 +254,51 @@ def _normal_asperity_general(un, deltam, Fm,
     Rebar    = jnp.where(yielding_flag, x=Rebar_pl,    y=Rebar)
     
     return fn, a, deltabar, Rebar
+
+###############################################################################
+######## Tangential Contact of Asperities                              ########
+###############################################################################
+
+def _tangential_asperity(uxy, uxy0, fxy0, fn, a, Gstar, mu):
+    """
+    Calculate the tangential forces
+
+    Parameters
+    ----------
+    uxy : Tangential displacements shared by all asperities, size: (2,)
+    uxy0 : Previous tangential displacement shared by all asperities, size(2,)
+    fxy0 : previous tangential forces at each asperity in columns of x and y (Nasp, 2)
+    fn : Normal forces for each asperity, (Nasp,)
+    a : Contact radii for each asperity, (Nasp,)
+    Gstar : Material property in Mindlin contact
+    mu : Friction coefficient
+
+    Returns
+    -------
+    fxy : Current frictional forces in tangential directions in columns of x and y (Nasp, 2)
+
+    """
+    # Tangential Stiffness
+    kt = 8*Gstar*a
+    
+    # Stuck calculation
+    fxy = jnp.outer(kt,(uxy - uxy0)) + fxy0
+    
+    fs = jnp.outer(mu*fn,np.ones(2))
+    
+    # Positive slip
+    fxy = jnp.minimum(fxy, fs)
+    
+    # Negative slip
+    fxy = jnp.maximum(fxy, -fs)
+    
+    return fxy
+    
+    
+    
+    
+    
+    
+    
+    
+    
