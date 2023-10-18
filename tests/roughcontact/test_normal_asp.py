@@ -234,7 +234,55 @@ class TestRoughContact(unittest.TestCase):
             
             # Update history
             F, dFdX = model.force(uxyn*np.array([0,0,1]), update_hist=True)
-            
-            
+              
+    def test_unload_grad_asp(self):
+        """
+        Test gradient at maximum displacement to verify that it takes the 
+        unloading gradient.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        model = self.normal_asp_models[0]
+        
+        model.init_history()
+        
+        un = np.max(np.array(self.normal_asp_un[0]))
+        
+        uxyn = np.array([0.0, 0.0, un])
+        
+        F_load, dFdX_load = model.force(uxyn, update_hist=True)
+        
+        
+        F_unload, dFdX_unload = model.force(uxyn, update_hist=False)
+        
+        h = 1e-5*un
+        uxyn_left = np.array([0.0, 0.0, un - h])
+        
+        F_left, dFdX_left = model.force(uxyn_left, update_hist=False)
+        
+        dFdX_unload_num = (F_unload[-1] - F_left[-1]) / h
+        
+        self.assertLess(np.abs(dFdX_unload[-1, -1] - dFdX_unload_num), 
+                        np.abs(dFdX_unload[-1, -1] - dFdX_load[-1, -1])*1e-4, 
+                        'Gradient for repeated normal displacement wrongly using loading branch')
+        
+    def test_cycle_forces(self):
+        # 1. Calculate forces over a cycle and compare against a saved reference
+        
+        # model.local_force_history(unlt, 0, 0, 0, unlth0, max_repeats=1)
+        
+        # 2. Calculate forces over two cycles and verify that convergence 
+        # to steady-state is achieved and that in general, the forces differ
+        # than calculation over a single cycle. 
+        
+        # model.local_force_history(unlt, 0, 0, 0, unlth0, max_repeats=2)
+        
+        pass
+    
+        
 if __name__ == '__main__':
     unittest.main()

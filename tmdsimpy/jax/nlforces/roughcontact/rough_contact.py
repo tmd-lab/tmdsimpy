@@ -31,6 +31,9 @@ from ....nlforces.nonlinear_force import NonlinearForce
 # Import of functions stored in a different file
 from . import _asperity_functions as asp_funs
 
+###############################################################################
+########## Class for Rough Contact Models                            ##########
+###############################################################################
 
 class RoughContactFriction(NonlinearForce):
     """
@@ -198,6 +201,48 @@ class RoughContactFriction(NonlinearForce):
             return F, dFdX
     
     
+    def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
+                            atol=1e-10, rtol=1e-10):
+        """
+        Calculates local force history for a single element of the rough 
+        contact model given the local nonlinear displacements over a cycle.
+
+        Parameters
+        ----------
+        unlt : Displacement history for a single cycle.
+        unltdot : Velocity history for the cycle (ignored)
+        h : list of harmonics used (ignored)
+        cst : (ignored)
+        unlth0 : Initialization displacements for the sliders 
+        max_repeats : Number of times to repeat the cycle of displacements
+                      to converge the hysteresis loops to steady-state
+        atol : Ignored
+        rtol : Ignored
+
+        Returns
+        -------
+        fxyn_t : Force history for the element
+
+        """
+        
+        fxyn_t = _local_force_history(unlt, unlth0, 
+                                    self.mu, self.meso_gap, self.gaps, 
+                                    self.gap_weights, self.Re, self.Possion, 
+                                    self.Estar, self.Emod, self.Etan, 
+                                    self.delta_y, self.Sys, self.Gstar, 
+                                    repeats=max_repeats)
+        
+        # typical return statement also requires derivatives, but this is just
+        # for external processing and AFT will use the private function
+        # return ft, dfduh, dfdudh
+        
+        return fxyn_t
+        
+
+    
+###############################################################################
+########## Static Force Functions                                    ##########
+###############################################################################
     
 # @partial(jax.jit, static_argnums=(7, 8, 9, 10, 11, 12, 13)) 
 def _static_force(uxyn, uxyn0, fxy0, unmax, Fm_prev, mu, meso_gap, gaps, gap_weights,
@@ -293,3 +338,157 @@ def _static_force_grad(uxyn, uxyn0, fxy0, unmax, Fm_prev, mu, meso_gap, gaps, ga
     F = aux[0]
     
     return J, F, aux
+
+
+    
+###############################################################################
+########## Harmonic Force History Functions                          ##########
+###############################################################################
+
+
+def _local_loop_body(ind, history, unlt, mu, meso_gap, gaps, gap_weights,
+                       Re, Estar, Gstar):
+    """
+    Calculation of total rough contact forces for a given instant in a time 
+    series. Formatted to allow for calling jax.lax.fori_loop
+    
+    In general, considering the loop for Nt time points. 
+    Considers Nasp=gaps.shape[0] asperities in contact for the element.
+
+    Parameters
+    ----------
+    ind : Time index to be calculated for this iteration
+    history : Tuple of variables to use for history includes in order: 
+                fxyn_t : contact forces/tractions totalled over all asperities 
+                        for all time instants (Nt, 3)
+                uxyn0 : previous set of displacements (in general unlt[ind-1, :])
+                            required so that initialization can be user defined
+                fxy0 : tangential force for each asperity at the previous 
+                        instant shape (Nasp, 2)
+                deltam : Maximum normal displacement of each asperity for any 
+                        time (Nasp,)
+                Fm : Forces in the normal direction for instant of maximum 
+                        displacement
+    unlt : Time series of displacements for nonlinear force evaluations
+            Size (Nt, 3)
+    mu, meso_gap, gaps, gap_weights, Re, Estar, Gstar : 
+            See RoughContactFriction Class Documentation
+
+    Returns
+    -------
+    history : Same as input, but updated for the instant ind
+
+    """
+    
+    fxyn_t, uxyn0, fxy0, deltam, Fm = history
+    
+    # Asperity force calculation
+    
+    # Normal Direction forces, exclusively on the plastic unloading curve
+    # Elastic Unloading after Plasticity
+    un = unlt[ind, 2] - meso_gap - gaps
+    
+    fn_curr, a, deltabar, Rebar = asp_funs._normal_asperity_unloading(un, 
+                                                        deltam, Fm, Re, Estar)
+    
+    # Tangential Forces
+    fxy_curr = asp_funs._tangential_asperity(unlt[ind, :2], uxyn0[:2], fxy0, 
+                                             fn_curr, a, Gstar, mu)
+    
+    # Integrate asperity forces into total element in contact forces
+    fxyn_t = fxyn_t.at[ind, :2].set(gap_weights @ fxy_curr)
+    fxyn_t = fxyn_t.at[ind, -1].set(fn_curr @ gap_weights)
+    
+    history = (fxyn_t, unlt[ind, :], fxy_curr, deltam, Fm)
+    
+    return history
+    
+
+@partial(jax.jit, static_argnums=tuple(range(6, 15))) 
+def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
+                         Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
+                         repeats=2):
+    """
+    Calculates the steady-state displacement history for a set of displacements
+
+    Parameters
+    ----------
+    unlt : Time history of displacements to evaluate cycles over - size (Nt, 3)
+    unlth0 : Displacements to initialize the first loop iteration to. 
+             For asperities that do not slip, this influences the static force.
+    mu, meso_gap, gaps, gap_weights, Re, Possion, Estar, Emod, Etan, delta_y, 
+    Sys, Gstar : 
+        See RoughContactFriction Class Documentation
+    repeats : The number of repeated cycles the nonlinear forces should be 
+                evaluated for to obtain steady-state forces. Default is 2
+
+    Returns
+    -------
+    fxyn_t : History of total forces (Nt, 3)
+
+    """
+    
+    Nt = unlt.shape[0]
+    
+    ###########
+    # Initialize the Normal Direction Force Calculation
+    unmax = unlt[:, -1].max()
+    
+    Fm_prev = np.zeros_like(gap_weights)
+    
+    # Recover deltam for each asperity based on previous maximum displacement
+    deltam = 0 - meso_gap - gaps
+    
+    # Calculate normal displacement of each aspertiy
+    unmax_asp = unmax - meso_gap - gaps
+    
+    fn, a, deltabar, Rebar = asp_funs._normal_asperity_general(unmax_asp, deltam, Fm_prev, 
+                                 Re, Possion, Estar, Emod, Etan, delta_y, Sys)
+    
+    ###########
+    # Generate a history tuple for use in the function
+    fxy0 = np.zeros((gap_weights.shape[0], 2)) # previous instant of asperity forces
+    uxyn0 = unlth0 # Previous instant of displacements
+    fxyn_t = jnp.zeros((Nt, 3)) # History of total contact forces (summed over asperities)
+    # deltam = unmax_asp # Maximum normal displacement at each element
+    # fm = fn # Normal asperity forces for maximum normal displacement
+    history = (fxyn_t, uxyn0, fxy0, unmax_asp, fn)
+    
+    ###########
+    # Loop body function
+    loop_fun = lambda i,hist : _local_loop_body(i, hist, unlt, mu, meso_gap, 
+                                            gaps, gap_weights, Re, Estar, Gstar)
+    
+    ###########
+    # Do a loop over the set of Nt samples, repeating to get convergence 
+    # to steady-state forces
+    for i in range(repeats):
+        history = jax.lax.fori_loop(1, Nt, loop_fun, history)
+    
+    ###########
+    # Extract the steady-state forces
+    fxyn_t = history[0]
+
+    return fxyn_t
+
+
+###############################################################################
+########## AFT Functions                                             ##########
+###############################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
