@@ -227,9 +227,9 @@ class RoughContactFriction(NonlinearForce):
         
         fxyn_t = _local_force_history(unlt, unlth0, 
                                     self.mu, self.meso_gap, self.gaps, 
-                                    self.gap_weights, self.Re, self.Possion, 
-                                    self.Estar, self.Emod, self.Etan, 
-                                    self.delta_y, self.Sys, self.Gstar, 
+                                    self.gap_weights, self.Re, self.poisson, 
+                                    self.Estar, self.elastic_mod, self.tangent_mod, 
+                                    self.delta_y, self.sys, self.Gstar, 
                                     repeats=max_repeats)
         
         # typical return statement also requires derivatives, but this is just
@@ -410,6 +410,10 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
                          repeats=2):
     """
     Calculates the steady-state displacement history for a set of displacements
+    
+    NOTES:
+        This function throws an error if not JIT compiled because the loop body
+        would be dependent on a non-static argument in that case.
 
     Parameters
     ----------
@@ -434,7 +438,7 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
     # Initialize the Normal Direction Force Calculation
     unmax = unlt[:, -1].max()
     
-    Fm_prev = np.zeros_like(gap_weights)
+    Fm_prev = jnp.zeros_like(gap_weights)
     
     # Recover deltam for each asperity based on previous maximum displacement
     deltam = 0 - meso_gap - gaps
@@ -448,7 +452,7 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
     ###########
     # Generate a history tuple for use in the function
     fxy0 = np.zeros((gap_weights.shape[0], 2)) # previous instant of asperity forces
-    uxyn0 = unlth0 # Previous instant of displacements
+    uxyn0 = unlth0*1.0 # Previous instant of displacements (force to be double)
     fxyn_t = jnp.zeros((Nt, 3)) # History of total contact forces (summed over asperities)
     # deltam = unmax_asp # Maximum normal displacement at each element
     # fm = fn # Normal asperity forces for maximum normal displacement
@@ -459,11 +463,13 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
     loop_fun = lambda i,hist : _local_loop_body(i, hist, unlt, mu, meso_gap, 
                                             gaps, gap_weights, Re, Estar, Gstar)
     
+    # import pdb; pdb.set_trace()
+    
     ###########
     # Do a loop over the set of Nt samples, repeating to get convergence 
     # to steady-state forces
     for i in range(repeats):
-        history = jax.lax.fori_loop(1, Nt, loop_fun, history)
+        history = jax.lax.fori_loop(0, Nt, loop_fun, history)
     
     ###########
     # Extract the steady-state forces

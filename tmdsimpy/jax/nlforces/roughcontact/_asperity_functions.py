@@ -187,6 +187,10 @@ def _normal_asperity_unloading(un, deltam, Fm, Re, Estar):
     
     fn = 4/3*Estar*jnp.sqrt(Rebar)*(pos_un)**1.5
     
+    # Fm could be 0 if never comes into contact, so this corrects the normal
+    # force in those cases so it is not nan
+    fn = jnp.where(pos_un>0, x=fn, y=0) 
+    
     ###### Return Data
     
     return fn, a, deltabar, Rebar

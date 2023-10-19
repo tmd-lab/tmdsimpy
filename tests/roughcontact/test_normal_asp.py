@@ -57,6 +57,7 @@ class TestRoughContact(unittest.TestCase):
         self.atol_grad = 1e-16
         self.rtol_grad = 1e-8
         
+        ###############
         # Load Reference Data from old Rough Contact Model
         yaml_file = './reference/normal_asperity.yaml'
         
@@ -94,6 +95,7 @@ class TestRoughContact(unittest.TestCase):
         self.normal_asp_uy = ref_dict['y_disp']
         self.normal_asp_fy = ref_dict['y_force']
             
+        ###############
         # Create a model that uses the repeated parameters from ind=[0,1], 
         # but uses a list of gaps and adds the forces.
         offset = np.array(ref_dict['normal_disp'])[1, 0] - np.array(ref_dict['normal_disp'])[0, 0]
@@ -121,6 +123,31 @@ class TestRoughContact(unittest.TestCase):
                                 
         self.two_asp_fy = np.array(ref_dict['y_force'][0]) \
                                 + 0.5*np.array(ref_dict['y_force'][1])
+                                
+                                
+        ###############
+        yaml_file = './reference/element_cycle_tractions.yaml'
+        
+        with open(yaml_file, 'r') as file:
+            ref_dict = yaml.safe_load(file)
+            
+            
+        element_model = RoughContactFriction(Q, T, ref_dict['E'], 
+                                          ref_dict['nu'], 
+                                          ref_dict['R'], 
+                                          ref_dict['Et'], 
+                                          ref_dict['Sys'], 
+                                          ref_dict['mu'], 
+                                          u0=0, meso_gap=0, 
+                                          gaps=np.array(ref_dict['gap_values']), 
+                                          gap_weights=np.array(ref_dict['gap_weights']))
+        
+        element_uxyn = [np.array(val).T for val in ref_dict['uxyn']]
+        element_txyn = [np.array(val).T for val in ref_dict['txyn']]
+        
+        self.element_model = element_model
+        self.element_uxyn = element_uxyn
+        self.element_txyn = element_txyn
         
     def test_normal_asperity(self):
         """
@@ -271,18 +298,46 @@ class TestRoughContact(unittest.TestCase):
                         'Gradient for repeated normal displacement wrongly using loading branch')
         
     def test_cycle_forces(self):
-        # 1. Calculate forces over a cycle and compare against a saved reference
+        """
+        Verify that the local history of element tractions is correct against
+        reference data from the previous implementation 
+        (covers a full cycle of stick and slip and reversals)
+
+        Returns
+        -------
+        None.
+
+        """
+        element_model = self.element_model
+        element_uxyn = self.element_uxyn
+        element_txyn = self.element_txyn
         
-        # model.local_force_history(unlt, 0, 0, 0, unlth0, max_repeats=1)
+        for ind in range(len(element_uxyn)):
+            
+            unlt = element_uxyn[ind]
+            
+            # 1. Calculate forces over a cycle and compare against a saved reference
+            fxyn_curr = element_model.local_force_history(unlt, 0, 0, 0, 
+                                                       np.array([0,0,0]), 
+                                                       max_repeats=1)
+            
+            self.assertLess(np.linalg.norm(fxyn_curr - element_txyn[ind]), 
+                            np.linalg.norm(element_txyn[ind])*self.rel_force_tol,
+                            'Combined element tractions do not match expected values over a cycle.')
         
-        # 2. Calculate forces over two cycles and verify that convergence 
-        # to steady-state is achieved and that in general, the forces differ
-        # than calculation over a single cycle. 
-        
-        # model.local_force_history(unlt, 0, 0, 0, unlth0, max_repeats=2)
-        
-        pass
-    
+            if ind == 5:
+                # 2. Repeat over two cycles and check that the first entry may
+                # in general change
+                fxyn_steady = element_model.local_force_history(unlt, 0, 0, 0, 
+                                                       np.array([0,0,0]), 
+                                                       max_repeats=2)
+                
+                self.assertGreater(np.abs(fxyn_steady[0,0] - fxyn_curr[0,0]), 
+                                   10.0, 'Case should differ on second cycle')
+                
+                self.assertLess(np.abs(fxyn_steady[3,0] - fxyn_curr[3,0]), 
+                                   1e-15, 'Case should be steady-state here.')
+                
         
 if __name__ == '__main__':
     unittest.main()
