@@ -24,7 +24,7 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from ... import harmonic_utils as hutils
+from .... import harmonic_utils as hutils
 from ....jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ....nlforces.nonlinear_force import NonlinearForce
 
@@ -118,6 +118,9 @@ class RoughContactFriction(NonlinearForce):
             self.gap_weights = gap_weights
             
             assert gap_weights is not None, "Need to specify gap weights if specifying gap values."
+            
+        # Just consider default of starting sliders at origin for AFT
+        self.uxyn_initialize = np.array([0.0, 0.0, 0.0])
             
         # Initialize History Variables
         self.init_history()
@@ -238,6 +241,85 @@ class RoughContactFriction(NonlinearForce):
         
         return fxyn_t
         
+
+    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2):
+        """
+        
+        Tolerances are ignored since slider representation should converge
+        with two repeated cycles (done by default). 
+        two cycles of the hysteresis loop, so that is done by default. 
+
+        Parameters
+        ----------
+        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
+            shape: (Nhc*nd,)
+        w : Frequency, scalar
+        h : List of harmonics that are considered, zeroth must be first
+        Nt : Number of time points to evaluate at. 
+             The default is 128.
+        max_repeats : number of hysteresis loops to calculate to reach steady
+                        state. Maximum value allowed. 
+                        The default is 2
+
+        Returns
+        -------
+        Fnl : Vector of nonlinear forces in frequency domain
+        dFnldU : Gradient of nonlinear forces w.r.t. U
+        dFnldw : Gradient w.r.t. w
+
+        """
+        
+        #########################
+        # Memory Initialization 
+        
+        Fnl = np.zeros_like(U)
+        dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        dFnldw = np.zeros_like(U)
+        
+        
+        #########################
+        # Transform to Local Coordinates
+        
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components        
+        Ulocal = (self.Q @ np.reshape(U, (self.Q.shape[1], Nhc), 'F')).T
+        
+        # Number of Nonlinear DOFs
+        Ndnl = self.Q.shape[0]
+        
+        
+        #########################
+        # Conduct AFT in Local Coordinates with JAX
+        Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
+        
+        
+        # # If no Grad is needed use:
+        # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
+        
+        # Case with gradient and local force
+        dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+                                    self.mu, self.meso_gap, self.gaps, 
+                                    self.gap_weights, self.Re, self.poisson, 
+                                    self.Estar, self.elastic_mod, self.tangent_mod, 
+                                    self.delta_y, self.sys, self.Gstar, 
+                                    tuple(h), Nt, repeats=max_repeats)
+        
+        #########################
+        # Convert AFT to Global Coordinates
+        
+        # Reshape Flocal
+        Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
+                
+        # Global coordinates        
+        Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
+        dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
+                                                @ np.kron(np.eye(Nhc), self.Q)
+        
+        dFnldw = np.reshape(self.T @ \
+                            np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
+                            (U.shape[0],), 'F')
+        
+        
+        return Fnl, dFnldU, dFnldw
 
     
 ###############################################################################
@@ -483,6 +565,63 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
 ###############################################################################
 
 
+# @partial(jax.jit, static_argnums=tuple(range(6, 15))) 
+def _local_aft(Uwlocal, unlth0, mu, meso_gap, gaps, gap_weights,
+                         Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
+                         htuple, Nt, repeats=2):
+    ########################################
+    #### Initialization
+    
+    # Size Calculation
+    Nhc = hutils.Nhc(np.array(htuple))
+    Ndnl = int(Uwlocal.shape[0] / Nhc)
+    
+    # Uwlocal is arranged as all of harmonic 0, then all of 1c, etc. 
+    # For each harmonic it has the DOFs in order. Finally there is frequency.
+    # This is a 1d array. 
+    #
+    # Ulocal is (Nhc x Ndnl) - each column is the harmonic components for a 
+    # single nonlinear DOF.
+    Ulocal = jnp.reshape(Uwlocal[:-1], (Ndnl, Nhc), 'F').T
+
+    ########################################
+    #### Displacements
+    
+    # Nonlinear displacements, velocities in time
+    # Nt x Ndnl
+    unlt = jhutils.time_series_deriv(Nt, htuple, Ulocal, 0) # Nt x Ndnl
+    
+    
+    ########################################
+    #### Evaluate nonlinear forces
+    
+    ft = _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
+                             Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
+                             repeats)
+    
+    # Convert back into frequency domain
+    Flocal = jhutils.get_fourier_coeff(htuple, ft)
+    
+    # Flatten back to a 1D array
+    Flocal = jnp.reshape(Flocal.T, (-1,), 'F')
+    
+    return Flocal,Flocal
+
+
+@partial(jax.jit, static_argnums=tuple(range(6, 17))) 
+def _local_aft_grad(Uwlocal, unlth0, mu, meso_gap, gaps, gap_weights,
+                         Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
+                         htuple, Nt, repeats=2):
+    """
+    Gradient of _local_aft - see _local_aft for documentation. 
+
+    """
+    
+    J,F = jax.jacfwd(_local_aft, has_aux=True)(Uwlocal, unlth0, mu, meso_gap, 
+                                               gaps, gap_weights, Re, Possion, 
+                                               Estar, Emod, Etan, delta_y, Sys, 
+                                               Gstar, htuple, Nt, repeats)    
+    return J,F
 
 
 

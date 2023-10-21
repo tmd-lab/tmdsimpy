@@ -20,7 +20,7 @@ import unittest
 sys.path.append('../..')
 
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction 
-
+import tmdsimpy.harmonic_utils as hutils
 
 
 sys.path.append('..')
@@ -338,6 +338,164 @@ class TestRoughContact(unittest.TestCase):
                 self.assertLess(np.abs(fxyn_steady[3,0] - fxyn_curr[3,0]), 
                                    1e-15, 'Case should be steady-state here.')
                 
+    def test_aft(self): 
+        """
+        Test the AFT implementation of the rough contact model.
+        
+        1. Test gradients for several cases
+        
+        Returns
+        -------
+        None.
+
+        """
+        
+        element_model = self.element_model
+        
+        U_list = [
+                  np.array([0, .5e-5, 2e-5, 
+                            0.1e-5, 0.2e-5, 0.05e-5, 
+                            0.3e-5, 0.2e-5, 0.05e-5, 
+                            0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, 2e-5, 
+                          0.1e-5, 0.2e-5, 0.05e-5, 
+                          0.3e-5, 0.2e-5, 0.05e-5, 
+                          0.0, 0.0, 0.0, 
+                          0.0, 0.0, 0.0,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, 1e-5, 
+                          0.1e-5, 0.2e-5, 0.05e-5, 
+                          0.3e-5, 0.2e-5, 0.05e-5, 
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, .1e-5, 
+                          0.1e-5, 0.2e-5, 0.05e-5, 
+                          0.3e-5, 0.2e-5, 0.1e-5, 
+                          0.1e-5, 0.1e-5, 0.05e-5]),
+                  np.array([0, .5e-5, -.1e-5, 
+                          0.1e-5, 0.2e-5, -0.1e-5, 
+                          0.3e-5, 0.2e-5, -0.1e-5, 
+                          0.1e-5, 0.1e-5, -0.5e-5]),
+                  np.array([0, .5e-5, 2e-5, 
+                          0.0e-5, 0.0e-5, -0.0e-5, 
+                          0.4e-5, 0.4e-5, 0.08e-5, 
+                          0.0e-5, 0.0e-5, -0.0e-5,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, 2e-5, 
+                          0.0e-5, 0.0e-5, 0.0e-5, 
+                          0.4e-5, 0.4e-5, 0.08e-5, 
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                ]
+        
+        w = 1.35
+        h = np.array(range(5+1))
+        Nt = 1 << 7
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+
+        # import pdb; pdb.set_trace()
+
+        for j in range(len(U_list)):
+            
+            
+            U = np.zeros(Ndof * Nhc)
+            U[:U_list[j].shape[0]] = U_list[j]
+            
+            fun = lambda U : element_model.aft(U, w, h, Nt=Nt, max_repeats=2)[0:2]
+            
+            loosen_grad = 1
+            if j == 6:
+                loosen_grad = 1e3
+            
+            grad_failed = vutils.check_grad(fun, U, verbose=False, 
+                                        atol=self.atol_grad,
+                                        rtol=self.rtol_grad*loosen_grad,
+                                        h=1e-5*np.linalg.norm(U))
+            
+            self.assertFalse(grad_failed, 
+                             'Incorrect Gradient w.r.t. U for AFT, set: {}'.format(j))
+            
+            dFdw = element_model.aft(U, w, h, Nt=Nt, max_repeats=2)[2]
+            
+            self.assertLess(np.linalg.norm(dFdw), 1e-12, 
+                            'Gradient w.r.t. w should be zero.')
+   
+    def test_aft_shapes(self): 
+        """
+        Test the AFT implementation of the rough contact model.
+        
+        1. Look at force coefficients and make sure that they look correct
+        
+        These cases show a lot more harmonic contributions in the tangent 
+        direction than may be expected. However, if the first harmonic component
+        in the normal direction is set to zero, then roughly the expected 
+        distribution of only odd harmonics are observed in the tangent directions.
+        
+        Returns
+        -------
+        None.
+
+        """
+        
+        element_model = self.element_model
+        
+        U_sub = np.array([0, 0, 2e-5, 
+                        3.0e-5, 1.0e-5, 0.5e-5,])
+        
+        w = 1.35
+        h = np.array(range(5+1))
+        Nt = 1 << 7
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+
+
+        U = np.zeros(Ndof * Nhc)
+        U[:U_sub.shape[0]] = U_sub
+        
+        # Only Normal displacement
+        U_n = np.copy(U)
+        U_n[0::3] = 0
+        U_n[1::3] = 0
+        
+        # Normal and X
+        U_x = np.copy(U)
+        U_x[1::3] = 0
+        
+        # All Three
+        U_y = U
+        
+        fun = lambda U : element_model.aft(U, w, h, Nt=Nt, max_repeats=2)[0]
+        
+        F_n = fun(U_n)
+        F_x = fun(U_x)
+        F_y = fun(U_y)
+        
+        # Normal motion should not result in any tangent coefficients
+        self.assertEqual(np.linalg.norm(F_n[0::3]), 0, 
+                         'Normal displacement should only cause normal forces.')
+            
+        self.assertEqual(np.linalg.norm(F_n[1::3]), 0, 
+                         'Normal displacement should only cause normal forces.')
+        
+        # Normal and X should not cause any Y forces and should match the 
+        # normal forces from before
+                            
+        self.assertLess(np.linalg.norm(F_x[2::3] - F_n[2::3]), 1e-12, 
+                         'Normal and tangent should not change normal.')
+        
+        self.assertEqual(np.linalg.norm(F_x[1::3]), 0, 
+                         'Normal and x should not cause y.')
+        
+        # Adding y should not change x and normal
+        self.assertLess(np.linalg.norm(F_y[2::3] - F_n[2::3]), 1e-12, 
+                         'Adding Y should not change normal direction loads.')
+        
+        self.assertLess(np.linalg.norm(F_y[0::3] - F_x[0::3]), 1e-12, 
+                         'Adding Y should not change X direction loads.')
         
 if __name__ == '__main__':
     unittest.main()
