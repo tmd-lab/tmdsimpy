@@ -1,10 +1,5 @@
 """
 Definition of Elastic Dry Friction Element using JAX for automatic derivatives
-
-At present only implements AFT. 
-
-Static Force Calculation for prestress should be straightforward to implement 
-here on the same class, but just without JAX
 """
 
 # Standard imports
@@ -122,15 +117,33 @@ class ElasticDryFriction2D(NonlinearForce):
         self.fp = fnl
         
     def force(self, X, update_hist=False):
-        
+        """
+        Forces from nonlinearity given some global displacement vector
+
+        Parameters
+        ----------
+        X : Displacements
+        update_hist : Option to save the inputs for future calls as history 
+                        variables
+
+        Returns
+        -------
+        F : Global nonlinear force
+        dFdX : Global nonlinear force gradient
+
+        """
         
         # Get local displacements
         unl = self.Q @ X
         
         ############################
-        fnl = np.zeros_like(unl)
-        dfnldunl = np.zeros((unl.shape[0], unl.shape[0]))
-        assert False, 'Need to implement this, use JAX for gradient.'
+        # fnl = np.zeros_like(unl)
+        # dfnldunl = np.zeros((unl.shape[0], unl.shape[0]))
+        
+        pars = np.array([self.kt, self.kn, self.mu])
+        
+        dfnldunl,fnl = _local_eldy_force_grad(unl, self.up, self.fp, pars)
+        
         #############################
         
         F = self.T @ fnl
@@ -232,6 +245,70 @@ class ElasticDryFriction2D(NonlinearForce):
         
         return Fnl, dFnldU, dFnldw
         
+    
+def _local_eldy_force(unl, up, fp, pars):
+    """
+    See _local_eldy_force_grad for gradient call.
+
+    Parameters
+    ----------
+    unl : Local nonlinear force vector of size (2*N) for N elastic dry friction 
+            elements
+    up : Previous displacements for tangential direction only (N, )
+    fp : Previous tangential forces only (N,)
+    pars : Parameters
+
+    Returns
+    -------
+    fnl : Nonlinear forces, output twice for gradient function
+
+    """
+    # Recover pars for convenience / readability
+    kt = pars[0]
+    kn = pars[1]
+    mu = pars[2]
+    
+    fnl = jnp.zeros_like(unl)
+    
+    # Normal Force
+    fnl = fnl.at[1::2].set(jnp.maximum(unl[1::2]*kn, 0.0))
+    
+    # Tangent Force - must use where to get tradient consistently correct
+    fpred = kt*(unl[0::2]-up)
+    
+    fcurr = jnp.where(fpred < mu*fnl[1::2], fpred, mu*fnl[1::2])
+        
+    # Other Directly slip limit tangent force
+    fnl = fnl.at[0::2].set(jnp.where(fcurr>-mu*fnl[1::2], fcurr, -mu*fnl[1::2]))
+
+    return fnl,fnl
+
+# @partial(jax.jit) 
+def _local_eldy_force_grad(unl, up, fp, pars):
+    """
+    Function that computes the gradient of local force. Using Aux data allows for 
+    returning Fnl also from one function call. 
+
+    Parameters
+    ----------
+    unl : Local nonlinear force vector of size (2*N) for N elastic dry friction 
+            elements
+    up : Previous displacements for tangential direction only (N, )
+    fp : Previous tangential forces only (N,)
+    pars : Parameters
+
+    Returns
+    -------
+    dfnldunl : gradient of nonlinear forces
+    fnl : Nonlinear forces
+
+
+    """
+    
+    dfnldunl,fnl = jax.jacfwd(_local_eldy_force, has_aux=True)(unl, up, fp, pars)
+    
+    return dfnldunl,fnl
+
 
 def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
     """

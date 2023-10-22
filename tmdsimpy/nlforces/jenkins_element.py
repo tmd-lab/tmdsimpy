@@ -110,6 +110,9 @@ class JenkinsForce(HystereticForce):
             fnl = np.sign(fnl)*self.Fs
             dfnldunl = 0.0
                     
+        fnl = np.atleast_1d(fnl)
+        dfnldunl = np.atleast_2d(dfnldunl)
+            
         F = self.T @ fnl
         
         dFdX = self.T @ dfnldunl @ self.Q
