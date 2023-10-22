@@ -47,6 +47,102 @@ class VibrationSystem:
         
         self.nonlinear_forces = self.nonlinear_forces + [nlforce]
     
+    def init_force_history(self):
+        """
+        Initialize all hysteretic forces to have initial zero force states. 
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        for nlforce in self.nonlinear_forces:
+            if nlforce.nl_force_type() == 1: #Hysteretic Force
+                nlforce.init_history()
+    
+    def update_force_history(self, U):
+        """
+        Update internal nonlinear force history variables so that the current
+        state is used for history. Generally called after a static analysis
+        such as for prestress.
+
+        Parameters
+        ----------
+        U : Displacements (generally of prestressed state)
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        # Call a force calculation function with update flag set to True
+        for nlforce in self.nonlinear_forces:
+            if nlforce.nl_force_type() == 1: #Hysteretic Force
+                Fnl_curr, dFnldU_curr = nlforce.force(U, update_hist=True)
+    
+    def set_prestress_mu(self):
+        """
+        Set friction coefficients to 0.0 for prestress analysis
+        """
+        
+        # Check if nonlinear force has a set prestress mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            pre_mu = getattr(nlforce, "set_prestress_mu", None)
+            if callable(pre_mu):
+                nlforce.set_prestress_mu()
+                
+        return
+    
+    
+    def reset_real_mu(self):
+        """
+        Reset friction coefficients for relevant nonlinear forces to real 
+        (non-zero) values after prestress analysis
+        """
+        
+        # Check if nonlinear force has a reset mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            pre_mu = getattr(nlforce, "reset_real_mu", None)
+            if callable(pre_mu):
+                nlforce.reset_real_mu()
+                
+        return
+    
+    
+    def static_res(self, U, Fstatic):
+        """
+        Static solution Residual
+
+        Parameters
+        ----------
+        U : Input displacements for DOFs (Ndof,)
+        Fstatic : Externally applied static forces (Ndof,)
+
+        Returns
+        -------
+        R : Residual for static analysis (Ndof,)
+        dRdU : Derivative of residual w.r.t. displacements (Ndof,Ndof)
+
+        """
+        
+        Fnl = np.zeros_like(U)
+        dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        
+        for nlforce in self.nonlinear_forces:
+            Fnl_curr, dFnldU_curr = nlforce.force(U)
+            
+            Fnl += Fnl_curr
+            dFnldU += dFnldU_curr
+        
+        R = self.K @ U + Fnl - Fstatic
+        dRdU = self.K + dFnldU
+        
+        return R, dRdU
+    
     def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7):
         """
         Apply Alternating Time Frequency Method to calculate nonlinear force

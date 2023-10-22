@@ -87,7 +87,9 @@ class RoughContactFriction(NonlinearForce):
         self.Re = Radius
         self.tangent_mod = TangentMod
         self.sys = YieldStress
-        self.mu = mu
+        self.mu = mu # This friction coefficient sometimes switches between real and prestress
+        self.real_mu = mu # Save real friction coefficient
+        self.prestress_mu = 0.0 # Prestress should use zero friction coefficient
         
         self.u0 = u0
         
@@ -125,6 +127,12 @@ class RoughContactFriction(NonlinearForce):
         # Initialize History Variables
         self.init_history()
 
+    def nl_force_type(self):
+        """
+        Marks as a hysteretic force.
+        """
+        return 1 
+    
     def init_history(self):
         
         self.unmax = 0
@@ -139,6 +147,19 @@ class RoughContactFriction(NonlinearForce):
         self.fxy0 = fxy_curr
         self.uxyn0 = uxyn
         
+    def set_prestress_mu(self):
+        """
+        Set friction coefficient to a different value (generally 0.0) for
+        prestress analysis
+        """
+        self.mu = self.prestress_mu
+        
+    def reset_real_mu(self): 
+        """
+        Reset friction coefficient to a real value (generally not 0.0) for
+        dynamic analysis
+        """
+        self.mu = self.real_mu
     
     def force(self, X, update_hist=False, return_aux=False):
         """

@@ -31,9 +31,29 @@ class JenkinsForce(HystereticForce):
         self.T = T
         self.kt = kt
         self.Fs = Fs
+        self.prestress_Fs = 0.0
+        self.real_Fs = Fs
     
     
-    def init_history(self, unlth0, h=np.array([0])):
+    def set_prestress_mu(self):
+        """
+        Set friction coefficient to a different value (generally 0.0) for
+        prestress analysis
+        """
+        self.Fs = self.prestress_Fs
+        
+    def reset_real_mu(self): 
+        """
+        Reset friction coefficient to a real value (generally not 0.0) for
+        dynamic analysis
+        """
+        self.Fs = self.real_Fs
+        
+    def init_history(self):
+        self.up = 0
+        self.fp = 0
+        
+    def init_history_harmonic(self, unlth0, h=np.array([0])):
         """
         Initialize History
 
@@ -61,7 +81,24 @@ class JenkinsForce(HystereticForce):
         
         return
     
-    def force(self, X):
+    def update_history(self, unl, fnl):
+        """
+        Updates hysteretic states
+
+        Parameters
+        ----------
+        unl : nonlinear displacements to update
+        fnl : nonlinear forces to save as update
+
+        Returns
+        -------
+        None.
+
+        """
+        self.up = unl
+        self.fp = fnl
+        
+    def force(self, X, update_hist=False):
         
         unl = self.Q @ X
         
@@ -76,6 +113,9 @@ class JenkinsForce(HystereticForce):
         F = self.T @ fnl
         
         dFdX = self.T @ dfnldunl @ self.Q
+        
+        if update_hist: 
+            self.update_history(unl, fnl)
         
         return F, dFdX
     
@@ -120,7 +160,7 @@ class JenkinsForce(HystereticForce):
     
     def instant_force_harmonic(self, unl, unldot, h, cst, update_prev=False):
         """
-        For evaluating a force state, uses history initialized in init_history.
+        For evaluating a force state, uses history initialized in init_history_harmonic.
         Updates history for the next call based on the current results. 
         
         WARNING: Derivatives including unldot are not calculated.
