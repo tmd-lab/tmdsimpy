@@ -12,6 +12,21 @@ If using this code, please cite the relevant journal paper:
     year = {In Preparation}
 }
 ```
+For the Rough Contact Friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
+```
+@article{porterTowardsAPredictive2023,
+    title = {Towards a predictive, physics-based friction model for the dynamics of jointed structures},
+    journal = {Mechanical Systems and Signal Processing},
+    volume = {192},
+    pages = {110210},
+    year = {2023},
+    issn = {0888-3270},
+    doi = {10.1016/j.ymssp.2023.110210},
+    author = {Justin H. Porter and Matthew R.W. Brake},
+
+}
+```
+This code is provided under the MIT License to aid in research, no guarantee is made for the accuracy of the results when applied to other structures.
 
 
 ## Usage
