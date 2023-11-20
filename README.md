@@ -6,7 +6,7 @@ This repository contains python files and functions for running numerical simula
 
 If using this code, please cite the relevant journal paper:
 ```
-@article{porterTowardsAPredictive2023,
+@article{porterTrackingSuperharmonic2024,
     title = {Tracking Superharmonic Resonances for Nonlinear Vibration},
     author = {Justin H. Porter and Matthew R.W. Brake},
     year = {In Preparation}
