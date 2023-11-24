@@ -644,8 +644,77 @@ class VibrationSystem:
         # Return outputs include those needed for arclength equation        
         return R, dRdUw, dRdF
     
+    def hbm_amp_control_res(self, UFw, Fl, h, Recov, amp, order, 
+                            Nt=128, aft_tol=1e-7):
+        """
+        Amplitude Control with Harmonic Balance (rather than fixing force 
+                                                 level)
+        
+        Control is applied exclusively to the 1st harmonic
+        
+        For documentation Nhc is the number of harmonics
+        Ndof is the number of Degree of Freedoms
+
+        Parameters
+        ----------
+        UwF : Harmonic Displacements, Force Scaling, Frequency (Ndof*Nhc+2,)
+                Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
+        Fl : Forcing Vector without scaling for all harmonics (Nhc*Ndof,)
+        h : List of harmonics used, must be sorted and include 1st harmonic.
+        Recov : Recovery matrix for the DOF that has amplitude control (Ndof,)
+        amp : Amplitude that the recovered DOF is controlled to 
+        order : order of the derivative that is controlled. order=0 means 
+                displacement control, order=2 means acceleration control
+        Nt : Number of time steps for AFT. The default is 128.
+        aft_tol : Tolerance for AFT evaluations. The default is 1e-7.
+
+        Returns
+        -------
+        R : residual vector
+        dRdUF : derivative of the residual w.r.t. UF
+        dRdw : derivative w.r.t. frequency
+
+        """
+        
+        Uw = np.hstack((UFw[:-2], UFw[-1]))
+        
+        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(Uw, UFw[-2]*Fl, h, 
+                                               Nt=Nt, aft_tol=aft_tol)
+        
+        Ndof = self.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        h0 = h[0] == 0
+        
+        # 1st harmonic displacements
+        u1c = UFw[h0*Ndof:(1+h0)*Ndof]
+        u1s = UFw[(1+h0)*Ndof:(2+h0)*Ndof]
+        
+        udofc = Recov @ u1c
+        udofs = Recov @ u1s
+        
+        # Augmented Equation for amplitude constraint
+        # Power is twice the order of the derivative being controlled because
+        # residual is on the amplitude squared.
+        Raug =  (UFw[-1]**(2*order))*(udofc**2 + udofs**2) - amp**2
+        
+        # dRhbmdF = -Fl # don't create extra memory at this point
+        
+        dRaugdUF = np.zeros((1, Nhc*Ndof+1))
+        dRaugdUF[0,     h0*Ndof:(1+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofc*Recov)
+        dRaugdUF[0, (1+h0)*Ndof:(2+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofs*Recov)
+        
+        # dRaugdUF[0, -1] = 0 # augmented equation is independent of force scale
+        
+        dRaugdw = (2*order)*(UFw[-1]**((2*order)-1))*(udofc**2 + udofs**2)
+        
+        R = np.hstack((Rhbm, Raug))
+        dRdUF = np.vstack((np.hstack((dRhbmdU, -Fl.reshape(-1,1))),
+                           dRaugdUF))
     
+        dRdw = np.hstack((dRhbmdw, dRaugdw))
     
+        return R, dRdUF, dRdw
     
     
     

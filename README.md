@@ -27,8 +27,11 @@ Running tests:
 cd tests
 python3 -m unittest discover
 
+cd nlforces
+python3 -m unittest discover
+
 # If jax is installed, also check those tests
-cd jax
+cd ../jax
 python3 -m unittest discover
 ```
 
