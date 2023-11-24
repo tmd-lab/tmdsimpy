@@ -113,7 +113,10 @@ def time_series_deriv(Nt, h, X0, order):
             sinrows = (k-1)*2 + 2
             
             D1[cosrows, sinrows] = k
-            D1[sinrows, cosrows] = -k
+            
+            # -k can give the wrong number if it is a positive only integer type 
+            # (e.g., from the MATLAB import test). In those cases -k != -1*k
+            D1[sinrows, cosrows] = -1*k 
             
         # This is not particularly fast, consider optimizing this portion.
         #   D could be constructed just be noting if rows flip for odd/even
