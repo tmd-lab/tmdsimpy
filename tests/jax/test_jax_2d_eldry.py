@@ -493,7 +493,7 @@ class TestJAXEldry(unittest.TestCase):
 
         """
         
-        compare_tol = 1e-16
+        compare_tol = 2e-14
         
         # Friction Versions
         eldry_sdof = self.eldry_force

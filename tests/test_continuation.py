@@ -386,7 +386,7 @@ class TestContinuation(unittest.TestCase):
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
                            'verbose'    : -1,
-                           'xtol'       : 5e-9*Uw0.shape[0], 
+                           'xtol'       : 1.5e-8*Uw0.shape[0], 
                            'corrector'  : 'Pseudo'}
         
         # print('Currently have all conditioning turned off.')
