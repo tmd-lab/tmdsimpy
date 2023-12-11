@@ -124,7 +124,7 @@ class TestIwan4(unittest.TestCase):
         f_hyst = np.zeros_like(u_test)
         f_conv = np.zeros_like(u_test)
 
-        hysteretic_force.init_history(0)
+        hysteretic_force.init_history_harmonic(0)
 
         for i in range(len(u_test)):
             

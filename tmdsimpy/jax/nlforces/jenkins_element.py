@@ -24,6 +24,10 @@ class JenkinsForce(NonlinearForce):
 
     The AFT formulation assumes that the spring starts at 0 force
     at zero displacement.    
+    
+    This nonlinear force does not have full functionality. Rather, it is 
+    recommended to use the normal (non-JAX) vector Jenkins implementation since
+    it is generally faster.
     """
 
     def __init__(self, Q, T, kt, Fs, u0=0):
@@ -52,8 +56,30 @@ class JenkinsForce(NonlinearForce):
         self.T = T
         self.kt = kt
         self.Fs = Fs
+        self.prestress_Fs = 0.0
+        self.real_Fs = Fs
         
         self.u0 = u0
+      
+    def nl_force_type(self):
+        """
+        Marks as a hysteretic force.
+        """
+        return 1
+    
+    def set_prestress_mu(self):
+        """
+        Set friction coefficient to a different value (generally 0.0) for
+        prestress analysis
+        """
+        self.Fs = self.prestress_Fs
+        
+    def reset_real_mu(self): 
+        """
+        Reset friction coefficient to a real value (generally not 0.0) for
+        dynamic analysis
+        """
+        self.Fs = self.real_Fs
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
