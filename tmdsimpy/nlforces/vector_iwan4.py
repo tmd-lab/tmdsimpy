@@ -76,7 +76,7 @@ class VectorIwan4(Iwan4Force):
         
         # Only initialize before the loop. History is propogated through 
         # repeated loops over the period
-        self.init_history(unlth0, h)
+        self.init_history_harmonic(unlth0, h)
         fp = self.fp
         
         while( (its == 0) or (acheck > atol and rcheck > rtol and its < max_repeats) ):

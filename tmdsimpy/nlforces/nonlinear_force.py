@@ -217,12 +217,15 @@ class HystereticForce(NonlinearForce):
     def nl_force_type(self):
         return 1
     
-    def init_history(self, unlth0, h):
+    def init_history(self):
+        pass
+    
+    def init_history_harmonic(self, unlth0, h):
         pass
     
     def instant_force_harmonic(self, unl, unldot, h, cst):
         """
-        For evaluating a force state, uses history initialized in init_history.
+        For evaluating a force state, uses history initialized in init_history_harmonic.
         Updates history for the next call based on the current results. 
         
         Parameters
@@ -292,7 +295,7 @@ class HystereticForce(NonlinearForce):
         
         # Only initialize before the loop. History is propogated through 
         # repeated loops over the period
-        self.init_history(unlth0, h)
+        self.init_history_harmonic(unlth0, h)
         fp = self.fp
         
         while( (its == 0) or (acheck > atol and rcheck > rtol and its < max_repeats) ):

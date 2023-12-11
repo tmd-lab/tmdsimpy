@@ -581,6 +581,63 @@ class TestJAXEldry(unittest.TestCase):
             self.assertFalse(grad_failed, 
                              'Incorrect Gradient for combined two force test.')
         
+    def test_static_eldry(self):
+        """
+        Test static forces and gradients in three regimes:
+            1. Out of contact
+            2. In Contact and stuck
+            3. In Contact and Slipping
+        """
+        
+        rtol = 1e-12
+        valtol = 1e-12
+        
+        eldry_force = self.eldry_force
+        
+        eldry_force.init_history()
+        
+        fun = lambda X : eldry_force.force(X)
+        
+        ###########
+        
+        # kt = 2.0
+        # kn = 2.5
+        # mu = 0.75
+        
+        # Test Cases
+        Uout = np.array([0.0, -1.0])
+        Ustuck = np.array([0.1, 1.0])
+        Ustuck2 = np.array([-0.1, 1.0])
+        Uslip = np.array([15.0, 1.0])
+        Uslip2 = np.array([-15.0, 1.0])
+        
+        Fout = np.array([0.0, 0.0])
+        Fstuck = np.array([0.2, 2.5])
+        Fstuck2 = np.array([-0.2, 2.5])
+        Fslip = np.array([1.875, 2.5])
+        Fslip2 = np.array([-1.875, 2.5])
+        
+        U_list = [Uout, Ustuck, Ustuck2, Uslip, Uslip2]
+        F_list = [Fout, Fstuck, Fstuck2, Fslip, Fslip2]
+        
+        ###########
+        
+        for i in range(len(U_list)):
+            
+            U = U_list[i]
+            F = F_list[i]
+            
+            fnl = fun(U)[0]
+            
+            self.assertLess(np.linalg.norm(F - fnl), valtol, 
+                            'Static force is incorrect for index {}'.format(i))
+            
+            grad_failed = vutils.check_grad(fun, U, verbose=False, rtol=rtol)
+            
+            self.assertFalse(grad_failed, 
+                         'Incorrect Gradient for static index {}'.format(i))
+        
+        pass
 
 if __name__ == '__main__':
     unittest.main()

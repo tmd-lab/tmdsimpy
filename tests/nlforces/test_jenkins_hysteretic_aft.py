@@ -108,7 +108,7 @@ class TestJenkins(unittest.TestCase):
         
         umax, freq, Nt, Fs, kt, Q, T = self.parameters
             
-        self.jenkins_force.init_history(unlth0=0)
+        self.jenkins_force.init_history_harmonic(unlth0=0)
         
         # # For an example of the full hysteresis loop, use these displacements:
         # t = np.linspace(0, 2*np.pi, Nt+1)
@@ -163,7 +163,7 @@ class TestJenkins(unittest.TestCase):
         #### Verification of Derivatives of Jenkins Force                  ####
         #######################################################################
         
-        # jenkins_force.init_history(unlth0=0)
+        # jenkins_force.init_history_harmonic(unlth0=0)
         Nt = 1<<5
         t = np.linspace(0, 2*np.pi, Nt+1)
         t = t[:-1]
@@ -174,7 +174,7 @@ class TestJenkins(unittest.TestCase):
         fhist = np.zeros_like(u)
         
         
-        jenkins_force.init_history(unlth0=0)
+        jenkins_force.init_history_harmonic(unlth0=0)
         
         for indext in range(t.shape[0]):
             fnl,dfnldunl,dfnldup,dfnldfp = jenkins_force.instant_force(u[indext], udot[indext], update_prev=False)

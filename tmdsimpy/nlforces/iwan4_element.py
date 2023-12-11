@@ -97,7 +97,7 @@ class Iwan4Force(HystereticForce):
         
         assert self.Q.shape[0] == 1, 'Not tested for simultaneous Iwan elements.'
     
-    def init_history(self, unlth0, h=np.array([0])):
+    def init_history_harmonic(self, unlth0, h=np.array([0])):
         """
         Initialize History
 
@@ -129,6 +129,11 @@ class Iwan4Force(HystereticForce):
         return
     
     def force(self, X):
+        """
+        To use the Iwan element with a static analysis, this force needs to be
+        implemented. In addition a number of routines related to history variables
+        are also required (e.g., see Jenkins)
+        """
         
         assert False, 'Not implemented.'
         
@@ -181,7 +186,7 @@ class Iwan4Force(HystereticForce):
     
     def instant_force_harmonic(self, unl, unldot, h, cst, update_prev=False):
         """
-        For evaluating a force state, uses history initialized in init_history.
+        For evaluating a force state, uses history initialized in init_history_harmonic.
         Updates history for the next call based on the current results. 
                 
         Parameters
