@@ -3,3 +3,9 @@
 */__pycache__
 */*/__pycache__
 
+# Misc. files can save figures that should not be committed. 
+*.png
+*.eps
+
+# Large mat files are needed for some examples, but should not be committed. 
+*.mat
