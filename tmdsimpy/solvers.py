@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.optimize
-from scipy.linalg import eigh
+import scipy.linalg
+import warnings
 
 class NonlinearSolver:
     
@@ -43,11 +44,21 @@ class NonlinearSolver:
         
         return X, R, dRdX, sol
     
-    def eigs(self, K, M=None, subset_by_index=[0, 2]):
+    def eigs(self, K, M=None, subset_by_index=[0, 2], symmetric=True):
         
         subset_by_index[1] = min(subset_by_index[1], K.shape[0]-1)
         
-        eigvals, eigvecs = eigh(K, M, subset_by_index=subset_by_index)
+        if symmetric:
+            eigvals, eigvecs = scipy.linalg.eigh(K, M, 
+                                                 subset_by_index=subset_by_index)
+        else: 
+            warnings.warn('Nonsymmetrix eigenvalue problem currently calculates all eigenvalues.')
+            eigvals, eigvecs = scipy.linalg.eig(K, b=M)
+
+            inds = np.argsort(eigvals)
+            
+            eigvals = eigvals[inds[subset_by_index[0]:subset_by_index[1]]]
+            eigvecs = eigvecs[:, inds[subset_by_index[0]:subset_by_index[1]]]
         
         return eigvals, eigvecs
     
