@@ -202,6 +202,11 @@ print('Residual norm: {:.4e}'.format(np.linalg.norm(R)))
 
 print('Static Solution Run Time : {:.3e} s'.format(t1 - t0))
 
+# Update history variables after static so sliders reset
+vib_sys.update_force_history(Xpre)
+
+# Reset to real friction coefficient after updating frictionless slider
+# positions
 vib_sys.reset_real_mu()
 
 ###############################################################################
@@ -211,13 +216,24 @@ vib_sys.reset_real_mu()
 # Recalculate stiffness with real mu
 Rpre, dRpredX = vib_sys.static_res(Xpre, Fv*prestress)
 
-
 eigvals, eigvecs = solver.eigs(dRpredX, system_matrices['M'], 
                                 subset_by_index=[0, 9], symmetric=False)
+
 
 print('Prestress State Frequencies: [Hz]')
 print(np.sqrt(eigvals)/(2*np.pi))
 
+# Mass normalize eigenvectors
+norm = np.diag(eigvecs.T @ system_matrices['M'] @ eigvecs)
+eigvecs = eigvecs / np.sqrt(norm)
+
+# Displacement at accel for eigenvectors
+resp_amp = system_matrices['R'][2, :] @ eigvecs
+print('Response amplitudes at tip accel: [m]')
+print(resp_amp)
+
+# open a terminal so variables can be manually investigated if interested
+import pdb; pdb.set_trace()
 
 ###############################################################################
 ####### EPMC Initial Guess                                              #######
