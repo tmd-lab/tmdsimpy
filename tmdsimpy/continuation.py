@@ -77,7 +77,8 @@ class Continuation:
                         'xtol'    : None, 
                         'corrector': 'Ortho', # Psuedo or Ortho
                         'FracLamList' : [], # List of vectors/numbers to multiply predictor by
-                        'backtrackStop': np.inf # Limit in how much backtracking past the start is allowed.
+                        'backtrackStop': np.inf, # Limit in how much backtracking past the start is allowed.
+                        'nsolve_verbose' : False
                         }
         
         
@@ -319,7 +320,7 @@ class Continuation:
                 XlamC, R, dRdX, sol = self.solver.nsolve(correct_fun, \
                                                          XlamP0/self.CtoP + dirC*ds,\
                                                          xtol=self.config['xtol'],\
-                                                         verbose=False)
+                                                         verbose=self.config['nsolve_verbose'])
                 
                 # Retry with smaller steps if correction failed.
                 while (not sol['success']) and ds > self.config['dsmin']:
@@ -334,7 +335,7 @@ class Continuation:
                     XlamC, R, dRdX, sol = self.solver.nsolve(correct_fun, \
                                                              XlamP0/self.CtoP + dirC*ds,\
                                                              xtol=self.config['xtol'],\
-                                                             verbose=False)
+                                                             verbose=self.config['nsolve_verbose'])
             
                 # Break out of loop over masks if have converged
                 if sol['success']:
