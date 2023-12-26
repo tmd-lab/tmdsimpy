@@ -2,6 +2,7 @@ import numpy as np
 from . import harmonic_utils as hutils
 from scipy.integrate import solve_ivp
 
+import warnings
 
 class VibrationSystem:
     
@@ -112,6 +113,22 @@ class VibrationSystem:
                 
         return
     
+    def set_aft_initialize(self, X):
+        """
+        Reset friction coefficients for relevant nonlinear forces to real 
+        (non-zero) values after prestress analysis
+        """
+        
+        # Check if nonlinear force has a reset mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            set_aft = getattr(nlforce, "set_aft_initialize", None)
+            if callable(set_aft):
+                nlforce.set_aft_initialize(X)
+            else:
+                warnings.warn('Nonlinear force: {} does not have an AFT initialize'.format(nlforce))
+                
+        return
     
     def static_res(self, U, Fstatic):
         """

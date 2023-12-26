@@ -160,6 +160,27 @@ class RoughContactFriction(NonlinearForce):
         dynamic analysis
         """
         self.mu = self.real_mu
+        
+    def set_aft_initialize(self, X):
+        """
+        Set a center for frictional sliders to be initialized at zero force
+        for AFT routines. 
+
+        Parameters
+        ----------
+        X : np.array, size (Ndof,)
+            Solution to a static solution or other desired set of displacements
+            that will be used as the baseline position of frictional sliders.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        self.uxyn_initialize = self.Q @ X
+        
+        return
     
     def force(self, X, update_hist=False, return_aux=False):
         """
