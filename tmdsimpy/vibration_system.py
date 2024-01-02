@@ -165,24 +165,36 @@ class VibrationSystem:
         Apply Alternating Time Frequency Method to calculate nonlinear force
         coefficients for all nonlinear forces in system
         
+        Nhc is the number of harmonic components in that h represents
+        can be calculated by harmonic_utils.Nhc(h)
+        
         Parameters
         ----------
-        U : Harmonic DOFs, (n * Nhc) 
-        Fl : Applied forcing harmonic coefficients, (n * Nhc)
-        h : List of Harmonics
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        U : np.array (n * Nhc,) 
+            Harmonic DOFs, displacements, np.hstack((U0, U1c, U1s...)) with 
+            harmonics h
+        w : double
+            Frequency
+        h : 1D np.array
+            Sorted list of harmonics
+        Nt : integer, power of 2
+            Number of Time Steps for AFT. The default is 128.
+        aft_tol : double
+            Tolerance for AFT. The default is 1e-7.
 
         Returns
         -------
-        Fnl : Nonlinear Force Harmonic Coefficients
-        dFnldU : Jacobian of Fnl w.r.t. Harmonic DOFs
-        dFnldw : Derivative of Fnl w.r.t. frequency
+        Fnl : np.array (n*Nhc,)
+            Nonlinear Force Harmonic Coefficients
+        dFnldU : np.array (n*Nhc, n*Nhc)
+            Jacobian of Fnl w.r.t. Harmonic DOFs
+        dFnldw : np.array (n*Nhc,)
+            Derivative of Fnl w.r.t. frequency
         
         """
         
         # Counting:
-        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        Nhc = hutils.Nhc(h) # Number of Harmonic Components
         Ndof = self.M.shape[0]
         
         # Initialize Memory
