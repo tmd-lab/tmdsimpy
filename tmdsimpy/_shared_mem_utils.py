@@ -14,7 +14,7 @@ def _single_aft(U, w, h, Nt, aft_tol, nlforce):
     Simple wrapper function to call AFT on single nonlinear force to enable
     parallelism
     """
-    res = nlforce.aft(U, w, h, Nt, aft_tol)
+    res = nlforce.aft(U, w, h, Nt, aft_tol, return_local=True)
     
     return res
     

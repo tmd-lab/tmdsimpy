@@ -10,14 +10,16 @@ from . import _shared_mem_utils as smutils
 import multiprocessing as mp
 
 # if mp.get_start_method() == 'fork':
-# if mp.get_start_method(allow_none=True) is None:
-#     from multiprocessing import set_start_method
-#     set_start_method("spawn")
+if mp.get_start_method(allow_none=True) is None:
+    from multiprocessing import set_start_method
+    set_start_method("spawn")
     
-from functools import partial, reduce
+from functools import partial #, reduce
 
 
 import warnings
+warnings.warn('Need to write a test for RoughContact returning local AFT results.')
+
 
 class VibrationSystemSM(VibrationSystem):
     """
@@ -80,27 +82,41 @@ class VibrationSystemSM(VibrationSystem):
             # However, not dividing may require more memory, so no guarantees.
             res_per_process = pool.map(
                                     partial(smutils._single_aft, U, w, h, Nt, aft_tol), 
-                                       self.nonlinear_forces)
+                                    self.nonlinear_forces
+                                       )
 
-            # Combine on each process
-            res_combined = reduce(smutils.combine_aft, 
-                          pool.map(partial(reduce, smutils.combine_aft), 
-                                   smutils.divide_list(res_per_process, pool._processes)
-                                   )
-                          )
+            # # Try dividing between processors so that reduce reloading and 
+            # # potential recompile?
+            # res_per_process = pool.map(
+            #                         partial(smutils._single_aft, U, w, h, Nt, aft_tol), 
+            #                         smutils.divide_list(self.nonlinear_forces, pool._processes)
+            #                            )
 
+        # Convert parallel global forces into local forces with a serial for loop
+        for ind, nlforce in enumerate(self.nonlinear_forces):
+            
+            Flocal = res_per_process[ind][0]
+            dFdUlocal = res_per_process[ind][1]
+            dFdwlocal = res_per_process[ind][2]
+            
+            Ndnl = Flocal.shape[0]
+            
+            Fnl += np.reshape(nlforce.T @ Flocal, (U.shape[0],), 'F')
+            dFnldU += np.kron(np.eye(Nhc), nlforce.T) @ dFdUlocal \
+                                                    @ np.kron(np.eye(Nhc), nlforce.Q)
+            
+            dFnldw += np.reshape(nlforce.T @ \
+                                np.reshape(dFdwlocal, (Ndnl, Nhc)), \
+                                (U.shape[0],), 'F')
+            
         
-        # # AFT for every set of nonlinear forces
+        # # Old implement
         # for nlforce in self.nonlinear_forces:
         #     Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
-            
+        #    
         #     Fnl += Fnl_curr
         #     dFnldU += dFnldU_curr
         #     dFnldw += dFnldw_curr
-            
-        Fnl    = res_combined[0]
-        dFnldU = res_combined[1]
-        dFnldw = res_combined[2]
         
         return Fnl, dFnldU, dFnldw
     

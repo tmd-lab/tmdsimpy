@@ -284,7 +284,7 @@ class RoughContactFriction(NonlinearForce):
         return fxyn_t
         
 
-    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2):
+    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False):
         """
         
         Tolerances are ignored since slider representation should converge
@@ -293,15 +293,24 @@ class RoughContactFriction(NonlinearForce):
 
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            shape: (Nhc*nd,)
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
+        U : np.array, size (Nhc*nd,)
+            Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
+        w : double (scalar)
+            Frequency
+        h : np.array, sorted
+            List of harmonics that are considered, zeroth must be first
+        Nt : Integer power of 2
+             Number of time points to evaluate at. 
              The default is 128.
-        max_repeats : number of hysteresis loops to calculate to reach steady
-                        state. Maximum value allowed. 
-                        The default is 2
+        max_repeats : integer
+                      number of hysteresis loops to calculate to reach steady
+                      state. Maximum value allowed. 
+                      The default is 2
+        return_local : Boolean
+                        If False, it uses self.Q and self.T to convert forces 
+                        and gradients back to global domain.  If True, it does
+                        not apply these transforms to the results.
+                        default is False
 
         Returns
         -------
@@ -346,10 +355,16 @@ class RoughContactFriction(NonlinearForce):
                                     tuple(h), Nt, repeats=max_repeats)
         
         #########################
-        # Convert AFT to Global Coordinates
+        # Option to return local results
         
         # Reshape Flocal
         Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
+        
+        if return_local:
+            return Flocal, dFdUwlocal[:, :-1], dFdUwlocal[:, -1]
+        
+        #########################
+        # Convert AFT to Global Coordinates
                 
         # Global coordinates        
         Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')

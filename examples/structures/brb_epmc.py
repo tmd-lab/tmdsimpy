@@ -43,8 +43,8 @@ from tmdsimpy.solvers_omp import NonlinearSolverOMP
 
 from tmdsimpy.continuation import Continuation
 
-# from tmdsimpy.vibration_system import VibrationSystem
-from tmdsimpy.vibration_system_sm import VibrationSystemSM as VibrationSystem
+from tmdsimpy.vibration_system import VibrationSystem
+# from tmdsimpy.vibration_system_sm import VibrationSystemSM as VibrationSystem
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction
 
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
         h_max = 3
         Nt = 1<<7
         
-    run_profilers = False # Run profiling of code operations to identify bottlenecks
+    run_profilers = True # Run profiling of code operations to identify bottlenecks
     
     # solve function - can use python library routines or custom ones
     # solver = NonlinearSolver() # scipy nonlinear solver
@@ -312,7 +312,7 @@ if __name__ == '__main__':
         print('i.e.: "vibration_system.py:116(static_res)"')
         
         print('Type "c" to continue execution')
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
     
     
     ###############################################################################
@@ -380,6 +380,14 @@ if __name__ == '__main__':
     t1 = time.time()
     print('Single Residual Time: {: 8.3f} seconds'.format(t1-t0))
     print('Estimated: JAX compiled parallelism only: 15 sec')
+    
+    
+    if run_profilers:
+        
+        import cProfile
+        cProfile.run('epmc_fun(Uwxa0)')
+        
+        import pdb; pdb.set_trace()
     
     #####################
     
