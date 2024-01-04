@@ -308,6 +308,8 @@ if __name__ == '__main__':
         import cProfile
         cProfile.run('solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)')
         
+        print('Solver fails here since friction coefficient is turned back on...')
+        
         print('This indicates most time is spent in the residual function and not the matrix solves.')
         print('i.e.: "vibration_system.py:116(static_res)"')
         
@@ -375,7 +377,9 @@ if __name__ == '__main__':
     ######################
     t0 = time.time()
     
-    epmc_fun(Uwxa0)
+    R = epmc_fun(Uwxa0)[0]
+    
+    block_with_str = str(R[0]) # Force JAX to return all values before ending timing
     
     t1 = time.time()
     print('Single Residual Time: {: 8.3f} seconds'.format(t1-t0))
@@ -385,7 +389,8 @@ if __name__ == '__main__':
     if run_profilers:
         
         import cProfile
-        cProfile.run('epmc_fun(Uwxa0)')
+        # cProfile.run('epmc_fun(Uwxa0)')
+        cProfile.run('R = epmc_fun(Uwxa0)[0];  block_with_str = str(R[0])')
         
         import pdb; pdb.set_trace()
     
