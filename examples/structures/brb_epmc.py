@@ -77,7 +77,7 @@ dsmax = 0.2
 dsmin = 0.02
 
 
-fast_sol = True # Choose speed or accuracy
+fast_sol = False # Choose speed or accuracy
 
 if fast_sol:
     # Run with reduced harmonics and AFT time steps to keep time within a 
@@ -307,6 +307,8 @@ if run_profilers:
     print('This indicates most time is spent in the residual function and not the matrix solves.')
     print('i.e.: "vibration_system.py:116(static_res)"')
     
+    print('This does not converge the same way because the friction coefficient was turned back on.')
+    
     print('Type "c" to continue execution')
     import pdb; pdb.set_trace()
 
@@ -345,6 +347,34 @@ Uwxa0[-2] = 2*Uwxa0[-3]*zeta
 
 # Amplitude
 Uwxa0[-1] = Astart
+
+
+###############################################################################
+####### Profile Single EPMC Residual                                    #######
+###############################################################################
+
+t0 = time.time()
+
+R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt)[0]
+
+str(R[0]) # This forces JAX operations to block
+
+t1 = time.time()
+
+print('EPMC Residual Run Time : {: 7.3f} s'.format(t1 - t0))
+
+if run_profilers:
+    
+    import cProfile
+    cProfile.run('R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt)[0]; str(R[0])')
+    
+    print('This indicates most time is spent in the residual function and not the matrix solves.')
+    print('i.e.: "vibration_system.py:116(static_res)"')
+    
+    print('Type "c" to continue execution')
+    import pdb; pdb.set_trace()
+
+
 
 ###############################################################################
 ####### EPMC Continuation                                               #######
