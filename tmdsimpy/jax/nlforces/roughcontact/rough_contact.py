@@ -297,7 +297,8 @@ class RoughContactFriction(NonlinearForce):
         return fxyn_t
         
 
-    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False):
+    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False,
+            calc_grad=True):
         """
         
         Tolerances are ignored since slider representation should converge
@@ -337,8 +338,9 @@ class RoughContactFriction(NonlinearForce):
         # Memory Initialization 
         
         Fnl = np.zeros_like(U)
-        dFnldU = np.zeros((U.shape[0], U.shape[0]))
-        dFnldw = np.zeros_like(U)
+        if calc_grad:
+            dFnldU = np.zeros((U.shape[0], U.shape[0]))
+            dFnldw = np.zeros_like(U)
         
         
         #########################
@@ -355,12 +357,16 @@ class RoughContactFriction(NonlinearForce):
         # Conduct AFT in Local Coordinates with JAX
         Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
         
-        
-        # # If no Grad is needed use:
-        # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
-        
-        # Case with gradient and local force
-        dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+        if calc_grad:
+            # Case with gradient and local force
+            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+                                    self.mu, self.meso_gap, self.gaps, 
+                                    self.gap_weights, self.Re, self.poisson, 
+                                    self.Estar, self.elastic_mod, self.tangent_mod, 
+                                    self.delta_y, self.sys, self.Gstar, 
+                                    tuple(h), Nt, repeats=max_repeats)
+        else:
+            Flocal,_ = _local_aft(Uwlocal, self.uxyn_initialize, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights, self.Re, self.poisson, 
                                     self.Estar, self.elastic_mod, self.tangent_mod, 
@@ -374,22 +380,31 @@ class RoughContactFriction(NonlinearForce):
         Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
         
         if return_local:
-            return Flocal, dFdUwlocal[:, :-1], dFdUwlocal[:, -1]
+            
+            if calc_grad:
+                return Flocal, dFdUwlocal[:, :-1], dFdUwlocal[:, -1]
+            else:
+                return (Flocal,)
         
         #########################
         # Convert AFT to Global Coordinates
                 
         # Global coordinates        
         Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
-        dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
+        
+        if calc_grad:
+            dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
                                                 @ np.kron(np.eye(Nhc), self.Q)
         
-        dFnldw = np.reshape(self.T @ \
+            dFnldw = np.reshape(self.T @ \
                             np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
                             (U.shape[0],), 'F')
+            
+            return Fnl, dFnldU, dFnldw
+        else:
+            return Fnl
         
         
-        return Fnl, dFnldU, dFnldw
 
     
 ###############################################################################
@@ -635,7 +650,7 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
 ###############################################################################
 
 
-# @partial(jax.jit, static_argnums=tuple(range(6, 15))) 
+@partial(jax.jit, static_argnums=tuple(range(6, 17))) 
 def _local_aft(Uwlocal, unlth0, mu, meso_gap, gaps, gap_weights,
                          Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
                          htuple, Nt, repeats=2):

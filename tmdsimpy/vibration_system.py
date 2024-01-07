@@ -160,7 +160,7 @@ class VibrationSystem:
         
         return R, dRdU
     
-    def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7):
+    def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Apply Alternating Time Frequency Method to calculate nonlinear force
         coefficients for all nonlinear forces in system
@@ -193,24 +193,38 @@ class VibrationSystem:
         
         """
         
+        warnings.warn('Need to write tests for calc_grad option + update all docstrings')
+        
         # Counting:
         Nhc = hutils.Nhc(h) # Number of Harmonic Components
         Ndof = self.M.shape[0]
         
         # Initialize Memory
         Fnl = np.zeros((Nhc*Ndof,), np.double)
-        dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
-        dFnldw = np.zeros((Nhc*Ndof,), np.double)
         
-        # AFT for every set of nonlinear forces
-        for nlforce in self.nonlinear_forces:
-            Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
+        if calc_grad:
+            dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+            dFnldw = np.zeros((Nhc*Ndof,), np.double)
             
-            Fnl += Fnl_curr
-            dFnldU += dFnldU_curr
-            dFnldw += dFnldw_curr
+            # AFT for every set of nonlinear forces
+            for nlforce in self.nonlinear_forces:
+                Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
+                
+                Fnl += Fnl_curr
+                dFnldU += dFnldU_curr
+                dFnldw += dFnldw_curr
             
-        return Fnl, dFnldU, dFnldw
+            return Fnl, dFnldU, dFnldw
+                
+        else: 
+            # AFT for every set of nonlinear forces
+            for nlforce in self.nonlinear_forces:
+                Fnl_curr = nlforce.aft(U, w, h, Nt, aft_tol, calc_grad=False)[0]
+                
+                Fnl += Fnl_curr
+            
+            
+            return (Fnl,)
 
     def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7):
         """
@@ -322,7 +336,7 @@ class VibrationSystem:
         return Xw
 
 
-    def epmc_res(self, Uwxa, Fl, h, Nt=128, aft_tol=1e-7):
+    def epmc_res(self, Uwxa, Fl, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Residual for Extended Periodic Motion Concept
 
@@ -358,13 +372,14 @@ class VibrationSystem:
         
         # Initialize Outputs
         R = np.zeros(Nhc*Ndof + 2)
-        dRdUwx = np.zeros((Nhc*Ndof + 2, Nhc*Ndof + 2))
-        dRda = np.zeros(Nhc*Ndof+2)
+        
+        if calc_grad:
+            dRdUwx = np.zeros((Nhc*Ndof + 2, Nhc*Ndof + 2))
+            dRda = np.zeros(Nhc*Ndof+2)
         
         # Convert Log Amplitude
         la = Uwxa[-1]
         Amp = 10**la
-        dAmpdla = Amp*np.log(10.0)
         
         # Separate out Zeroth Harmonic (no amplitude scaling and applied force)
         h0 = 1*(h[0] == 0)
@@ -372,7 +387,9 @@ class VibrationSystem:
         Ascale = np.kron(np.hstack((np.ones(h0), Amp*np.ones(Nhc-h0))), \
                          np.ones(Ndof))
         
-        dAscaledla = np.kron(np.hstack((np.zeros(h0), dAmpdla*np.ones(Nhc-h0))), \
+        if calc_grad:
+            dAmpdla = Amp*np.log(10.0)
+            dAscaledla = np.kron(np.hstack((np.zeros(h0), dAmpdla*np.ones(Nhc-h0))), \
                          np.ones(Ndof))
         
         # Static forces applied to zeroth harmonic
@@ -391,7 +408,9 @@ class VibrationSystem:
         
         # Harmonic Stiffness Matrices
         E,dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h)
-        dEdxi,_ = hutils.harmonic_stiffness(self.M*0, -self.M, self.K*0, w, h)
+        
+        if calc_grad:
+            dEdxi,_ = hutils.harmonic_stiffness(self.M*0, -self.M, self.K*0, w, h)
         
         
         ########### # OLD AFT:
@@ -407,8 +426,15 @@ class VibrationSystem:
         
         
         # Alternating Frequency Time Call
-        Fnl, dFnldU, dFnldw = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, aft_tol=aft_tol)
         
+        AFT_res = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, 
+                                             aft_tol=aft_tol,
+                                             calc_grad=calc_grad)
+        if calc_grad:
+            Fnl, dFnldU, dFnldw = AFT_res
+        else:
+            Fnl = AFT_res[0]
+            
         # Output Residual and Derivatives
         # Force Balance
         R[:-2] = E @ (Ascale*Uwxa[:-3]) + Fnl - Fstat
@@ -421,27 +447,32 @@ class VibrationSystem:
         # Phase Constraint
         R[-1]  = Fdyn @ Uwxa[:-3]
         
-        # d Force Balance / d Displacements
-        dRdUwx[:-2, :-2] = (E + dFnldU) * Ascale #.reshape(-1,1)
-        
-        # d Force Balance / d w
-        dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3]) + dFnldw
-        
-        # d Force Balance / d xi
-        dRdUwx[:-2, -1] = dEdxi @ (Ascale * Uwxa[:-3])
-        
-        # d Amplitude Constraint / d Displacements (only 1st harmonic)
-        dRdUwx[-2, h0*Ndof:(h0+1)*Ndof] = 2*Uwxa[h0*Ndof:((h0+1)*Ndof)] @ self.M
+        if calc_grad:
+            # d Force Balance / d Displacements
+            dRdUwx[:-2, :-2] = (E + dFnldU) * Ascale #.reshape(-1,1)
             
-        dRdUwx[-2, (h0+1)*Ndof:(h0+2)*Ndof] = 2*Uwxa[(h0+1)*Ndof:((h0+2)*Ndof)] @ self.M
+            # d Force Balance / d w
+            dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3]) + dFnldw
+            
+            # d Force Balance / d xi
+            dRdUwx[:-2, -1] = dEdxi @ (Ascale * Uwxa[:-3])
+            
+            # d Amplitude Constraint / d Displacements (only 1st harmonic)
+            dRdUwx[-2, h0*Ndof:(h0+1)*Ndof] = 2*Uwxa[h0*Ndof:((h0+1)*Ndof)] @ self.M
+                
+            dRdUwx[-2, (h0+1)*Ndof:(h0+2)*Ndof] = 2*Uwxa[(h0+1)*Ndof:((h0+2)*Ndof)] @ self.M
+            
+            # d Phase Constraint / d Displacements
+            dRdUwx[-1, :-2] = Fdyn
+            
+            # d Force Balance / d Total Amplitude Scaling
+            dRda[:-2] = (E + dFnldU) @ (dAscaledla * Uwxa[:-3])
         
-        # d Phase Constraint / d Displacements
-        dRdUwx[-1, :-2] = Fdyn
-        
-        # d Force Balance / d Total Amplitude Scaling
-        dRda[:-2] = (E + dFnldU) @ (dAscaledla * Uwxa[:-3])
-        
-        return R, dRdUwx, dRda
+            return R, dRdUwx, dRda
+        else:
+            # Still return as a tuple, so can always index first result to get
+            # residual
+            return (R,) 
     
     def hbm_base_res(self, Uw, Ub, base_flag, h, Nt=128, aft_tol=1e-7):
         """

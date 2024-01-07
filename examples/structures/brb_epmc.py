@@ -355,13 +355,23 @@ Uwxa0[-1] = Astart
 
 t0 = time.time()
 
-R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt)[0]
+R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt, calc_grad=True)[0]
 
 str(R[0]) # This forces JAX operations to block
 
 t1 = time.time()
 
-print('EPMC Residual Run Time : {: 7.3f} s'.format(t1 - t0))
+print('EPMC Residual Run Time (with gradient): {: 7.3f} s'.format(t1 - t0))
+
+t0 = time.time()
+
+R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt, calc_grad=False)[0]
+
+str(R[0]) # This forces JAX operations to block
+
+t1 = time.time()
+
+print('EPMC Residual Run Time (without gradient): {: 7.3f} s'.format(t1 - t0))
 
 if run_profilers:
     
