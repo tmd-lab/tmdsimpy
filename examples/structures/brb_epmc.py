@@ -42,6 +42,7 @@ from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.solvers_omp import NonlinearSolverOMP
 
 from tmdsimpy.continuation import Continuation
+import tmdsimpy.continuation_utils as cont_utils
 
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction
@@ -73,7 +74,7 @@ Aend = -4.2
 
 # Continuation Step Size (starting)
 ds = 0.1
-dsmax = 0.2
+dsmax = 0.14
 dsmin = 0.02
 
 
@@ -84,16 +85,74 @@ if fast_sol:
     # few minutes
     h_max = 1
     Nt = 1<<3
+    FracLam = 0.5 # Continuation weighting
 else:
     # Normal - settings for higher accuracy as used in previous papers
     h_max = 3
     Nt = 1<<7
     
+    ds = 0.08
+    dsmax = 0.09
+    FracLam = 0.1 # Adjust weighting of amplitude v. other in continuation to hopefully reduce turning around.
+    
 run_profilers = False # Run profiling of code operations to identify bottlenecks
 
+
+
+
+###############################################################################
+####### Solver Settings                                                 #######
+###############################################################################
+
+########################################
+# Static Solver settings
+
+static_config={'max_steps' : 30,
+                'reform_freq' : 1,
+                'verbose' : True, 
+                'xtol'    : None, 
+                'stopping_tol' : ['xtol']
+                }
+
 # solve function - can use python library routines or custom ones
-# solver = NonlinearSolver() # scipy nonlinear solver
-solver = NonlinearSolverOMP() # Custom Newton-Raphson solver
+# static_solver = NonlinearSolver() # scipy nonlinear solver
+static_solver = NonlinearSolverOMP(config=static_config) # Custom Newton-Raphson solver
+
+
+########################################
+# EPMC Solver settings
+
+epmc_config={'max_steps' : 8,
+            'reform_freq' : 1,
+            'verbose' : True, 
+            'xtol'    : None, # Just use the one passed from continuation
+            'rtol'    : 1e-9,
+            'etol'    : None,
+            'xtol_rel' : 1e-6, 
+            'rtol_rel' : None,
+            'etol_rel' : None,
+            'stopping_tol' : ['xtol'],
+            'accepting_tol' : ['xtol_rel', 'rtol']
+            }
+
+# solve function - can use python library routines or custom ones
+# epmc_solver = NonlinearSolver() # scipy nonlinear solver
+epmc_solver = NonlinearSolverOMP(config=epmc_config) # Custom Newton-Raphson solver
+
+
+
+###############################################################################
+####### EPMC Output Save Information                                    #######
+###############################################################################
+
+epmc_full_name = './brb_epmc_bb_full.npz' # Detailed full output (numpy binary)
+epmc_dat = './brb_epmc_bb_sum.dat' # Summary file output (text file)
+
+call_list = [lambda XlamP, dirP_prev : cont_utils.continuation_save(XlamP, dirP_prev, epmc_full_name),
+             lambda XlamP, dirP_prev : cont_utils.print_epmc_stats(XlamP, dirP_prev, epmc_dat)]
+
+callback_funs = lambda XlamP, dirP_prev : cont_utils.combine_callback_funs(\
+                                                   call_list, XlamP, dirP_prev)
 
 ###############################################################################
 ####### Load System Matrices from .mat File                             #######
@@ -113,9 +172,8 @@ if not (system_matrices['M'].shape == (859, 859)):
 
 # Approximate Frequencies Without Contact
 # If running a different ROM, these will vary slightly
-solver = NonlinearSolverOMP()
 
-eigvals, eigvecs = solver.eigs(system_matrices['K'], system_matrices['M'], 
+eigvals, eigvecs = static_solver.eigs(system_matrices['K'], system_matrices['M'], 
                                subset_by_index=[0, 9])
 
 expected_eigvals = np.array([1.855211e+01, 1.701181e+05, 8.196151e+05, 
@@ -173,7 +231,10 @@ prestress = (12002+12075+12670)*1.0/3; # N per bolt
 ####### Create Vibration System                                         #######
 ###############################################################################
 # Initial Guess Constructed based only on mass prop damping.
-damp_ab = [0.01, 0.0]
+# TODO : Add better damping calculation after prestress
+import warnings
+warnings.warn('Linear damping is only initialized as mass proportional at a fixed frequency here.')
+damp_ab = [0.087e-2*2*(168.622*2*np.pi), 0.0]
 
 vib_sys = VibrationSystem(system_matrices['M'], system_matrices['K'], 
                           ab=damp_ab)
@@ -251,7 +312,7 @@ print('Residual norm of initial guess: {:.4e}'.format(np.linalg.norm(dR0dX)))
 import time
 
 t0 = time.time()
-Xpre, R, dRdX, sol = solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
+Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
 
 t1 = time.time()
 
@@ -276,7 +337,7 @@ vib_sys.reset_real_mu()
 # Recalculate stiffness with real mu
 Rpre, dRpredX = vib_sys.static_res(Xpre, Fv*prestress)
 
-eigvals, eigvecs = solver.eigs(dRpredX, system_matrices['M'], 
+eigvals, eigvecs = static_solver.eigs(dRpredX, system_matrices['M'], 
                                 subset_by_index=[0, 9], symmetric=False)
 
 
@@ -352,7 +413,7 @@ Uwxa0[-1] = Astart
 ###############################################################################
 ####### Profile Single EPMC Residual                                    #######
 ###############################################################################
-
+import pdb; pdb.set_trace()
 t0 = time.time()
 
 R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt, calc_grad=True)[0]
@@ -393,20 +454,24 @@ if run_profilers:
 epmc_fun = lambda Uwxa : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt)
 
 continue_config = {'DynamicCtoP': True, 
-                   'TargetNfev' : 6,
+                   'TargetNfev' : 4,
                    'MaxSteps'   : 20,
                    'dsmin'      : dsmin,
                    'dsmax'      : dsmax, # 0.015 for plotting
                    'verbose'    : 1,
-                   'xtol'       : 1e-6*Uwxa0.shape[0], 
+                   'xtol'       : 1e-6*np.sqrt(Uwxa0.shape[0]), 
                    'corrector'  : 'Ortho', # Ortho, Pseudo
-                   'nsolve_verbose' : True}
+                   'nsolve_verbose' : True,
+                   'callback' : callback_funs,
+                   'FracLam' : FracLam,
+                   'backtrackStop' : 0.05 # stop if it backtracks to before start.
+                   }
 
 CtoP = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h)
 CtoP[-1] = np.abs(Aend-Astart)
 
 
-cont_solver = Continuation(solver, ds0=ds, CtoP=CtoP, config=continue_config)
+cont_solver = Continuation(epmc_solver, ds0=ds, CtoP=CtoP, config=continue_config)
 
 t0 = time.time()
 
@@ -434,4 +499,4 @@ if run_profilers:
 ####### Open Debug Terminal at End for User to Query Variables          #######
 ###############################################################################
 
-import pdb; pdb.set_trace()
+# import pdb; pdb.set_trace()

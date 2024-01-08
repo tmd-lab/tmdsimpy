@@ -45,6 +45,17 @@ class Continuation:
                     verbose : Number of steps to output updates at. 
                               If less than 0, all output is supressed. 
                               If 0, some output is still printed. 
+                    callback : Function that is called after every solution. 
+                                function is passed arguments of X,dirP_prev
+                                corresponding to the solution at the current
+                                point and the prediction direction that was 
+                                used to calculate that point. Function is 
+                                called after initial solution with np.nan 
+                                vector of dirP_prev and twice after the final
+                                converged solution. The final call has np.nan
+                                vector for X, and has dirP_prev if one was to 
+                                take another step (correponds to slope at final
+                                solution) for interpolation.
                     
         Returns
         -------
@@ -78,7 +89,8 @@ class Continuation:
                         'corrector': 'Ortho', # Psuedo or Ortho
                         'FracLamList' : [], # List of vectors/numbers to multiply predictor by
                         'backtrackStop': np.inf, # Limit in how much backtracking past the start is allowed.
-                        'nsolve_verbose' : False
+                        'nsolve_verbose' : False,
+                        'callback' : None
                         }
         
         
@@ -98,6 +110,12 @@ class Continuation:
     def predict(self, fun, XlamP0, XlamPprev):
         """
         Predicts the direction of the next step with the correct sign and ds=1
+        
+        If multiple FracLam values are used in the case of nonconvergence, 
+        then this function is repeatedly called, but those later calls should
+        not have to re-evaluate the residual and re-find the null space since
+        it has not changed. Therefore, this could be sped up by eliminating
+        that work on repeat calls at the same XlamP0 value.
 
         Parameters
         ----------
@@ -278,6 +296,12 @@ class Continuation:
         if not silent:
             print('Converged to initial point! Starting continuation.')
         
+        if self.config['callback'] is not None:
+            # Callback save of initial solution
+            # dirC is not yet calculated, so passing NaN
+            self.config['callback'](np.hstack((X, lam0)), 
+                                    np.hstack((X, lam0))*np.nan)
+                
         # Define a Reference Direction as a previous solution for use in the 
         # predictor
         direct = np.sign(lam1 - lam0)
@@ -369,6 +393,8 @@ class Continuation:
             ds = min(max(ds, self.config['dsmin']), self.config['dsmax'])
             
             # TODO: Callback function
+            if self.config['callback'] is not None:
+                self.config['callback'](XlamP_full[step], dirC*self.CtoP)
             
             # Update information from previous steps
             XlamPprev = np.copy(XlamP0)
@@ -377,6 +403,18 @@ class Continuation:
             
         # Only return solved history.
         XlamP_full = XlamP_full[:step]
+        
+        # Callback - save the final dirC 
+        if self.config['callback'] is not None:
+            if not sol['success']:
+                # Pass dirC for the previous step corresponding to the last
+                # converged solution
+                self.config['callback'](dirC*np.nan, dirC*self.CtoP)
+            else:
+                # Calculate dirC for the current solution to be saved
+                dirC = self.predict(fun, XlamP0, XlamPprev)
+                
+                self.config['callback'](dirC*np.nan, dirC*self.CtoP)
         
         if not silent:
             print('Continuation complete, at lam=', XlamP_full[step-1, -1])
