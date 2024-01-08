@@ -413,7 +413,7 @@ Uwxa0[-1] = Astart
 ###############################################################################
 ####### Profile Single EPMC Residual                                    #######
 ###############################################################################
-import pdb; pdb.set_trace()
+
 t0 = time.time()
 
 R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt, calc_grad=True)[0]
