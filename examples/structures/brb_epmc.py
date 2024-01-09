@@ -92,9 +92,12 @@ else:
     Nt = 1<<7
     
     ds = 0.08
-    dsmax = 0.09
-    FracLam = 0.1 # Adjust weighting of amplitude v. other in continuation to hopefully reduce turning around.
-    
+    dsmax = 0.125*1.4
+    # Adjust weighting of amplitude v. other in continuation to hopefully 
+    # reduce turning around. Higher puts more emphasis on continuation 
+    # parameter (amplitude)
+    FracLam = 0.50     
+
 run_profilers = False # Run profiling of code operations to identify bottlenecks
 
 
@@ -471,7 +474,7 @@ CtoPstatic = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-5)
 CtoP = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-3) # Increasing delta means that these cofficients will be smaller in conditioned space.
 
 CtoP[:Ndof] = CtoPstatic[:Ndof] # Allow different CtoP for static displacements than harmonics.
-CtoP[-3:-1] = np.abs(Uwx0[-3:-1]) # Exactly take damping and frequency regardless of delta
+CtoP[-3:-1] = np.abs(Uwxa0[-3:-1]) # Exactly take damping and frequency regardless of delta
 CtoP[-1] = np.abs(Aend-Astart)
 
 
