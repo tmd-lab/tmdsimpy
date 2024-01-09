@@ -467,7 +467,11 @@ continue_config = {'DynamicCtoP': True,
                    'backtrackStop' : 0.05 # stop if it backtracks to before start.
                    }
 
-CtoP = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h)
+CtoPstatic = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-5)
+CtoP = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-3) # Increasing delta means that these cofficients will be smaller in conditioned space.
+
+CtoP[:Ndof] = CtoPstatic[:Ndof] # Allow different CtoP for static displacements than harmonics.
+CtoP[-3:-1] = np.abs(Uwx0[-3:-1]) # Exactly take damping and frequency regardless of delta
 CtoP[-1] = np.abs(Aend-Astart)
 
 
