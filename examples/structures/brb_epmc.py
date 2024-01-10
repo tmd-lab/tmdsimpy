@@ -148,8 +148,8 @@ epmc_solver = NonlinearSolverOMP(config=epmc_config) # Custom Newton-Raphson sol
 ####### EPMC Output Save Information                                    #######
 ###############################################################################
 
-epmc_full_name = './brb_epmc_bb_full.npz' # Detailed full output (numpy binary)
-epmc_dat = './brb_epmc_bb_sum.dat' # Summary file output (text file)
+epmc_full_name = './results/brb_epmc_bb_full.npz' # Detailed full output (numpy binary)
+epmc_dat = './results/brb_epmc_bb_sum.dat' # Summary file output (text file)
 
 call_list = [lambda XlamP, dirP_prev : cont_utils.continuation_save(XlamP, dirP_prev, epmc_full_name),
              lambda XlamP, dirP_prev : cont_utils.print_epmc_stats(XlamP, dirP_prev, epmc_dat)]
