@@ -402,7 +402,7 @@ class RoughContactFriction(NonlinearForce):
             
             return Fnl, dFnldU, dFnldw
         else:
-            return Fnl
+            return (Fnl,)
         
         
 

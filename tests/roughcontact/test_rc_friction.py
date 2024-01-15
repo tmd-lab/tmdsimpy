@@ -428,6 +428,7 @@ class TestRoughContact(unittest.TestCase):
         Test the AFT implementation of the rough contact model.
         
         1. Look at force coefficients and make sure that they look correct
+        2. Test flag for not returning gradient.
         
         These cases show a lot more harmonic contributions in the tangent 
         direction than may be expected. However, if the first harmonic component
@@ -497,5 +498,18 @@ class TestRoughContact(unittest.TestCase):
         self.assertLess(np.linalg.norm(F_y[0::3] - F_x[0::3]), 1e-12, 
                          'Adding Y should not change X direction loads.')
         
+        
+        res_default = element_model.aft(U, w, h, Nt=Nt, max_repeats=2)
+        res_no_grad = element_model.aft(U, w, h, Nt=Nt, max_repeats=2, calc_grad=False)
+        res_true_grad = element_model.aft(U, w, h, Nt=Nt, max_repeats=2, calc_grad=True)
+        
+        self.assertEqual(len(res_default), 3, 'Default AFT returns wrong number of outputs')
+        self.assertEqual(len(res_no_grad), 1, 'No Grad AFT returns wrong number of outputs')
+        self.assertEqual(len(res_true_grad), 3, 'True Grad AFT returns wrong number of outputs')
+        
+        # Should be exact since the calculation is the same, just 
+        # returning different outputs
+        self.assertEqual(np.linalg.norm(res_default[0] - res_no_grad[0]), 0.0)
+                
 if __name__ == '__main__':
     unittest.main()
