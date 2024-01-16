@@ -14,10 +14,10 @@ import numpy as np
 import unittest
 
 sys.path.append('..')
-from tmdsimpy.solvers import NonlinearSolver
+from tmdsimpy.solvers_omp import NonlinearSolverOMP
 
 
-class TestSolver(unittest.TestCase):
+class TestSolverOMP(unittest.TestCase):
     
     def test_solve(self):
         """
@@ -31,14 +31,14 @@ class TestSolver(unittest.TestCase):
 
         # Solve for root of a function
         # x^2 - 9
-        fun = lambda x : (x**2-9, 2*x)
+        fun = lambda x : (x**2-9, 2*np.atleast_2d(x))
         # fun = lambda x : (np.cos(x), -np.sin(x)) # - poor test since can jump to multiple roots
 
         x0 = np.array([3.5])
 
-        solver = NonlinearSolver()
+        config={'xtol': 1e-9}
 
-        #x = solver.nsolve(fun, x0)
+        solver = NonlinearSolverOMP(config=config)
 
         x, R, dRdX, sol = solver.nsolve(fun, x0, verbose=False)
 
@@ -61,7 +61,7 @@ class TestSolver(unittest.TestCase):
         A = np.random.rand(4,4)
         b = np.random.rand(4)
         
-        solver = NonlinearSolver()
+        solver = NonlinearSolverOMP()
         
         x_lin = solver.lin_solve(A, b)
         
@@ -75,7 +75,7 @@ class TestSolver(unittest.TestCase):
         
         self.assertLess(np.linalg.norm(A @ x_factor_res - b), 1e-12, 
                         'Factor and factored solve function is wrong')
-        
+    
         
 if __name__ == '__main__':
     unittest.main()

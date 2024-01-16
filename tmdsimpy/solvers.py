@@ -18,7 +18,66 @@ class NonlinearSolver:
         None.
 
         """
-        pass
+        self.stored_factor = ()
+    
+    def lin_solve(self, A, b):
+        """
+        Solve the linear system A * x = b 
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix.
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        x = np.linalg.solve(A, b)
+        
+        return x
+    
+    def lin_factor(self, A):
+        """
+        Factor a matrix A for later solving. This version simply stores and 
+        fully solves later.
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix for later solving.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.stored_factor = (A,)
+    
+    def lin_factored_solve(self, b):
+        """
+        Solve the linear system with right hand side b and stored (factored)
+        matrix from self.factor(A)
+
+        Parameters
+        ----------
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        A = self.stored_factor[0]
+        x = np.linalg.solve(A, b)
+        
+        return x
     
     def nsolve(self, fun, X0, verbose=True, xtol=None):
         
