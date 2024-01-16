@@ -7,6 +7,13 @@ from ..solvers import NonlinearSolver
 
 class NonlinearSolverOMP(NonlinearSolver):
     """
+    Nonlinear solver object that contains several functions and solver settings
+
+    Parameters
+    ----------
+    config : dict, optional
+        Dictionary of settings to be used in the solver (see below).
+
     Notes
     ----------
     
@@ -15,66 +22,56 @@ class NonlinearSolverOMP(NonlinearSolver):
     Libraries used respond to OpenMP environment variables such as: \n
     > export OMP_PROC_BIND=spread # Spread threads out over physical cores \n
     > export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
-    """
+
+    
+    config dictionary keys
+    -------
+    max_steps : int, default 20
+        maximum number of iterations allowed in the nonlinear solver
+    reform_freq : int, default 1
+        Frequency of recalculating and refactoring Jacobian matrix of the
+        nonlinear problem. 1 corresponds to Newton-Raphson of doing this 
+        every step. Larger numbers will correspond to BFGS low rank updates
+        in between steps with refactoring. 
+        When reform_freq > 1, function being solved must accept the keyword
+        calc_grad=True or calc_grad=False to differentiate if Jacobian 
+        matrix should be calculated.
+    verbose : Boolean, default true
+        Flag for if output should be printed. 
+    xtol : double, default None
+        Convergence tolerance on the L2 norm of the step size (dX). If None, 
+        code will set the value to be equal to 1e-6*X0.shape[0] where X0 
+        is the initial guess for a given solution calculation. 
+        if xtol is passed to nsolve, that value is used instead
+    rtol : double, default None
+        convergence toleranace on the L2 norm of the residual vector (R).
+    etol : double, default None
+        convergence tolerance on the energy norm of the inner product of 
+        step (dX) and residual (R) or e=np.abs(dX @ R)
+    xtol_rel : double, default None
+        convergence tolerance on norm(dX) / norm(dX_step0)
+    rtol_rel : double, default None
+        convergence tolerance on norm(R) / norm(R_step0)
+    etol_rel : double, default None
+        convergence tolerance on norm(e) / norm(e_step0)
+    stopping_tol: list, default ['xtol']
+        List can contain options of 'xtol', 'rtol', 'etol', 'xtol_rel', 
+        'rtol_rel', 'etol_rel'. If any of the listed tolerances are 
+        satisfied, then iteration is considered converged and exits. 
+        Futher development would allow for the list to contain lists of 
+        these same options and in a sublist, all options would be required. 
+        This has not been implemented. 
+    accepting_tol : list, default []
+        List that can contain the same set of strings as stopping_tol. 
+        Once maximum interactions has been reached, if any of these 
+        tolerances are satisified by the final step, then the solution
+        is considered converged. This allows for looser tolerances to be
+        accepted instead of non-convergence, while still using max 
+        iterations to try to achieve the tighter tolerances.
+    
+        """
     
     def __init__(self, config={}):
-        """
-        Initialize nonlinear solver with solver settings
-
-        Parameters
-        ----------
-        config : Dictionary of settings to be used in the solver (see below).
-
-        Returns
-        -------
-        None.
-        
-        config keys
-        -------
-        max_steps : int, default 20
-            maximum number of iterations allowed in the nonlinear solver
-        reform_freq : int, default 1
-            Frequency of recalculating and refactoring Jacobian matrix of the
-            nonlinear problem. 1 corresponds to Newton-Raphson of doing this 
-            every step. Larger numbers will correspond to BFGS low rank updates
-            in between steps with refactoring. 
-            When reform_freq > 1, function being solved must accept the keyword
-            calc_grad=True or calc_grad=False to differentiate if Jacobian 
-            matrix should be calculated.
-        verbose : Boolean, default true
-            Flag for if output should be printed. 
-        xtol : double, default None
-            Convergence tolerance on the L2 norm of the step size (dX). If None, 
-            code will set the value to be equal to 1e-6*X0.shape[0] where X0 
-            is the initial guess for a given solution calculation. 
-            if xtol is passed to nsolve, that value is used instead
-        rtol : double, default None
-            convergence toleranace on the L2 norm of the residual vector (R).
-        etol : double, default None
-            convergence tolerance on the energy norm of the inner product of 
-            step (dX) and residual (R) or e=np.abs(dX @ R)
-        xtol_rel : double, default None
-            convergence tolerance on norm(dX) / norm(dX_step0)
-        rtol_rel : double, default None
-            convergence tolerance on norm(R) / norm(R_step0)
-        etol_rel : double, default None
-            convergence tolerance on norm(e) / norm(e_step0)
-        stopping_tol: list, default ['xtol']
-            List can contain options of 'xtol', 'rtol', 'etol', 'xtol_rel', 
-            'rtol_rel', 'etol_rel'. If any of the listed tolerances are 
-            satisfied, then iteration is considered converged and exits. 
-            Futher development would allow for the list to contain lists of 
-            these same options and in a sublist, all options would be required. 
-            This has not been implemented. 
-        accepting_tol : list, default []
-            List that can contain the same set of strings as stopping_tol. 
-            Once maximum interactions has been reached, if any of these 
-            tolerances are satisified by the final step, then the solution
-            is considered converged. This allows for looser tolerances to be
-            accepted instead of non-convergence, while still using max 
-            iterations to try to achieve the tighter tolerances.
-        
-        """
         
         
         default_config={'max_steps' : 20,
@@ -165,7 +162,64 @@ class NonlinearSolverOMP(NonlinearSolver):
         return x
     
     def nsolve(self, fun, X0, verbose=True, xtol=None, Dscale=1.0):
+        """
+        Numerical nonlinear root finding solution to the problem of R = fun(X)
         
+        This function uses either a full Newton-Raphson (NR) solver approach or
+        BFGS (uses fewer NR iterations with some approximations of Jacobian 
+        between NR iterations)
+        
+        Solver settings are set at initialization of NonlinearSolverOMP.
+
+        Parameters
+        ----------
+        fun : function handle 
+            Function to be solved, function returns two arguments of R 
+            (residual, (N,) numpy.ndarray) and dRdX (residual jacobian, 
+            (N,N) numpy.ndarray).
+            If config['reform_freq'] > 1, then fun should take two arguments
+            The first is X, the second is a bool where if True, fun returns 
+            a tuple of (R,dRdX). If false, fun just returns a tuple (R,)
+        X0 : (N,) numpy.ndarray
+            Initial guess of the solution to the nonlinear problem.
+        verbose : bool, optional
+            Flag to print convergence information if True. The default is True.
+        xtol : float, optional
+            Tolerance to check for convergence on the step size. 
+            If None, then self.config['xtol'] is used. If that is also None, 
+            then 1e-6*X0.shape[0] is used as the xtolerance.
+            Passing in a value here does not change the config value 
+            permanently (not parallel safe though)
+            The default is None. 
+
+        Returns
+        -------
+        X : (N,) numpy.ndarray
+            Solution to the nonlinear problem that satisfies tolerances or from
+            last step.
+        R : (N,) numpy.ndarray
+            Residual vector from the last function evaluation (does not in 
+            generally correspond to value at X to save extra evaluation of fun).
+        dRdX : (N,N) numpy.ndarray
+            Last residual jacobian as evaluated during solution, not at final X.
+        sol : dict
+            Description of final convergence state. Has keys of 
+            ['message', 'nfev', 'njev', 'success']. 'success' is a bool with 
+            True corresponding to convergence. 'nfev' is the number of function
+            evaluations completed. 'njev' is the number of jacobian evaluations.
+            'message' is either 'Converged' or 'failed'. Use the bool from 
+            'success' rather than the message for decisions. 
+            
+            
+        Other Parameters
+        ----------------
+        Dscale : float or numpy.ndarray, optional
+            Value to scale X by during iteration to improve conditioning. 
+            This argument is not fully tested, and is recommended to not use 
+            this argument.
+            The default is 1.0.
+
+        """
         if xtol is None:
             xtol = self.config['xtol']
             if xtol is None: 
@@ -287,8 +341,12 @@ class NonlinearSolverOMP(NonlinearSolver):
             
         
         if not sol['success']:
-            # Check convergence against the second set of tolerances
+            # Set the number of evaluations here if haven't been set regardless 
+            # of convergence
+            sol['nfev'] = i+2
+            sol['njev'] = i+2
             
+            # Check convergence against the second set of tolerances
             converged = _check_convg(self.config['accepting_tol'], self.config, 
                                  r_curr, e_curr, u_curr, 
                                  r_curr/r0, e_curr/e0, u_curr/u0)
@@ -299,8 +357,6 @@ class NonlinearSolverOMP(NonlinearSolver):
                     print('Converged on accepting tolerances at max_iter.')
                     
                 sol['message'] = 'Converged'
-                sol['nfev'] = i+2
-                sol['njev'] = i+2
                 sol['success'] = True
             
         X = Xc * Dscale
@@ -323,7 +379,7 @@ def _check_convg(check_list, tol_dict, r_curr, e_curr, u_curr, r_rel, e_rel, u_r
     Parameters
     ----------
     check_list : List
-        List of tolerances to be checked. See NonlinearSolverOMP.__init__
+        List of tolerances to be checked. See NonlinearSolverOMP
         documentation
     tol_dict : Dictionary
         Contains tolerances and values to be checked.
