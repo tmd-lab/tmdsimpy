@@ -53,18 +53,25 @@ class NonlinearSolver:
 
         Returns
         -------
-        None.
+        factor_res : tuple
+            Resulting data from factoring the matrix A, can be passed to 
+            self.lin_factored_solve to solve the linear system. This solver
+            version does not do anything other than return A in a tuple
 
         """
-        self.stored_factor = (A,)
+        
+        return (A,)
     
-    def lin_factored_solve(self, b):
+    def lin_factored_solve(self, factor_res, b):
         """
         Solve the linear system with right hand side b and stored (factored)
         matrix from self.factor(A)
 
         Parameters
         ----------
+        factor_res : tuple
+            Collected data from self.lin_factor that will be used here. This
+            version just is the tuple (A,)
         b : (N,) np.array, 1d
             Right hand side vector.
 
@@ -74,7 +81,8 @@ class NonlinearSolver:
             Solution to the linear problem
 
         """
-        A = self.stored_factor[0]
+        A = factor_res[0]
+        
         x = np.linalg.solve(A, b)
         
         return x

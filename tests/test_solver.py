@@ -69,9 +69,9 @@ class TestSolver(unittest.TestCase):
                         'Linear solve function is wrong')
         
         # Factor and solve
-        solver.lin_factor(A)
+        factor_res = solver.lin_factor(A)
         
-        x_factor_res = solver.lin_factored_solve(b)
+        x_factor_res = solver.lin_factored_solve(factor_res, b)
         
         self.assertLess(np.linalg.norm(A @ x_factor_res - b), 1e-12, 
                         'Factor and factored solve function is wrong')

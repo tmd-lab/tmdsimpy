@@ -45,6 +45,40 @@ class TestSolverOMP(unittest.TestCase):
         self.assertLess(np.abs(R), 1e-12, 'Residual error is too high.')
         self.assertLess(np.abs(x - 3.0), 1e-12, 'Solution error is too high.')
 
+    def test_bfgs_solve(self):
+        """
+        Test a simple case with the solver routine.
+
+        Returns
+        -------
+        None.
+
+        """
+
+        # Solve for root of a function
+        # x^2 - 9
+        fun = lambda x, calc_grad : (x**2-9, 2*np.atleast_2d(x))
+        # fun = lambda x : (np.cos(x), -np.sin(x)) # - poor test since can jump to multiple roots
+
+        x0 = np.array([3.5])
+
+        config={'xtol': 1e-9,
+                'reform_freq' : 4}
+        
+        print('This problem should be updated to be multidimensional.')
+
+        solver = NonlinearSolverOMP(config=config)
+
+        x, R, dRdX, sol = solver.nsolve(fun, x0, verbose=True)
+
+        self.assertLess(np.abs(R), 1e-12, 'Residual error is too high.')
+        
+        self.assertLess(np.abs(x - 3.0), 1e-12, 'Solution error is too high.')
+        
+        self.assertLess(sol['nfev'], sol['njev'], 
+                        'Did not use fewer jacobian evaluations than function'\
+                        +'evaluations, so not using BFGS')
+        
     def test_lin_solve(self):
         """
         Test linear solve interface on solver object
@@ -69,9 +103,9 @@ class TestSolverOMP(unittest.TestCase):
                         'Linear solve function is wrong')
         
         # Factor and solve
-        solver.lin_factor(A)
+        factor_res = solver.lin_factor(A)
         
-        x_factor_res = solver.lin_factored_solve(b)
+        x_factor_res = solver.lin_factored_solve(factor_res, b)
         
         self.assertLess(np.linalg.norm(A @ x_factor_res - b), 1e-12, 
                         'Factor and factored solve function is wrong')
