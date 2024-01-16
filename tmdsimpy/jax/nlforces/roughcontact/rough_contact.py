@@ -316,6 +316,9 @@ class RoughContactFriction(NonlinearForce):
         Nt : Integer power of 2
              Number of time points to evaluate at. 
              The default is 128.
+        tol : scalar
+            Optional argument ignored, kept to match compatability with general
+            AFT. 
         max_repeats : integer
                       number of hysteresis loops to calculate to reach steady
                       state. Maximum value allowed. 
@@ -325,12 +328,19 @@ class RoughContactFriction(NonlinearForce):
                         and gradients back to global domain.  If True, it does
                         not apply these transforms to the results.
                         default is False
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
 
         Returns
         -------
-        Fnl : Vector of nonlinear forces in frequency domain
-        dFnldU : Gradient of nonlinear forces w.r.t. U
-        dFnldw : Gradient w.r.t. w
+        Fnl : np.array, size (Nhc*nd,)
+            Vector of nonlinear forces in frequency domain
+        dFnldU : np.array, size (Nhc*nd,Nhc*nd)
+            Gradient of nonlinear forces w.r.t. U
+        dFnldw : np.array, size (Nhc*nd,)
+            Gradient w.r.t. w
 
         """
         

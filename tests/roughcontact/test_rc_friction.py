@@ -21,6 +21,7 @@ sys.path.append('../..')
 
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction 
 import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.vibration_system import VibrationSystem
 
 
 sys.path.append('..')
@@ -498,6 +499,43 @@ class TestRoughContact(unittest.TestCase):
         self.assertLess(np.linalg.norm(F_y[0::3] - F_x[0::3]), 1e-12, 
                          'Adding Y should not change X direction loads.')
         
+   
+    def test_aft_no_grad(self): 
+        """
+        Test the no gradient option for AFT with Rough Contact
+        
+        1. Correct number of arguments passed as a return (in tuple for single
+           arrays)
+        2. Same force values returned
+        3. That the calc_grad flag also works to return correct value at 
+            full vibration system (all steps correctly return/interpret tuple
+            of outputs for single output case.)
+        
+        Returns
+        -------
+        None.
+
+        """    
+        
+        #######################################################################
+        # Rough Contact Level Test
+        
+        element_model = self.element_model
+        
+        U_sub = np.array([0, 0, 2e-5, 
+                        3.0e-5, 1.0e-5, 0.5e-5,])
+        
+        w = 1.35
+        h = np.array(range(5+1))
+        Nt = 1 << 7
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+
+
+        U = np.zeros(Ndof * Nhc)
+        U[:U_sub.shape[0]] = U_sub
+        
         
         res_default = element_model.aft(U, w, h, Nt=Nt, max_repeats=2)
         res_no_grad = element_model.aft(U, w, h, Nt=Nt, max_repeats=2, calc_grad=False)
@@ -509,7 +547,45 @@ class TestRoughContact(unittest.TestCase):
         
         # Should be exact since the calculation is the same, just 
         # returning different outputs
-        self.assertEqual(np.linalg.norm(res_default[0] - res_no_grad[0]), 0.0)
-                
+        self.assertEqual(np.linalg.norm(res_default[0] - res_no_grad[0]), 0.0,
+                         'No grad option on AFT is returning wrong force.')  
+        
+        self.assertNotEqual(np.linalg.norm(res_default[0]), 0.0,
+                         'Bad test of nonlinear force, is all zeros.')     
+        
+        #######################################################################
+        # Test vibration level checks
+        M = np.eye(3)
+        K = np.eye(3)
+        Fl = np.ones(Nhc*Ndof)
+        xi = 0.02
+        
+        vib_sys = VibrationSystem(M, K, ab=[0.01, 0.01])
+        vib_sys.add_nl_force(element_model)
+        
+        Uwxa = np.zeros(Nhc*Ndof+3)
+        Uwxa[:Nhc*Ndof] = U[:Nhc*Ndof]
+        Uwxa[-3] = w
+        Uwxa[-2] = xi
+        Uwxa[-1] = 2.0 # Log amplitude
+        
+        res_default = vib_sys.epmc_res(Uwxa, Fl, h)
+        res_no_grad = vib_sys.epmc_res(Uwxa, Fl, h, calc_grad=False)
+        res_true_grad = vib_sys.epmc_res(Uwxa, Fl, h, calc_grad=True)
+        
+        self.assertEqual(len(res_default), 3, 
+                         'Vibration System EPMC returns wrong number of outputs')
+        self.assertEqual(len(res_no_grad), 1, 
+                         'No Grad Vibration System EPMC returns wrong number of outputs')
+        self.assertEqual(len(res_true_grad), 3, 
+                         'True Grad Vibration System EPMC returns wrong number of outputs')
+        
+        self.assertEqual(np.linalg.norm(res_default[0] - res_no_grad[0]), 0.0,
+                         'No grad option on EPMC is returning wrong residual.')  
+        
+        self.assertNotEqual(np.linalg.norm(res_default[0]), 0.0,
+                         'Bad test of nonlinear residual, is all zeros.')  
+        
+        
 if __name__ == '__main__':
     unittest.main()

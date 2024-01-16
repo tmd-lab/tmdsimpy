@@ -181,6 +181,10 @@ class VibrationSystem:
             Number of Time Steps for AFT. The default is 128.
         aft_tol : double
             Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
 
         Returns
         -------
@@ -192,8 +196,6 @@ class VibrationSystem:
             Derivative of Fnl w.r.t. frequency
         
         """
-        
-        warnings.warn('Need to write tests for calc_grad option + update all docstrings')
         
         # Counting:
         Nhc = hutils.Nhc(h) # Number of Harmonic Components
@@ -339,25 +341,40 @@ class VibrationSystem:
     def epmc_res(self, Uwxa, Fl, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Residual for Extended Periodic Motion Concept
+        
+        System has n=self.M.shape[0] degrees of freedom and this call has Nhc 
+        harmonic components (Nhc = hutils.Nhc(h))
 
         Parameters
         ----------
-        Uwxa : Harmonic DOFs followed by frequency, damping coefficient, 
-                and log10(amplitude). Harmonic DOFs are the mass normalized 
-                mode shape. (n * Nhc + 3) x 1
-        Fl : Applied forcing harmonic coefficients, (n * Nhc) x 1.
-                First n entries are an applied static force if the zeroeth 
-                harmonic is included
-        h : List of Harmonics, assumed to be sorted start [0, 1, ...] or 
-                [1, ...]
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        Uwxa : np.array, size (n*Nhc + 3,)
+            Harmonic DOFs followed by frequency, damping coefficient, 
+            and log10(amplitude). Harmonic DOFs are the mass normalized 
+            mode shape. (n*Nhc + 3,)
+        Fl : np.array, size (n*Nhc,)
+            Applied forcing harmonic coefficients.
+            First n entries are an applied static force if the zeroeth 
+            harmonic is included
+        h : np.array
+            List of Harmonics, assumed to be sorted start [0, 1, ...] or 
+            [1, ...].
+        Nt : Integer power of 2
+            Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : scalar
+            Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
 
         Returns
         -------
-        R : Residual
-        dRdUwx : Jacobian of residual w.r.t. Harmonic DOFs, frequency, damping
-        dRda : Derivative of residual w.r.t. log amplitude
+        R : np.array, size (n*Nhc+3)
+            Residual
+        dRdUwx : np.array, size (n*Nhc+3,n*Nhc+3)
+            Jacobian of residual w.r.t. Harmonic DOFs, frequency, damping
+        dRda : np.array, size (n*Nhc+3,)
+            Derivative of residual w.r.t. log amplitude
         
         Notes
         -------
