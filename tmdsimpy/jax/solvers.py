@@ -19,7 +19,7 @@ class NonlinearSolverOMP(NonlinearSolver):
     
     Parallel linear and nonlinear solver functions here. 
     
-    Libraries used respond to OpenMP environment variables such as: \n
+    Libraries used may respond to OpenMP environment variables such as: \n
     > export OMP_PROC_BIND=spread # Spread threads out over physical cores \n
     > export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
 
@@ -35,7 +35,9 @@ class NonlinearSolverOMP(NonlinearSolver):
         in between steps with refactoring. 
         When reform_freq > 1, function being solved must accept the keyword
         calc_grad=True or calc_grad=False to differentiate if Jacobian 
-        matrix should be calculated.
+        matrix should be calculated. If calc_grad=True, then returned tuple
+        should be (R, dRdX) if False, returned tuple should start with (R,), 
+        but may return other values past the 0th index of tuple.
     verbose : Boolean, default true
         Flag for if output should be printed. 
     xtol : double, default None
