@@ -48,7 +48,7 @@ sys.path.append('../..')
 from tmdsimpy import harmonic_utils as hutils
 
 from tmdsimpy.solvers import NonlinearSolver
-from tmdsimpy.solvers_omp import NonlinearSolverOMP
+from tmdsimpy.jax.solvers import NonlinearSolverOMP
 
 from tmdsimpy.continuation import Continuation
 import tmdsimpy.continuation_utils as cont_utils

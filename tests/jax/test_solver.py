@@ -13,8 +13,8 @@ import sys
 import numpy as np
 import unittest
 
-sys.path.append('..')
-from tmdsimpy.solvers_omp import NonlinearSolverOMP
+sys.path.append('../..')
+from tmdsimpy.jax.solvers import NonlinearSolverOMP
 
 
 class TestSolverOMP(unittest.TestCase):

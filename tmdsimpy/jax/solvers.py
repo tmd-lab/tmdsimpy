@@ -1,15 +1,8 @@
 import numpy as np
-import scipy.optimize
-import scipy.linalg
-import warnings
-
-# jax is used for parallel LU and back substitution
-from jax.config import config
-config.update("jax_enable_x64", True)
 import jax
 
 
-from .solvers import NonlinearSolver
+from ..solvers import NonlinearSolver
 
 
 class NonlinearSolverOMP(NonlinearSolver):
