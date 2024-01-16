@@ -262,7 +262,8 @@ class NonlinearSolverOMP(NonlinearSolver):
         # Output printing form
         form =  '{:4d} & {: 6.4e} & {: 6.4e} & {: 6.4e} '\
                     + '& {: 6.4e} & {: 6.4e} & {: 6.4e}' \
-                    + ' & {: 6.4f} & {: 6.4f} & {: 6.4f}'
+                    + ' & {: 6.4f} & {: 6.4f} & {: 6.4f} ' \
+                    + '& {:s}'
                     
         # Tracking for convergence rates
         elist = np.zeros(max_iter+1)
@@ -276,28 +277,48 @@ class NonlinearSolverOMP(NonlinearSolver):
         ##########################################################
         # Iteration Loop
         bfgs_ind = 0 # counter to check if it is time to do full NR again
+        curr_iter = 'NR'
+        no_nan_vals = True
         
         for i in range(max_iter):
             
             if bfgs_ind == 0: # Full Newton Update Update
+                curr_iter = 'NR'
+                
                 R,dRdX = fun_R_dRdX(X)
                 sol['nfev'] += 1
                 sol['njev'] += 1
                 
-                factored_data = self.lin_factor(dRdX)
+                if np.isnan(np.sum(R)):
+                    if verbose: print('Stopping with NaN Residual')
+                    no_nan_vals = False
+                    break
+                if np.isnan(np.sum(dRdX)):
+                    if verbose: print('Stopping with NaN Jacobian')
+                    no_nan_vals = False
+                    break
                 
-                deltaX = self.lin_factored_solve(factored_data, -R)
+                factored_data = self.lin_factor(-1.0*dRdX)
+                
+                deltaX = self.lin_factored_solve(factored_data, R)
                 
                 bfgs_v = np.zeros((X.shape[0], self.config['reform_freq']-1))
                 bfgs_w = np.zeros((X.shape[0], self.config['reform_freq']-1))
+                
+            else: # BFGS Update        
+                curr_iter = 'BFGS'
 
-            else: # BFGS Update
             
                 import warnings
                 warnings.warn('BFGS signs do not look correct yet.')
                 
                 R = fun_R(X)
                 sol['nfev'] += 1
+                
+                if np.isnan(np.sum(R)):
+                    if verbose: print('Stopping with NaN Residual')
+                    no_nan_vals = False
+                    break
             
                 bfgs_v[:, bfgs_ind-1] = deltaXminus1 / (deltaXminus1 @ (R - Rminus1))
                 
@@ -316,6 +337,11 @@ class NonlinearSolverOMP(NonlinearSolver):
                     deltaX = deltaX + bfgs_v[:, kk]*(bfgs_w[:, kk] @ deltaX)
                
             ###### # Update Solution
+            if np.isnan(np.sum(deltaX)):
+                no_nan_vals = False
+                if verbose: print('Stopping with NaN Step Direction')
+                break
+            
             X = X + deltaX
             
             ###### # Tolerance Checking
@@ -343,7 +369,8 @@ class NonlinearSolverOMP(NonlinearSolver):
                 if i == 0:
                     print('Iter &     |R|     &  |e_(i-1)|  &     |dU|    '\
                               + '&  |R|/|R0|   &  |e|/|e0|   &  |dU|/|dU0| ' \
-                              +'&  Rate R &  Rate E &   Rate U')
+                              +'&  Rate R &  Rate E &   Rate U '\
+                              +'& NR/BFGS')
                 
                 if i >= 2:
                     # import pdb; pdb.set_trace()
@@ -356,17 +383,20 @@ class NonlinearSolverOMP(NonlinearSolver):
                     
                 print(form.format(i, r_curr, e_curr, u_curr, 
                               r_curr/r0, e_curr/e0, u_curr/u0,
-                              rate_r, rate_e, rate_u))
+                              rate_r, rate_e, rate_u,
+                              curr_iter))
             
             # Check for final convergence
             converged = _check_convg(self.config['stopping_tol'], self.config, 
-                                     r0, e0, u0, 
-                                     r0/r0, e0/e0, u0/u0)
+                                     r_curr, e_curr, u_curr, 
+                                     r_curr/r0, e_curr/e0, u_curr/u0)
             if converged:
                 if verbose:
                     print('Converged!')
                 sol['message'] = 'Converged'
                 sol['success'] = True
+                
+                break
         
             ###### Setup next loop iteration
             
@@ -385,7 +415,7 @@ class NonlinearSolverOMP(NonlinearSolver):
         ##########################################################
         # Final Clean Up and Return
         
-        if not sol['success']:
+        if no_nan_vals and not sol['success']:
             
             # Check convergence against the second set of tolerances
             converged = _check_convg(self.config['accepting_tol'], self.config, 
