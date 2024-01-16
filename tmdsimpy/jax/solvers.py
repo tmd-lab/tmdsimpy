@@ -73,7 +73,6 @@ class NonlinearSolverOMP(NonlinearSolver):
     
     def __init__(self, config={}):
         
-        
         default_config={'max_steps' : 20,
                         'reform_freq' : 1,
                         'verbose' : True, 
@@ -93,11 +92,8 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         self.config = default_config
         
-        # Memory place for storing a factored matrix for later backsub
-        self.stored_factor = ()
+        return
         
-        pass
-    
     def lin_solve(self, A, b):
         """
         Solve the linear system A * x = b 
@@ -131,22 +127,24 @@ class NonlinearSolverOMP(NonlinearSolver):
 
         Returns
         -------
-        None.
+        lu_and_piv : tuple
+            Resulting data from factoring the matrix A, can be passed to 
+            self.lin_factored_solve to solve the linear system.
 
         """
         lu_and_piv = jax.scipy.linalg.lu_factor(A)
         
-        self.stored_factor = (lu_and_piv,)
-        
-        return
+        return lu_and_piv
     
-    def lin_factored_solve(self, b):
+    def lin_factored_solve(self, lu_and_piv, b):
         """
         Solve the linear system with right hand side b and stored (factored)
         matrix from self.factor(A)
 
         Parameters
         ----------
+        lu_and_piv : tuple
+            results from factoring a matrix with self.lin_factor(A)
         b : (N,) np.array, 1d
             Right hand side vector.
 
@@ -156,7 +154,6 @@ class NonlinearSolverOMP(NonlinearSolver):
             Solution to the linear problem
 
         """
-        lu_and_piv = self.stored_factor[0]
         x = jax.scipy.linalg.lu_solve(lu_and_piv, b)
         
         return x
@@ -166,8 +163,8 @@ class NonlinearSolverOMP(NonlinearSolver):
         Numerical nonlinear root finding solution to the problem of R = fun(X)
         
         This function uses either a full Newton-Raphson (NR) solver approach or
-        BFGS (uses fewer NR iterations with some approximations of Jacobian 
-        between NR iterations)
+        Broyden-Fletcher-Goldfarb-Shanno (BFGS), which uses fewer NR iterations
+        with some approximations of Jacobian between NR iterations.
         
         Solver settings are set at initialization of NonlinearSolverOMP.
 
@@ -180,6 +177,8 @@ class NonlinearSolverOMP(NonlinearSolver):
             If config['reform_freq'] > 1, then fun should take two arguments
             The first is X, the second is a bool where if True, fun returns 
             a tuple of (R,dRdX). If false, fun just returns a tuple (R,)
+            Function may return additional values in either tuple, but the
+            additional values will be ignored here.
         X0 : (N,) numpy.ndarray
             Initial guess of the solution to the nonlinear problem.
         verbose : bool, optional
@@ -214,12 +213,19 @@ class NonlinearSolverOMP(NonlinearSolver):
         Other Parameters
         ----------------
         Dscale : float or numpy.ndarray, optional
+            Not currently supported, this argument does nothing.
+            TODO: implement:
             Value to scale X by during iteration to improve conditioning. 
             This argument is not fully tested, and is recommended to not use 
             this argument.
             The default is 1.0.
 
         """
+        
+        ##########################################################
+        # Initialization
+        
+        # xtol support with backwards compatibility 
         if xtol is None:
             xtol = self.config['xtol']
             if xtol is None: 
@@ -236,115 +242,150 @@ class NonlinearSolverOMP(NonlinearSolver):
                'nfev' : 0, 
                'njev' : 0,
                'success' : False}
+        
+        # Wrap function if using BFGS v. NR
+        if self.config['reform_freq'] > 1:
+            fun_R_dRdX = lambda X : fun(X, True)[0:2]
+            fun_R = lambda X : fun(X, False)[0]
+        else:
+            fun_R_dRdX = lambda X : fun(X)[0:2]
             
-        X0c = X0 / Dscale
+        # Solution initialization
+        X = X0
         
-        R0,dR0 = fun(Dscale*X0c)
+        # Previous iteration quantities, these are initialized to zero to 
+        # prevent undefind variable names in python, but are redefined in the 
+        # loop before they are used.
+        deltaXminus1 = np.nan*np.zeros_like(X)
+        Rminus1 = np.zeros_like(X)
         
-        dX0c = np.linalg.solve( -(dR0*Dscale), R0)
-        
-        e0  = np.abs(R0 @ dX0c)
-        r0 = np.sqrt(R0 @ R0)
-        u0 = np.sqrt(dX0c @ dX0c)
-        
-        Xc = X0c + dX0c
-        
+        # Output printing form
+        form =  '{:4d} & {: 6.4e} & {: 6.4e} & {: 6.4e} '\
+                    + '& {: 6.4e} & {: 6.4e} & {: 6.4e}' \
+                    + ' & {: 6.4f} & {: 6.4f} & {: 6.4f}'
+                    
         # Tracking for convergence rates
         elist = np.zeros(max_iter+1)
         rlist = np.zeros(max_iter+1)
         ulist = np.zeros(max_iter+1)
         
-        elist[0] = np.sqrt(np.abs(e0))
-        rlist[0] = r0
-        ulist[0] = u0
-                
-        form =  '{:4d} & {: 6.4e} & {: 6.4e} & {: 6.4e} '\
-                    + '& {: 6.4e} & {: 6.4e} & {: 6.4e}' \
-                    + ' & {: 6.4f} & {: 6.4f} & {: 6.4f}'
-        if verbose:
-            print('Iter &     |R|     &     |e|     &     |dU|    '\
-                  + '&  |R|/|R0|   &  |e|/|e0|   &  |dU|/|dU0| ' \
-                  +'&  Rate R &  Rate E &   Rate U')
-            
-                    
-            print(form.format(0, r0, e0, u0, 
-                              1.0, 1.0, 1.0,
-                              np.nan, np.nan, np.nan))
-                    
         rate_r = np.nan
         rate_e = np.nan
         rate_u = np.nan
-        
-        converged = _check_convg(self.config['stopping_tol'], self.config, 
-                                 r0, e0, u0, 
-                                 r0/r0, e0/e0, u0/u0)
-        
-        if converged:
-            max_iter = 0 # already converged, so skip iteration loop
-            R = R0
-            dRdX = dR0
             
-            if verbose:
-                print('Converged!')
-                
-            sol['message'] = 'Converged'
-            sol['nfev'] = 1
-            sol['njev'] = 1
-            sol['success'] = True
+        ##########################################################
+        # Iteration Loop
+        bfgs_ind = 0 # counter to check if it is time to do full NR again
         
         for i in range(max_iter):
             
-            R, dRdX = fun(Xc*Dscale)
+            if bfgs_ind == 0: # Full Newton Update Update
+                R,dRdX = fun_R_dRdX(X)
+                sol['nfev'] += 1
+                sol['njev'] += 1
+                
+                factored_data = self.lin_factor(dRdX)
+                
+                deltaX = self.lin_factored_solve(factored_data, -R)
+                
+                bfgs_v = np.zeros((X.shape[0], self.config['reform_freq']-1))
+                bfgs_w = np.zeros((X.shape[0], self.config['reform_freq']-1))
+
+            else: # BFGS Update
             
-            dXc = np.linalg.solve( -(dRdX*Dscale), R)
+                import warnings
+                warnings.warn('BFGS signs do not look correct yet.')
+                
+                R = fun_R(X)
+                sol['nfev'] += 1
             
-            u_curr = np.sqrt(dXc @ dXc)
-            e_curr = R @ dXc
+                bfgs_v[:, bfgs_ind-1] = deltaXminus1 / (deltaXminus1 @ (R - Rminus1))
+                
+                alpha = np.sqrt(-deltaX @ (R - Rminus1) / (deltaX @ Rminus1))
+                
+                bfgs_w[:, bfgs_ind-1] = -(R - Rminus1) + alpha*Rminus1
+                
+                # Apply the updated jacobian to R
+                deltaX = R
+                for kk in range(bfgs_ind-1, -1, -1):
+                    deltaX = deltaX + bfgs_w[:, kk]*(bfgs_v[:, kk] @ deltaX)
+                
+                deltaX = self.lin_factored_solve(factored_data, deltaX)
+                
+                for kk in range(0, bfgs_ind, 1):
+                    deltaX = deltaX + bfgs_v[:, kk]*(bfgs_w[:, kk] @ deltaX)
+               
+            ###### # Update Solution
+            X = X + deltaX
+            
+            ###### # Tolerance Checking
+            u_curr = np.sqrt(deltaX @ deltaX)
+            e_curr = R @ deltaXminus1
             r_curr = np.sqrt(R @ R)
             
-            elist[i+1] = np.sqrt(np.abs(e_curr))
-            rlist[i+1] = r_curr
-            ulist[i+1] = u_curr
-            
+            if i == 0: # Store initial tolerances
+                r0 = r_curr
+                u0 = u_curr
+                e0 = np.inf
+                e_curr = np.inf
+                
+                rlist[0] = r0
+                ulist[0] = u0
+            if i == 1: 
+                # Now have evaluated the residual so can give an initial e0
+                e0 = np.abs(e_curr)
+                
+            elist[i] = np.sqrt(np.abs(e_curr))
+            rlist[i] = r_curr
+            ulist[i] = u_curr
             
             if verbose:
+                if i == 0:
+                    print('Iter &     |R|     &  |e_(i-1)|  &     |dU|    '\
+                              + '&  |R|/|R0|   &  |e|/|e0|   &  |dU|/|dU0| ' \
+                              +'&  Rate R &  Rate E &   Rate U')
                 
-                if i >= 1:
+                if i >= 2:
                     # import pdb; pdb.set_trace()
                     
-                    rate_r = np.log(rlist[i] / rlist[i+1]) / np.log(rlist[i-1] / rlist[i])
-                    rate_e = np.log(elist[i] / elist[i+1]) / np.log(elist[i-1] / elist[i])
-                    rate_u = np.log(ulist[i] / ulist[i+1]) / np.log(ulist[i-1] / ulist[i])
+                    rate_r = np.log(rlist[i-1] / rlist[i]) / np.log(rlist[i-2] / rlist[i-1])
+                    rate_u = np.log(ulist[i-1] / ulist[i]) / np.log(ulist[i-2] / ulist[i-1])
                     
-                print(form.format(i+1, r_curr, e_curr, u_curr, 
-                              r_curr/r0, np.abs(e_curr/e0), u_curr/u0,
+                if i >= 3:
+                    rate_e = np.log(elist[i-1] / elist[i]) / np.log(elist[i-2] / elist[i-1])
+                    
+                print(form.format(i, r_curr, e_curr, u_curr, 
+                              r_curr/r0, e_curr/e0, u_curr/u0,
                               rate_r, rate_e, rate_u))
             
-            Xc += dXc
-            
-            
+            # Check for final convergence
             converged = _check_convg(self.config['stopping_tol'], self.config, 
-                                 r_curr, e_curr, u_curr, 
-                                 r_curr/r0, e_curr/e0, u_curr/u0)
-            
+                                     r0, e0, u0, 
+                                     r0/r0, e0/e0, u0/u0)
             if converged:
-                
                 if verbose:
                     print('Converged!')
-                    
                 sol['message'] = 'Converged'
-                sol['nfev'] = i+2
-                sol['njev'] = i+2
                 sol['success'] = True
-                    
-                break
+        
+            ###### Setup next loop iteration
             
+            # Increment and potentially reset BFGS counter
+            bfgs_ind = (bfgs_ind + 1) % self.config['reform_freq']
+            
+            # Save R from this step since it is needed for BFGS
+            Rminus1 = R
+            
+            # Save deltaX from this step since it is needed for calculating
+            # energy norm for outputs 
+            # (if energy norm goes negative, line search is useful)
+            deltaXminus1 = deltaX
+            
+
+        ##########################################################
+        # Final Clean Up and Return
         
         if not sol['success']:
-            # Set the number of evaluations here if haven't been set regardless 
-            # of convergence
-            sol['nfev'] = i+2
-            sol['njev'] = i+2
             
             # Check convergence against the second set of tolerances
             converged = _check_convg(self.config['accepting_tol'], self.config, 
@@ -358,10 +399,6 @@ class NonlinearSolverOMP(NonlinearSolver):
                     
                 sol['message'] = 'Converged'
                 sol['success'] = True
-            
-        X = Xc * Dscale
-        
-        # R, dRdX = fun(X)
 
         if(verbose):
             print(sol['message'], ' Nfev=', sol['nfev'], ' Njev=', sol['njev'])
