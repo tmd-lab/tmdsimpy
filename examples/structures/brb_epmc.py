@@ -28,11 +28,14 @@ TODO :
     2. Terminology/nomenclature in this comment?
     3. Add elastic dry friction flag option?
 
-The numpy matrix solves in here should automatically use OpenMP Parallelism.
+The JAX matrix solves in here should automatically use OpenMP Parallelism.
 You can control the parallelism by invoking these commands on Linux prior 
 to execution
 > export OMP_PROC_BIND=spread # Spread threads out over physical cores
 > export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
+
+non-blocking jax parallelism for friction evaluations appears to spreads across
+available threads ignoring the OMP_NUM_THREADS environment variable.
 
 """
 

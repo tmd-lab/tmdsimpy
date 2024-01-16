@@ -3,10 +3,26 @@ import scipy.optimize
 import scipy.linalg
 import warnings
 
+# jax is used for parallel LU and back substitution
+from jax.config import config
+config.update("jax_enable_x64", True)
+import jax
+
+
 from .solvers import NonlinearSolver
 
 
 class NonlinearSolverOMP(NonlinearSolver):
+    """
+    Notes
+    ----------
+    
+    Parallel linear and nonlinear solver functions here. 
+    
+    Libraries used respond to OpenMP environment variables such as: \n
+    > export OMP_PROC_BIND=spread # Spread threads out over physical cores \n
+    > export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
+    """
     
     def __init__(self, config={}):
         """
@@ -87,8 +103,73 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         self.config = default_config
         
+        # Memory place for storing a factored matrix for later backsub
+        self.stored_factor = ()
+        
         pass
     
+    def lin_solve(self, A, b):
+        """
+        Solve the linear system A * x = b 
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix.
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        x = jax.numpy.linalg.solve(A,b)
+        
+        return x
+    
+    def lin_factor(self, A):
+        """
+        Factor a matrix A for later solving. This version simply stores and 
+        fully solves later.
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix for later solving.
+
+        Returns
+        -------
+        None.
+
+        """
+        lu_and_piv = jax.scipy.linalg.lu_factor(A)
+        
+        self.stored_factor = (lu_and_piv,)
+        
+        return
+    
+    def lin_factored_solve(self, b):
+        """
+        Solve the linear system with right hand side b and stored (factored)
+        matrix from self.factor(A)
+
+        Parameters
+        ----------
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        lu_and_piv = self.stored_factor[0]
+        x = jax.scipy.linalg.lu_solve(lu_and_piv, b)
+        
+        return x
     
     def nsolve(self, fun, X0, verbose=True, xtol=None, Dscale=1.0):
         
@@ -178,14 +259,16 @@ class NonlinearSolverOMP(NonlinearSolver):
             rlist[i+1] = r_curr
             ulist[i+1] = u_curr
             
-            if i >= 1:
-                # import pdb; pdb.set_trace()
-                
-                rate_r = np.log(rlist[i] / rlist[i+1]) / np.log(rlist[i-1] / rlist[i])
-                rate_e = np.log(elist[i] / elist[i+1]) / np.log(elist[i-1] / elist[i])
-                rate_u = np.log(ulist[i] / ulist[i+1]) / np.log(ulist[i-1] / ulist[i])
             
             if verbose:
+                
+                if i >= 1:
+                    # import pdb; pdb.set_trace()
+                    
+                    rate_r = np.log(rlist[i] / rlist[i+1]) / np.log(rlist[i-1] / rlist[i])
+                    rate_e = np.log(elist[i] / elist[i+1]) / np.log(elist[i-1] / elist[i])
+                    rate_u = np.log(ulist[i] / ulist[i+1]) / np.log(ulist[i-1] / ulist[i])
+                    
                 print(form.format(i+1, r_curr, e_curr, u_curr, 
                               r_curr/r0, np.abs(e_curr/e0), u_curr/u0,
                               rate_r, rate_e, rate_u))
