@@ -89,10 +89,6 @@ class NonlinearSolver:
         
         sol = scipy.optimize.root(fun, X0, method='hybr', jac=True, options=hybr_opts)
         
-        # # scipy.optimize.show_options('root', 'broyden1') # Does not support analytical Jacobians. 
-        # callback = CallbackTolerances(dxabstol = 1e-5)
-        # sol = scipy.optimize.root(lambda X : fun(X)[0], X0, method='broyden1', jac=False, callback=callback.callback)
-        
         X = sol['x']
         
         # Jacobian from the optimization may not be exact at final point
@@ -103,50 +99,36 @@ class NonlinearSolver:
         
         return X, R, dRdX, sol
     
-    def eigs(self, K, M=None, subset_by_index=[0, 2], symmetric=True):
+    def eigs(self, K, M=None, subset_by_index=[0, 2]):
+        """
+        Conduct eigenvalue analysis for a linear system
+
+        Parameters
+        ----------
+        K : (N,N) np.array
+            Stiffness matrix for general second order system.
+        M : (N,N) np.array, optional
+            Mass matrix for general second order system. The default is None.
+        subset_by_index : list of length 2, optional
+            Subset indices for which eigenvalues should be calculated. 
+            See scipy.linalg.eigh for more details. 
+            Let M be the number of requested eigenvalues by this parameter.
+            The default is [0, 2].
+
+        Returns
+        -------
+        eigvals : (M,) np.array
+            Eigenvalues of the linear problem.
+        eigvecs : (N,M) np.array
+            Eigenvectors of linear problem with columns corresponding to 
+            individual eigenvalues.
+
+        """
         
         subset_by_index[1] = min(subset_by_index[1], K.shape[0]-1)
         
-        if symmetric:
-            eigvals, eigvecs = scipy.linalg.eigh(K, M, 
-                                                 subset_by_index=subset_by_index)
-        else: 
-            warnings.warn('Nonsymmetrix eigenvalue problem currently calculates all eigenvalues.')
-            eigvals, eigvecs = scipy.linalg.eig(K, b=M)
-
-            inds = np.argsort(eigvals)
-            
-            eigvals = eigvals[inds[subset_by_index[0]:subset_by_index[1]]]
-            eigvecs = eigvecs[:, inds[subset_by_index[0]:subset_by_index[1]]]
+        eigvals, eigvecs = scipy.linalg.eigh(K, M, 
+                                             subset_by_index=subset_by_index)
         
         return eigvals, eigvecs
     
-
-class CallbackTolerances:
-    
-    def __init__(self, dxabstol):
-        
-        self.dxabstol = dxabstol
-        self.Xprev = None
-        self.Rprev = None
-        self.itercount = 0
-        
-        return
-        
-    def callback(self, X, R):
-        
-        # First Iteration
-        if self.Xprev is None:
-            self.Xprev = X
-            self.Rprev = R
-            
-            return False
-        
-        self.itercount += 1
-        
-        Rnorm = np.linalg.norm(R)
-        
-        print("Iter: %3d, ||R||_2: %5.3e" % (self.itercount, Rnorm))
-        
-        return False
-        
