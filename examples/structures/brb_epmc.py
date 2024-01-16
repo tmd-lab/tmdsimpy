@@ -349,8 +349,16 @@ vib_sys.reset_real_mu()
 # Recalculate stiffness with real mu
 Rpre, dRpredX = vib_sys.static_res(Xpre, Fv*prestress)
 
-eigvals, eigvecs = static_solver.eigs(dRpredX, system_matrices['M'], 
-                                subset_by_index=[0, 9], symmetric=False)
+sym_check = np.max(np.abs(dRpredX - dRpredX.T))
+print('Symmetrix matrix has a maximum error/max value of: {}'.format(
+                                         sym_check / np.abs(dRpredX).max()))
+
+print('Using using  (Kpre + Kpre.T)/2 version for eigen analysis')
+
+Kpre = (dRpredX + dRpredX.T) / 2.0
+
+eigvals, eigvecs = static_solver.eigs(Kpre, system_matrices['M'], 
+                                      subset_by_index=[0, 9])
 
 
 print('Prestress State Frequencies: [Hz]')
