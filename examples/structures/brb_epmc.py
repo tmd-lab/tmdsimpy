@@ -140,7 +140,7 @@ static_solver = NonlinearSolverOMP(config=static_config) # Custom Newton-Raphson
 ########################################
 # EPMC Solver settings
 
-epmc_config={'max_steps' : 16, # 16=reform_freq*4
+epmc_config={'max_steps' : 16, # balance with reform_freq
             'reform_freq' : 4,
             'verbose' : True, 
             'xtol'    : None, # Just use the one passed from continuation
@@ -473,13 +473,14 @@ continue_config = {'DynamicCtoP': True,
                    'TargetNfev' : 6,
                    'MaxSteps'   : 20,
                    'dsmin'      : dsmin,
-                   'dsmax'      : dsmax, # 0.015 for plotting
+                   'dsmax'      : dsmax,
                    'verbose'    : 1,
                    'xtol'       : 1e-6*np.sqrt(Uwxa0.shape[0]), 
                    'corrector'  : 'Ortho', # Ortho, Pseudo
                    'nsolve_verbose' : True,
                    'callback' : callback_funs,
                    'FracLam' : FracLam,
+                   'FracLamList' : [0.9, 0.1, 1.0, 0.0],
                    'backtrackStop' : 0.05 # stop if it backtracks to before start.
                    }
 
@@ -510,6 +511,9 @@ else:
     
     print('Continuation solve time: {: 8.3f} seconds'.format(t1-t0))
 
+if Uwxa_full[-1][-1] < Aend and epmc_config['reform_freq'] > 1:
+    print("If continuation did not complete, you may want to try again with"\
+          +"a smaller number for epmc_config['reform_freq'].")
 
 ###############################################################################
 ####### Open Debug Terminal at End for User to Query Variables          #######
