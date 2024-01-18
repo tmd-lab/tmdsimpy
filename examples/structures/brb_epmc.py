@@ -83,8 +83,8 @@ Aend = -4.2
 
 # Continuation Step Size (starting)
 ds = 0.1
-dsmax = 0.14
-dsmin = 0.02
+dsmax = 0.2
+dsmin = 0.01
 
 
 fast_sol = False # Choose speed or accuracy
@@ -108,7 +108,8 @@ else:
     FracLam = 0.50     
 
 run_profilers = False # Run profiling of code operations to identify bottlenecks
-
+static_profile = './results/static_profile' # File to save static analysis profiling
+continue_profile = './results/continue_profile' # File to save continuation profiling in
 
 
 
@@ -118,6 +119,11 @@ run_profilers = False # Run profiling of code operations to identify bottlenecks
 
 ########################################
 # Static Solver settings
+
+# The static solution does not have a good initial guess and may be 
+# ill-conditioned (conditioning for residual function is not implemented)
+# therefore, it is recommended to use reform_freq=1 and thus a full Newton 
+# scheme. 
 
 static_config={'max_steps' : 30,
                 'reform_freq' : 1,
@@ -134,8 +140,8 @@ static_solver = NonlinearSolverOMP(config=static_config) # Custom Newton-Raphson
 ########################################
 # EPMC Solver settings
 
-epmc_config={'max_steps' : 8,
-            'reform_freq' : 1,
+epmc_config={'max_steps' : 16, # 16=reform_freq*4
+            'reform_freq' : 4,
             'verbose' : True, 
             'xtol'    : None, # Just use the one passed from continuation
             'rtol'    : 1e-9,
@@ -315,22 +321,41 @@ K0 = system_matrices['K'] + L.T @ Kstuck @ L
 X0 = np.linalg.solve(K0,(Fv * prestress))
 
 # function to solve
-pre_fun = lambda U : vib_sys.static_res(U, Fv*prestress)
+pre_fun = lambda U, calc_grad=True : vib_sys.static_res(U, Fv*prestress)
 
 R0, dR0dX = pre_fun(X0)
 
 print('Residual norm of initial guess: {:.4e}'.format(np.linalg.norm(dR0dX)))
 
-import time
-
-t0 = time.time()
-Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
-
-t1 = time.time()
+if run_profilers:
+    
+    import cProfile
+    
+    cProfile.run('Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)', 
+                 static_profile)
+    
+    print('Static run time saved to {}. This can be loaded and investigated.'.format(static_profile))
+    print('See https://docs.python.org/3/library/profile.html for more details.')
+    
+    """
+    # Load and investigate profile: 
+    import pstats
+    from pstats import SortKey
+    p = pstats.Stats('static_profile')
+    p.sort_stats(SortKey.TIME).print_stats(10)
+    """
+    
+else:
+    import time
+    
+    t0 = time.time()
+    Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
+    
+    t1 = time.time()
+    
+    print('Static Solution Run Time : {:.3e} s'.format(t1 - t0))
 
 print('Residual norm: {:.4e}'.format(np.linalg.norm(R)))
-
-print('Static Solution Run Time : {:.3e} s'.format(t1 - t0))
 
 # Update history variables after static so sliders reset
 vib_sys.update_force_history(Xpre)
@@ -375,23 +400,6 @@ print(resp_amp)
 
 print('Expected frequencies from previous MATLAB / Paper (Flat Mesoscale):'\
       +' 168.5026, 580.4082, 1177.6498 Hz')
-
-###############################################################################
-####### Profile Nonlinear Solve                                         #######
-###############################################################################
-
-if run_profilers:
-    
-    import cProfile
-    cProfile.run('solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)')
-    
-    print('This indicates most time is spent in the residual function and not the matrix solves.')
-    print('i.e.: "vibration_system.py:116(static_res)"')
-    
-    print('This does not converge the same way because the friction coefficient was turned back on.')
-    
-    print('Type "c" to continue execution')
-    import pdb; pdb.set_trace()
 
 
 ###############################################################################
@@ -454,27 +462,15 @@ t1 = time.time()
 
 print('EPMC Residual Run Time (without gradient): {: 7.3f} s'.format(t1 - t0))
 
-if run_profilers:
-    
-    import cProfile
-    cProfile.run('R = vib_sys.epmc_res(Uwxa0, Fl, h, Nt=Nt)[0]; str(R[0])')
-    
-    print('This indicates most time is spent in the residual function and not the matrix solves.')
-    print('i.e.: "vibration_system.py:116(static_res)"')
-    
-    print('Type "c" to continue execution')
-    import pdb; pdb.set_trace()
-
-
 
 ###############################################################################
 ####### EPMC Continuation                                               #######
 ###############################################################################
 
-epmc_fun = lambda Uwxa : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt)
+epmc_fun = lambda Uwxa, calc_grad=True : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt, calc_grad=calc_grad)
 
 continue_config = {'DynamicCtoP': True, 
-                   'TargetNfev' : 4,
+                   'TargetNfev' : 6,
                    'MaxSteps'   : 20,
                    'dsmin'      : dsmin,
                    'dsmax'      : dsmax, # 0.015 for plotting
@@ -497,30 +493,27 @@ CtoP[-1] = np.abs(Aend-Astart)
 
 cont_solver = Continuation(epmc_solver, ds0=ds, CtoP=CtoP, config=continue_config)
 
-t0 = time.time()
-
-Uwxa_full = cont_solver.continuation(epmc_fun, Uwxa0, Astart, Aend)
-
-t1 = time.time()
-
-print('Continuation solve time: {: 8.3f} seconds'.format(t1-t0))
-
-
-###############################################################################
-####### Profile EPMC Continuation                                       #######
-###############################################################################
-
 if run_profilers:
+    
+    cProfile.run('Uwxa_full = cont_solver.continuation(epmc_fun, Uwxa0, Astart, Aend)', 
+                 continue_profile)
+    
+    print('Continuation run time saved to {}.'.format(continue_profile))
         
-    import cProfile
-    cProfile.run('cont_solver.continuation(epmc_fun, Uwxa0, Astart, Aend)')
+else:
     
-    print('This shows most of the time is in the AFT evaluations (probably poorly spread with JAX)')
-    print('Secondary, np.linalg.solve takes 3.2 seconds compared to 18 on svd')
+    t0 = time.time()
     
+    Uwxa_full = cont_solver.continuation(epmc_fun, Uwxa0, Astart, Aend)
     
+    t1 = time.time()
+    
+    print('Continuation solve time: {: 8.3f} seconds'.format(t1-t0))
+
+
 ###############################################################################
 ####### Open Debug Terminal at End for User to Query Variables          #######
 ###############################################################################
 
+# # This needs to be uncommented to open up the debug terminal.
 # import pdb; pdb.set_trace()
