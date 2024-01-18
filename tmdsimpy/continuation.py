@@ -447,7 +447,7 @@ class Continuation:
                                                              xtol=self.config['xtol'],\
                                                              verbose=self.config['nsolve_verbose'])
             
-                # Break out of loop over masks if have converged
+                # Break out of loop over FracLam values if have converged
                 if sol['success']:
                     if fracLam_ind > 0 and self.config['verbose']:
                         print('Succeeded with FracLam index {} with value FracLam={}.'\
@@ -462,13 +462,6 @@ class Continuation:
             # Store Iteration and Advance
             XlamP_full[step] = self.CtoP * XlamC
             
-            # Debug check with if statement in case it accidently starts going 
-            # backwards
-            # if XlamP_full[step, -1] < XlamP_full[step-1, -1]:
-            #     print('Started Backtracking')
-            #     dirC = self.predict(fun, XlamP0, XlamPprev)
-            #     pass
-            
             if self.config['verbose'] and step % self.config['verbose'] == 0:
                 print('Step=', step, ' converged: lam=', XlamP_full[step, -1], \
                       ' ds=', ds, ' and nfev=', sol['nfev'])
@@ -478,7 +471,7 @@ class Continuation:
             
             ds = min(max(ds, self.config['dsmin']), self.config['dsmax'])
             
-            # TODO: Callback function
+            # Callback function
             if self.config['callback'] is not None:
                 self.config['callback'](XlamP_full[step], dirC*self.CtoP)
             
