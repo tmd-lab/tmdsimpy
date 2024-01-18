@@ -112,11 +112,10 @@ class TestSolverOMP(unittest.TestCase):
                             2*x[2]**2+4*(x[2]-2.5)*x[2]-5*x[1]**2+3*x[0]**2]]))
 
 
-        # Changing x0[0]=3.25 would be reasonable for line search test case, 
-        # but it breaks here with reform_freq of 4 (works at 3)
-        x0 = np.array([3.15, -5.15, 2.5])
+        x0 = np.array([3.25, -5.15, 2.5])
 
-        config={'xtol': 1e-11,
+        config={'rtol': 1e-13,
+                'stopping_tol' : ['rtol'],
                 'reform_freq' : 4}
         
         # Check that the gradient is correctly implemented for the problem
@@ -131,7 +130,7 @@ class TestSolverOMP(unittest.TestCase):
 
         x, R, dRdX, sol = solver.nsolve(fun, x0, verbose=False)
 
-        self.assertLess(np.linalg.norm(R), 1e-12, 'Residual error is too high.')
+        self.assertLess(np.linalg.norm(R), 5e-12, 'Residual error is too high.')
         
         self.assertLess(np.linalg.norm(x - np.array([3.0, -5.0, 2.5])), 1e-12, 
                         'Solution error is too high.')

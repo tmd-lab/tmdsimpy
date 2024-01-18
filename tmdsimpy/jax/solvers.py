@@ -167,6 +167,7 @@ class NonlinearSolverOMP(NonlinearSolver):
         This function uses either a full Newton-Raphson (NR) solver approach or
         Broyden-Fletcher-Goldfarb-Shanno (BFGS), which uses fewer NR iterations
         with some approximations of Jacobian between NR iterations.
+        For BFGS see Algorithm 7.4 in [1].
         
         Solver settings are set at initialization of NonlinearSolverOMP.
 
@@ -221,6 +222,12 @@ class NonlinearSolverOMP(NonlinearSolver):
             This argument is not fully tested, and is recommended to not use 
             this argument.
             The default is 1.0.
+            
+        References
+        ----------------
+        [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed. ed, 
+        Springer series in operations research. Springer, New York.
+
 
         """
         
@@ -300,19 +307,16 @@ class NonlinearSolverOMP(NonlinearSolver):
                     no_nan_vals = False
                     break
                 
-                factored_data = self.lin_factor(-1.0*dRdX)
+                factored_data = self.lin_factor(dRdX)
                 
-                deltaX = self.lin_factored_solve(factored_data, R)
+                deltaX = -self.lin_factored_solve(factored_data, R)
                 
-                bfgs_v = np.zeros((X.shape[0], self.config['reform_freq']-1))
-                bfgs_w = np.zeros((X.shape[0], self.config['reform_freq']-1))
+                bfgs_s = np.zeros((X.shape[0], self.config['reform_freq']-1))
+                bfgs_y = np.zeros((X.shape[0], self.config['reform_freq']-1))
+                bfgs_p = np.zeros((self.config['reform_freq']-1))
                 
             else: # BFGS Update        
                 curr_iter = 'BFGS'
-
-            
-                import warnings
-                warnings.warn('BFGS signs do not look correct yet.')
                 
                 R = fun_R(X)
                 sol['nfev'] += 1
@@ -322,21 +326,23 @@ class NonlinearSolverOMP(NonlinearSolver):
                     no_nan_vals = False
                     break
             
-                bfgs_v[:, bfgs_ind-1] = deltaXminus1 / (deltaXminus1 @ (R - Rminus1))
-                
-                alpha = np.sqrt(-deltaX @ (R - Rminus1) / (deltaX @ Rminus1))
-                
-                bfgs_w[:, bfgs_ind-1] = -(R - Rminus1) + alpha*Rminus1
+                bfgs_s[:, bfgs_ind-1] = deltaXminus1
+                bfgs_y[:, bfgs_ind-1] = R - Rminus1
+                bfgs_p[bfgs_ind-1] = 1.0 / (bfgs_s[:, bfgs_ind-1] @ bfgs_y[:, bfgs_ind-1])
                 
                 # Apply the updated jacobian to R
-                deltaX = R
+                deltaX = -R # Negative added here compared to referenced algorithm so that result is directly step
+                
+                alpha = np.zeros(bfgs_ind)
                 for kk in range(bfgs_ind-1, -1, -1):
-                    deltaX = deltaX + bfgs_w[:, kk]*(bfgs_v[:, kk] @ deltaX)
+                    alpha[kk] = bfgs_p[kk] * (bfgs_s[:, kk] @ deltaX)
+                    deltaX = deltaX - alpha[kk]*bfgs_y[:, kk]
                 
                 deltaX = self.lin_factored_solve(factored_data, deltaX)
                 
                 for kk in range(0, bfgs_ind, 1):
-                    deltaX = deltaX + bfgs_v[:, kk]*(bfgs_w[:, kk] @ deltaX)
+                    beta = bfgs_p[kk] * (bfgs_y[:, kk] @ deltaX)
+                    deltaX = deltaX + bfgs_s[:, kk]*(alpha[kk] - beta)
                
             ###### # Update Solution
             if np.isnan(np.sum(deltaX)):
