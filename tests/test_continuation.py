@@ -95,7 +95,9 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
     # Require a predictor: 
     XlamPprev = np.copy(Uw0)
     XlamPprev[-1] = XlamPprev[-1] - 1
-    dirC = cont_solver.predict(fun, Uw0, XlamPprev)
+    
+    # last argument is how first step of continuation is initialized
+    dirC = cont_solver.predict(fun, Uw0, XlamPprev, Uw0-XlamPprev) 
     
     Raug, dRaugdXlamC = cont_solver.correct_res(fun, XlamC, XlamC0, ds, dirC)
     
@@ -124,7 +126,7 @@ def continuation_test(fmag, Uw, Fl, h, solver, vib_sys, cont_config, test_obj):
     dXlamPprev = CtoP*XlamC
     dXlamPprev[-1] -= CtoP[-1]*ds # Set to increasing frequency
     
-    dirC = cont_solver.predict(fun, CtoP*XlamC, dXlamPprev)
+    dirC = cont_solver.predict(fun, CtoP*XlamC, dXlamPprev, CtoP*XlamC-dXlamPprev)
     
     test_obj.assertTrue(np.sign(dirC[-1]) == 1.0, 
                         'Incorrect Frequency step direction.')
