@@ -604,7 +604,7 @@ class Continuation:
                 self.config['callback'](dirC*np.nan, dirC*self.CtoP)
             else:
                 # Calculate dirC for the current solution to be saved
-                dirC = self.predict(fun, XlamP0, XlamPprev)
+                dirC = self.predict(fun, XlamP0, XlamPprev, dirC)
                 
                 self.config['callback'](dirC*np.nan, dirC*self.CtoP)
         
