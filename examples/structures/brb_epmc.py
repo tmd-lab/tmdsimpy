@@ -84,7 +84,7 @@ Aend = -4.2
 # Continuation Step Size (starting)
 ds = 0.1
 dsmax = 0.2
-dsmin = 0.01
+dsmin = 0.02
 
 
 fast_sol = False # Choose speed or accuracy
@@ -140,8 +140,8 @@ static_solver = NonlinearSolverOMP(config=static_config) # Custom Newton-Raphson
 ########################################
 # EPMC Solver settings
 
-epmc_config={'max_steps' : 16, # balance with reform_freq
-            'reform_freq' : 4,
+epmc_config={'max_steps' : 12, # balance with reform_freq
+            'reform_freq' : 2,
             'verbose' : True, 
             'xtol'    : None, # Just use the one passed from continuation
             'rtol'    : 1e-9,
@@ -470,7 +470,7 @@ print('EPMC Residual Run Time (without gradient): {: 7.3f} s'.format(t1 - t0))
 epmc_fun = lambda Uwxa, calc_grad=True : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt, calc_grad=calc_grad)
 
 continue_config = {'DynamicCtoP': True, 
-                   'TargetNfev' : 6,
+                   'TargetNfev' : 4,
                    'MaxSteps'   : 40,
                    'dsmin'      : dsmin,
                    'dsmax'      : dsmax,
