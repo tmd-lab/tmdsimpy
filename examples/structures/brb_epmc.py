@@ -471,7 +471,7 @@ epmc_fun = lambda Uwxa, calc_grad=True : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt, ca
 
 continue_config = {'DynamicCtoP': True, 
                    'TargetNfev' : 6,
-                   'MaxSteps'   : 20,
+                   'MaxSteps'   : 40,
                    'dsmin'      : dsmin,
                    'dsmax'      : dsmax,
                    'verbose'    : 1,
