@@ -43,6 +43,8 @@ import sys
 import numpy as np
 from scipy import io as sio
 import warnings
+import time
+    
 
 sys.path.append('../..')
 from tmdsimpy import harmonic_utils as hutils
@@ -346,8 +348,6 @@ if run_profilers:
     """
     
 else:
-    import time
-    
     t0 = time.time()
     Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
     
