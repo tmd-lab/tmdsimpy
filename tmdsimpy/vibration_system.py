@@ -424,10 +424,17 @@ class VibrationSystem:
         xi = Uwxa[-2]
         
         # Harmonic Stiffness Matrices
-        E,dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h)
+        E_dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h,
+                                           calc_grad=calc_grad)
+        
+        E = E_dEdw[0]
         
         if calc_grad:
-            dEdxi,_ = hutils.harmonic_stiffness(self.M*0, -self.M, self.K*0, w, h)
+            dEdw = E_dEdw[1] # only exists if calc_grad=True
+            
+            dEdxi = hutils.harmonic_stiffness(0, -self.M, 0, 
+                                                w, h, calc_grad=False,
+                                                only_C=True)[0]
         
         
         ########### # OLD AFT:
