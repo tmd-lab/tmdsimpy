@@ -9,3 +9,11 @@
 
 # Large mat files are needed for some examples, but should not be committed. 
 *.mat
+
+# Results should generally not be committed to this repo
+examples/structures/results
+*.npz
+*.dat
+*.txt
+*.out
+*profile
