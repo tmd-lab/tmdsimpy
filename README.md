@@ -29,7 +29,7 @@ For the Rough Contact Friction model, please cite (MATLAB code for this model an
 This code is provided under the MIT License to aid in research, no guarantee is made for the accuracy of the results when applied to other structures.
 
 
-## Usage
+## Setup 
 
 This repository is intended to be cloned into a repository to provide necessary functions that are used for many different modeling cases.
 
@@ -53,9 +53,55 @@ cd ../roughcontact/
 python3 -m unittest discover
 ```
 
+### Computer Environment
 
-## Tests and Examples
+This code base utilizes the JAX library for automatic differentiation and to speed up various computations. Many examples utilizing small systems and relatively simple nonlinearities can be run on any environment without JAX. However, JAX only officially supports running on Linux. For Windows machines, JAX can be used on the Windows Subsystem for Linux (WSL). If working on a Windows machine with WSL, the following workflow is recommended: 
+1. Utilize a standard python IDE installed on the windows side of the computer for editing code. 
+2. Run the code in the WSL terminal. For example:
+```
+cd examples 
+python3 2dof_eldry_fric.py
+```
+3. If you need to debug code, you will need to use the 'pdb' library in python. The easiest way to start with this is to add the line
+```
+import pdb; pdb.set_trace()
+```
+where ever you want the code to pause when you are running it.
+Make sure to save the code, then execute the code from the terminal. 
+When it pauses, it opens a python command line where you can query variables and do simple calculations to check the correctness. 
+You can use 'c' to continue the execution or 'q' to quit the execution. The commands 'l' and 'll' will show the surrounding code if you are not sure where it has paused. More information on pdb can be found [here](https://docs.python.org/3/library/pdb.html#debugger-commands).
+4. If you need to generate figures, you can either have the script save them (e.g., as a .png file), or you can save the data and write a separate script to plot the results (with the later run on Windows or Linux as you desire). Using interactive plots from the terminal may be possible, but has not been tested.
 
+
+## Examples
+
+Several examples are included to demonstrate the repository and can be run to further verify the correctness of the code. 
+
+### Brake-Reuss Beam with Physics-Based Rough Contact
+
+This example runs continuation to calculate the modal backbone with the Extended Periodic Motion Concept (EPMC) utilizing a physics-based contact model. This example requires the full repository (and JAX). Therefore, this example assumes you are running on a Linux machine (or WSL). 
+Starting from the top level of the repository:
+```
+cd examples/structures
+python3 brb_epmc.py
+python3 compare_brb_epmc.py
+```
+Note that brb_epmc.py may take about an hour running on approximately 16 cores with 32-64 GB of RAM. Most operations for this example work in shared memory parallelism. An example slurm submission script is provided in 
+
+TODO : Add slurm file and more description here. 
+
+TODO : Add description of expected results / errors in comparisons. 
+
+TODO : Description of files saved from running these steps.
+
+Results differ from the published reference because: 
+1. A further reduced model is utilized. Matrices describing the original model can be downloaded from [TODO : Insert link].
+2. The implementation of the rough contact model is very slightly different in the handling of residual tractions. This implementation utilizes an initial reference point to initialize as having zero traction rather than choosing the zeroth harmonic at every step. 
+3. The numerical solvers may mean that slight differences fall within the global tolerance norms. 
+
+## Tests 
+
+Testing is included to cover the functionality of the repository. Tests also can be checked to see additional examples of functionality. 
 All new routines added to this repository should have tests that verify that the routines give correct/expected results (add to TESTS folder). These tests should serve as good examples of how to use the related functions. Additional examples may be added to the EXAMPLES folder. 
 
 ### Test Guidelines

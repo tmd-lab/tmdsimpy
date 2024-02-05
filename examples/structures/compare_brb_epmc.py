@@ -55,7 +55,7 @@ with open(reference_yaml, 'r') as file:
 
 system_matrices = sio.loadmat(matrices_for_new)
 
-recover_vec = np.asarray(system_matrices['R'][2, :])
+recover_vec = np.asarray(system_matrices['R'][5, :])
 
 
 ###############################################################################
@@ -74,12 +74,22 @@ zeta = XlamP[:, -2] / 2.0 / XlamP[:, -3]
 
 modal_q = 10**XlamP[:, -1]
 
+Ndof = recover_vec.shape[0]
 
+# Assumes that the 0th harmonic is included (friction would probably fail 
+# without this)
+Q1c = XlamP[:, Ndof:2*Ndof] @ recover_vec
+Q1s = XlamP[:, 2*Ndof:3*Ndof] @ recover_vec
+
+mode_shape_disp = np.sqrt(Q1c**2 + Q1s**2)
 
 
 ###############################################################################
 ####### Plot Comparisons                                                #######
 ###############################################################################
+
+
+####### Frequency 
 
 plt.plot(np.array(ref_dict['modal_amplitude']), 
          np.array(ref_dict['frequency_rad_per_s'])/2.0/np.pi,
@@ -92,11 +102,12 @@ ax = plt.gca()
 ax.set_xscale('log')
 
 plt.legend()
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Modal Amplitude')
+plt.xlabel('Modal Amplitude')
+plt.ylabel('Frequency [Hz]')
 plt.show()
 
 
+####### Damping
 
 plt.plot(np.array(ref_dict['modal_amplitude']), 
          np.array(ref_dict['damping_factor_frac_crit']),
@@ -110,10 +121,27 @@ ax.set_xscale('log')
 ax.set_yscale('log')
 
 plt.legend()
-plt.xlabel('Fraction Critical Damping')
-plt.ylabel('Modal Amplitude')
+plt.xlabel('Modal Amplitude')
+plt.ylabel('Fraction Critical Damping')
 plt.show()
 
+####### Modal Amplitude versus Accelerometer Amplitude 
+# This checks that the mode shape evolves in a similar way by checking the 
+# extracted degree of freedom for the accelerometer that was used for plotting
+# in the original paper. 
 
+mode_disp_ref = np.array(ref_dict['displacement_amplitude']) \
+                    /np.array(ref_dict['modal_amplitude'])
 
+plt.plot(np.array(ref_dict['modal_amplitude']), mode_disp_ref,
+            '-x', label='Porter and Brake (2023)')
 
+plt.plot(modal_q, mode_shape_disp, '--o', label='TMDSimPy')
+
+ax = plt.gca()
+ax.set_xscale('log')
+
+plt.legend()
+plt.xlabel('Modal Amplitude')
+plt.ylabel('Mass Norm. Modal Displacement at Accel')
+plt.show()
