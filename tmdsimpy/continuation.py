@@ -349,7 +349,7 @@ class Continuation:
         else:
             return (Raug,)
     
-    def continuation(self, fun, XlamP0, lam0, lam1):
+    def continuation(self, fun, XlamP0, lam0, lam1, return_grad=False):
         """
         Function runs a continuation from lam0 to lam1 where lam is the last 
         entry of the unknowns.
@@ -377,12 +377,24 @@ class Continuation:
             starting value of lambda (continuation parameter)
         lam1 : float
             final value of lambda
+        return_grad : bool, optional
+            Flag to return the prediction directions corresponding to each step.
+            The default is False. 
 
         Returns
         -------
         XlamP_full : (M, N+1) numpy.ndarray
             Final history, rows are individual entries of XlamP 
             (physical coordinates), and M steps are taken.
+        XlamP_grad_full : (M, N+1) numpy.ndarray
+            Prediction direction vectors corresponding to each solution point.
+            These can be used for hermite interpolation.
+            Output is only returned if return_grad is True.
+            
+        See Also
+        --------
+        postprocess.continuation_post : 
+            Functions for interpolating and postporcessing continuation results. 
             
         Troubleshooting
         -------
@@ -460,6 +472,8 @@ class Continuation:
             succeed in continuing the same direction. 
 
         """
+        
+        assert return_grad==False, 'Have not implemented this flag yet.'
         
         # Check about removing all output
         silent = self.config['verbose'] < 0
