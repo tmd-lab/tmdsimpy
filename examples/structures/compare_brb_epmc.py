@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 
 
 sys.path.append('../..')
-import tmdsimpy
+import tmdsimpy.postprocess.continuation_post as cpost
 
 
 ###############################################################################
@@ -59,29 +59,58 @@ recover_vec = np.asarray(system_matrices['R'][5, :])
 
 
 ###############################################################################
-####### Load and Convert EPMC Results                                   #######
+####### Load and Interpolate EPMC Results                               #######
 ###############################################################################
 
+###  Load 
 epmc_py = np.load(new_results)
 
 XlamP = epmc_py['XlamP'][:-1, :]
 
+XlamP_grad = epmc_py['dirP_prev'][1:, :]
+
+
+### Upsample for Smooth Plotting
+XlamP_line = cpost.hermite_upsample(XlamP, XlamP_grad, upsample_freq=10)
+
+### Interpolate for Error Checking
+XlamP_err = cpost.hermite_interp(XlamP, XlamP_grad, 
+                                 np.log10(ref_dict['modal_amplitude'][:-1]))
+
+
+
+###############################################################################
+####### Convert EPMC Results to Quantities of Interest                  #######
+###############################################################################
+
+    
+Ndof = recover_vec.shape[0]
+
 ##########
 # Calculate frequency and damping values
 
-freq = XlamP[:, -3]
-zeta = XlamP[:, -2] / 2.0 / XlamP[:, -3]
+XlamP_set = [XlamP, XlamP_line, XlamP_err]
 
-modal_q = 10**XlamP[:, -1]
+freq = len(XlamP_set) * [None]
+zeta = len(XlamP_set) * [None]
+modal_q = len(XlamP_set) * [None]
+mode_shape_disp = len(XlamP_set) * [None]
 
-Ndof = recover_vec.shape[0]
+for ind in range(len(XlamP_set)):
 
-# Assumes that the 0th harmonic is included (friction would probably fail 
-# without this)
-Q1c = XlamP[:, Ndof:2*Ndof] @ recover_vec
-Q1s = XlamP[:, 2*Ndof:3*Ndof] @ recover_vec
+    XlamP_curr = XlamP_set[ind]    
 
-mode_shape_disp = np.sqrt(Q1c**2 + Q1s**2)
+    freq[ind] = XlamP_curr[:, -3]
+    zeta[ind] = XlamP_curr[:, -2] / 2.0 / XlamP_curr[:, -3]
+    
+    modal_q[ind] = 10**XlamP_curr[:, -1]
+    
+    # Assumes that the 0th harmonic is included (friction would probably fail 
+    # without this)
+    Q1c = XlamP_curr[:, Ndof:2*Ndof] @ recover_vec
+    Q1s = XlamP_curr[:, 2*Ndof:3*Ndof] @ recover_vec
+    
+    mode_shape_disp[ind] = np.sqrt(Q1c**2 + Q1s**2)
 
 
 ###############################################################################
@@ -96,7 +125,8 @@ plt.plot(np.array(ref_dict['modal_amplitude']),
          '-x',
          label='Porter and Brake (2023)')
 
-plt.plot(modal_q, freq/2.0/np.pi, 'o--', label='TMDSimPy')
+plt.plot(modal_q[0], freq[0]/2.0/np.pi, 'o', label='TMDSimPy')
+plt.plot(modal_q[1], freq[1]/2.0/np.pi, '--', label='TMDSimPy - Hermite Interp')
 
 ax = plt.gca()
 ax.set_xscale('log')
@@ -114,7 +144,7 @@ plt.plot(np.array(ref_dict['modal_amplitude']),
          '-x',
          label='Porter and Brake (2023)')
 
-plt.plot(modal_q, zeta, 'o--', label='TMDSimPy')
+plt.plot(modal_q[0], zeta[0], 'o--', label='TMDSimPy')
 
 ax = plt.gca()
 ax.set_xscale('log')
@@ -136,7 +166,7 @@ mode_disp_ref = np.array(ref_dict['displacement_amplitude']) \
 plt.plot(np.array(ref_dict['modal_amplitude']), mode_disp_ref,
             '-x', label='Porter and Brake (2023)')
 
-plt.plot(modal_q, mode_shape_disp, '--o', label='TMDSimPy')
+plt.plot(modal_q[0], mode_shape_disp[0], '--o', label='TMDSimPy')
 
 ax = plt.gca()
 ax.set_xscale('log')

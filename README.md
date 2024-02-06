@@ -51,6 +51,9 @@ python3 -m unittest discover
 
 cd ../roughcontact/
 python3 -m unittest discover
+
+cd ../postprocess/
+python3 -m unittest discover
 ```
 
 ### Computer Environment
@@ -65,6 +68,10 @@ python3 2dof_eldry_fric.py
 3. If you need to debug code, you will need to use the 'pdb' library in python. The easiest way to start with this is to add the line
 ```
 import pdb; pdb.set_trace()
+```
+or
+```
+breakpoint()
 ```
 where ever you want the code to pause when you are running it.
 Make sure to save the code, then execute the code from the terminal. 
