@@ -20,7 +20,6 @@ import yaml # Import for the reference data
 
 import matplotlib.pyplot as plt
 
-
 sys.path.append('../..')
 import tmdsimpy.postprocess.continuation_post as cpost
 
@@ -114,6 +113,39 @@ for ind in range(len(XlamP_set)):
 
 
 ###############################################################################
+####### Calculate Error Metrics                                         #######
+###############################################################################
+
+freq_err = np.abs(np.array(ref_dict['frequency_rad_per_s'])[:-1] - freq[2]) \
+            / np.array(ref_dict['frequency_rad_per_s'])[:-1]
+
+damp_err = np.abs(np.array(ref_dict['damping_factor_frac_crit'])[:-1] - zeta[2]) \
+            / np.array(ref_dict['damping_factor_frac_crit'])[:-1]
+            
+
+mode_disp_ref = np.array(ref_dict['displacement_amplitude']) \
+                    /np.array(ref_dict['modal_amplitude'])
+                    
+mode_disp_err = np.abs(mode_disp_ref[:-1] - mode_shape_disp[2]) \
+                    / mode_disp_ref[:-1]
+                    
+print('Maximum Frequency: {: 6.4f} % Error'.format(freq_err.max()*100))
+print('Maximum Damping: {: 6.4f} % Error'.format(damp_err.max()*100))
+
+print('Maximum Damping in Friction Dominated: {: 6.4f} % Error'.format(\
+                               damp_err[zeta[2] > 3e-3].max()*100))
+
+print('Maximum Accel Modal Displacement: {: 6.4f} % Error'.format(\
+                                              mode_disp_err.max()*100))
+
+
+print('Expected Errors for 232 ZTE (same mesh, previous order):'\
+      +' (0.0707, 2.0150, 0.1290, 0.0715)%')
+
+print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
+      +' (TBD)%')
+    
+###############################################################################
 ####### Plot Comparisons                                                #######
 ###############################################################################
 
@@ -125,8 +157,10 @@ plt.plot(np.array(ref_dict['modal_amplitude']),
          '-x',
          label='Porter and Brake (2023)')
 
-plt.plot(modal_q[0], freq[0]/2.0/np.pi, 'o', label='TMDSimPy')
-plt.plot(modal_q[1], freq[1]/2.0/np.pi, '--', label='TMDSimPy - Hermite Interp')
+p = plt.plot(modal_q[0], freq[0]/2.0/np.pi, 'o', label='TMDSimPy')
+plt.plot(modal_q[1], freq[1]/2.0/np.pi, '--', 
+         label='TMDSimPy - Hermite Interp', 
+         color=p[0].get_color())
 
 ax = plt.gca()
 ax.set_xscale('log')
@@ -144,7 +178,9 @@ plt.plot(np.array(ref_dict['modal_amplitude']),
          '-x',
          label='Porter and Brake (2023)')
 
-plt.plot(modal_q[0], zeta[0], 'o--', label='TMDSimPy')
+p = plt.plot(modal_q[0], zeta[0], 'o', label='TMDSimPy')
+plt.plot(modal_q[1], zeta[1], '--', label='TMDSimPy - Hermite Interp', 
+         color=p[0].get_color())
 
 ax = plt.gca()
 ax.set_xscale('log')
@@ -166,7 +202,10 @@ mode_disp_ref = np.array(ref_dict['displacement_amplitude']) \
 plt.plot(np.array(ref_dict['modal_amplitude']), mode_disp_ref,
             '-x', label='Porter and Brake (2023)')
 
-plt.plot(modal_q[0], mode_shape_disp[0], '--o', label='TMDSimPy')
+p = plt.plot(modal_q[0], mode_shape_disp[0], 'o', label='TMDSimPy')
+
+plt.plot(modal_q[1], mode_shape_disp[1], '--', label='TMDSimPy - Hermite Interp', 
+         color=p[0].get_color())
 
 ax = plt.gca()
 ax.set_xscale('log')
