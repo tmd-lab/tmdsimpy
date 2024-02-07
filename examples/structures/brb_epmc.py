@@ -15,11 +15,11 @@ Friction Model: Rough Contact [1] (TODO: Add flag for Elastic Dry Friction)
 Nonlinear Modal Analysis: Extended Periodic Motion Concept
 
 Model: 232 Zero Thickness Elements (ZTEs) [Hyper Reduction Paper]
-        Model file: matrices/ROM_U_232ELS4py.mat
+        Model file: data/ROM_U_232ELS4py.mat
         Model file must be downloaded from storage elsewhere. See README.md
         
 Surface Parameters: Surface parameters for rough contact are identified in [1]
-        Surface Parameters file: matrices/combined_14sep21_R1_4py.mat
+        Surface Parameters file: data/combined_14sep21_R1_4py.mat
         Surface parameter file must be downloaded from storage elsewhere. See
         README.md
 
@@ -61,6 +61,7 @@ system.
 import sys
 import numpy as np
 from scipy import io as sio
+from scipy.interpolate import LinearNDInterpolator
 import warnings
 import time
 import argparse # parse command line arguments
@@ -92,8 +93,8 @@ default_mesoscale = 1
 # default filename for a .mat file that contains the matrices appropriately 
 # formatted to be able to describe the structural system. 
 # Command line input will override this if given
-# python3 -u brb_epmc.py -system './matrices/ROM_U_232ELS4py.mat'
-default_sys_fname = './matrices/ROM_U_232ELS4py.mat'
+# python3 -u brb_epmc.py -system './data/ROM_U_232ELS4py.mat'
+default_sys_fname = './data/ROM_U_232ELS4py.mat'
 
 # Flag for running profiler. Command line argument will override this flag
 # If flag is not zero, then the code simulation will be profiled. Otherwise, 
@@ -157,7 +158,7 @@ else:
 # with the script 'compare_brb_epmc.py' after running. 
 
 # Surface Parameters for the rough contact model - from ref [1]
-surface_fname = './matrices/combined_14sep21_R1_4py.mat'
+surface_fname = './data/brb_surface_data.mat'
 
 surface_pars = sio.loadmat(surface_fname)
 
@@ -184,6 +185,8 @@ gap_weights = area_density * trap_weights * np.interp(gaps/max_gap,
                                                       normzinterp, pzinterp)
 
 prestress = (12002+12075+12670)*1.0/3; # N per bolt
+
+mesoscale_xygap = surface_pars['mesoscale_xygap']
 
 ###############################################################################
 ####### 4. Solver Settings                                              #######
@@ -371,6 +374,20 @@ L  = system_matrices['L']
 QL = np.kron(Qm, np.eye(3)) @ L[:3*Nnodes, :]
 LTT = L[:3*Nnodes, :].T @ np.kron(Tm, np.eye(3))
 
+
+# Calculate the mesoscale gaps of each node point
+interp_obj = LinearNDInterpolator(mesoscale_xygap[:, :2], # x, y
+                                  mesoscale_xygap[:, 2]) # gaps
+
+meso_gap_nodes = interp_obj(system_matrices['node_coords'][:, 0], # node x
+                            system_matrices['node_coords'][:, 1]) # node y
+
+# interpolate mesoscale at nodes to quadrature points
+meso_gap_quads = Qm @ meso_gap_nodes
+meso_gap_quads = meso_gap_quads - meso_gap_quads.min() # move so something is initially in contact
+
+meso_gap_quads = mesoscale_TF * meso_gap_quads # Set mesoscale to zero if not using it
+
 for i in range(Nnl):
     
     Ls = (QL[i*3:(i*3+3), :])
@@ -378,7 +395,8 @@ for i in range(Nnl):
 
     tmp_nl_force = RoughContactFriction(Ls, Lf, ElasticMod, PoissonRatio, 
                                         Radius, TangentMod, YieldStress, mu,
-                                        gaps=gaps, gap_weights=gap_weights)
+                                        gaps=gaps, gap_weights=gap_weights,
+                                        meso_gap=meso_gap_quads[i])
     
     vib_sys.add_nl_force(tmp_nl_force)
     
@@ -497,11 +515,15 @@ eigvecs = eigvecs / np.sqrt(norm)
 
 # Displacement at accel for eigenvectors
 resp_amp = system_matrices['R'][2, :] @ eigvecs
-print('Response amplitudes at tip accel: [m]')
+print('Response amplitudes at tip accel '\
+      + '(magnitudes near 1 indicate bending modes): [m]')
 print(resp_amp)
 
-print('Expected frequencies from previous MATLAB / Paper (Flat Mesoscale):'\
-      +' 168.5026, 580.4082, 1177.6498 Hz')
+print('Expected bending mode frequencies from previous MATLAB / Paper'\
+      +' (Flat Mesoscale): 168.5026, 580.4082, 1177.6498 Hz')
+
+print('Expected bending mode frequencies from previous MATLAB / Paper'\
+      +' (With Mesoscale): 180.6293, 595.2815, 1199.9013 Hz')
 
 ###############################################################################
 ####### 12. Updated Damping Matrix After Prestress                      #######

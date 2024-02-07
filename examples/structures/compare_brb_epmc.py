@@ -39,7 +39,7 @@ import tmdsimpy.postprocess.continuation_post as cpost
 default_mesoscale = 1 
 
 # Default mesh name. Command line input will override this if given
-default_sys_fname = './matrices/ROM_U_232ELS4py.mat'
+default_sys_fname = './data/ROM_U_232ELS4py.mat'
 
 
 ###############################################################################
@@ -184,12 +184,19 @@ print('Maximum Damping in Friction Dominated: {: 6.4f} % Error'.format(\
 print('Maximum Accel Modal Displacement: {: 6.4f} % Error'.format(\
                                               mode_disp_err.max()*100))
 
-
-print('Expected Errors for 232 ZTE (same mesh, previous order):'\
-      +' (0.0707, 2.0150, 0.1290, 0.0715)%')
-
-print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
-      +' (TBD)%')
+if mesoscale_TF:
+    print('Expected Errors for 232 ZTE (same mesh, previous order):'\
+          +' (0.0719, 5.5288, 0.0411, 0.0742)%')
+    
+    print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
+          +' (TBD)%')
+    
+else:
+    print('Expected Errors for 232 ZTE (same mesh, previous order):'\
+          +' (0.0707, 2.0150, 0.1290, 0.0715)%')
+    
+    print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
+          +' (TBD)%')
     
 ###############################################################################
 ####### Plot Comparisons                                                #######
