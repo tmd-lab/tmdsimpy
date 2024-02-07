@@ -20,3 +20,7 @@ pyyaml
 # jaxlib==0.3.25
 # matplotlib==3.5.2
 # unittest comes with distribution
+# argparse comes with distribution
+# time comes with distribution
+# cProfile # profiler, comes with distribution
+# pstats # investigate profiler results

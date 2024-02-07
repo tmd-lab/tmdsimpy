@@ -11,12 +11,15 @@ Original results were generated in MATLAB and saved to yaml file:
     './brb_epmc_flat.yaml' and './brb_epmc_meso.yaml' for cases with plasticity
     and either a flat or curved mesoscale topology respectively. Both with 
     friction coefficients of 0.03.
+    
+This script should be run with the same command line arguments as brb_epmc.py
 """
 
 import sys
 import numpy as np
 from scipy import io as sio # Loading accel extraction matrix
 import yaml # Import for the reference data
+import argparse # parse command line arguments
 
 import matplotlib.pyplot as plt
 
@@ -25,20 +28,63 @@ import tmdsimpy.postprocess.continuation_post as cpost
 
 
 ###############################################################################
+####### Command Line Defaults                                           #######
+###############################################################################
+
+# These defaults can be changed if running in an IDE without giving command
+# line arguments to look at different systems
+
+# Set this to 1 to use mesoscale or 0 to not use mesoscale by default
+# Command line input will override this if given.
+default_mesoscale = 1 
+
+# Default mesh name. Command line input will override this if given
+default_sys_fname = './matrices/ROM_U_232ELS4py.mat'
+
+
+###############################################################################
+####### Command Line Inputs Parsing                                     #######
+###############################################################################
+
+# Do not edit these to change which system is run
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-meso", "--meso_scale_included", type=int, nargs='?', 
+                    const=1, default=default_mesoscale)
+
+parser.add_argument("-system", "--system_filename", type=str, nargs='?', 
+                    const=1, default=default_sys_fname)
+
+args = parser.parse_args()
+mesoscale_TF = args.meso_scale_included != 0
+system_fname = args.system_filename
+
+print('Using system from file: {}'.format(system_fname))
+print('Comparing results with mesoscale topology? {}'.format(mesoscale_TF))
+
+###############################################################################
 ####### User Inputs                                                     #######
 ###############################################################################
 
 # YAML file with backbone information from previous paper that is used as 
 # reference solution for verifying the correctness of the present code
-reference_yaml = './results/brb_epmc_flat.yaml'
+if mesoscale_TF:
+    reference_yaml = './results/brb_epmc_meso.yaml'
+else: 
+    reference_yaml = './results/brb_epmc_flat.yaml'
+
+    
 
 # Matrices that were used in the new solution. These are only needed to get
 # the matrix for extracting the accelerometer position that was used in 
 # plotting for the previous paper.
-matrices_for_new = './matrices/ROM_U_232ELS4py.mat'
+matrices_for_new = system_fname
 
 # EPMC results saved during continuation for the new simulation.
-new_results = './results/brb_epmc_bb_full.npz'
+if mesoscale_TF:
+    new_results = './results/brb_epmc_meso_full.npz'
+else: 
+    new_results = './results/brb_epmc_flat_full.npz'
 
 
 ###############################################################################

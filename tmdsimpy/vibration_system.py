@@ -5,19 +5,36 @@ from scipy.integrate import solve_ivp
 import warnings
 
 class VibrationSystem:
+    """
+    Create a vibration system model with several useful residual functions. 
+    The system has N degrees of Freedom. 
+    
+    Parameters
+    ----------
+    M : (N,N) numpy.ndarray
+        Mass Matrix
+    K : (N,N) numpy.ndarray
+        Stiffness Matrix, n x n
+    C : (N,N) numpy.ndarray or None, optional
+        Damping Matrix. If ab is provided, that will be used instead to 
+        construct a damping matrix. If both are None, then a zero damping 
+        matrix will be used.
+        Default is None.
+    ab : list of length 2 or None, optional
+        Mass and Stiffness Proportional Damping Coefficients. If provided, 
+        used to recalculate stiffness matrix as
+        C = ab[0]*self.M + ab[1]*self.K.
+        The default is None.
+
+    See Also
+    ----------
+    VibrationSystem.set_new_C : 
+        sets the damping matrix to a new value for an existing object
+    """
     
     def __init__(self, M, K, C=None, ab=None):
         """
         Initialize the linear part of a system
-
-        Parameters
-        ----------
-        M : Mass Matrix, n x n
-        K : Stiffness Matrix, n x n
-        C : Damping Matrix, n x n, Default is Zero
-        ab : Mass and Stiffness Proportional Damping Coefficients. If provided, 
-             used to recalculate stiffness matrix
-
         """
         self.M = M
         self.K = K
@@ -128,6 +145,42 @@ class VibrationSystem:
             else:
                 warnings.warn('Nonlinear force: {} does not have an AFT initialize'.format(nlforce))
                 
+        return
+    
+    def set_new_C(self, C=None, ab=None):
+        """
+        Set the damping matrix to a new value after the VibrationSystem has
+        already been created. 
+
+        Parameters
+        ----------
+        C : (N,N) numpy.ndarray, optional
+            New damping matrix. If ab is not None, then ab is used instead. If 
+            neither C nor ab is provided, the damping matrix is set to zeros.
+            The default is None.
+        ab : list of length 2, optional
+            If provided, the damping matrix is set to 
+            C = ab[0]*self.M + ab[1]*self.K. 
+            The default is None.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        if not (ab is None):
+            if not (C is None):
+                print('Ignoring C to overwrite with proportional damping.')
+            
+            C = ab[0]*self.M + ab[1]*self.K
+            self.ab = ab
+        
+        if C is None:
+            self.C = np.zeros_like(self.M)
+        else:
+            self.C = C
+        
         return
     
     def static_res(self, U, Fstatic):
