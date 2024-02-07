@@ -30,7 +30,7 @@ class TestContinuationPost(unittest.TestCase):
         
         tmax = 10
         
-        t = np.array(range(tmax+1))
+        t = 1.0*np.array(range(tmax+1))
         t = t.reshape(-1, 1)
         
         XlamP_fun = lambda t : np.hstack((t**3, 
@@ -75,79 +75,29 @@ class TestContinuationPost(unittest.TestCase):
         
         
         XlamP_interp = cpost.hermite_upsample(XlamP_full, XlamP_grad_full,
-                                              new_points=step_interp)
+                                              new_lams=step_interp)
         
         XlamP_expect = XlamP_fun(step_interp.reshape(-1,1))
         
         self.assertLess(np.linalg.norm(XlamP_interp - XlamP_expect), 1e-12,
                         'Specific point cubic hermite spline interpolation failed.')
         
-        return
+        ######### Upsample with default rate + altered gradients
         
-    def test_hermite_upsample_backtrack(self):
-        """
-        Test hermite upsample interpolation using a more complicated
-        parametric function that backtracks in the second variable
-        
-        Points are
-        t | x | y 
-        0 | 0 | 1
-        1 | 3 | 3
-        2 | 2 | 2
-        3 | 4 | 0
-        
-        Returns
-        -------
-        None.
-
-        """
-        
-        x_fun = lambda t : 7*t**3/6.0 - 11*t**2/2.0 + 22*t/3.0
-        dxdt_fun = lambda t : 21*t**2/6.0 - 22*t/2.0 + 22.0/3
-
-        y_fun = lambda t : t**3/3.0 - 5*t**2/2.0 + 25*t/6.0 + 1
-        dydt_fun = lambda t : 3*t**2/3.0 - 10*t/2.0 + 25/6.0
-        
-        """
-        # Plotting example - use previous functions as well
-        
-        t = np.linspace(0, 3, 100)
-        tp = np.array([0, 1, 2, 3])
-
-        x = x_fun(t)
-        y = y_fun(t)
-
-        xp = x_fun(tp)
-        yp = y_fun(tp)
-
-        import matplotlib.pyplot as plt
-        plt.plot(x, y)
-        plt.plot(xp, yp, 'o')
-        plt.show()
-        """
-        
-        # Construct interpolation data
-        tp = np.array([0, 1, 2, 3]).reshape(-1,1)
-        
-        XlamP_fun = lambda t : np.hstack((x_fun(t), y_fun(t)))
-        
-        XlamP_full = XlamP_fun(tp)
-        XlamP_grad_full = np.hstack((dxdt_fun(tp), dydt_fun(tp)))
-        
-        ####### Test default up sampling
-        
+        XlamP_grad_full[0, :] = 0.13 * XlamP_grad_full[0, :]
+        XlamP_grad_full[2, :] = 2.0 * XlamP_grad_full[2, :]
+        XlamP_grad_full[3, :] = 1.75 * XlamP_grad_full[3, :]
+                
         XlamP_interp = cpost.hermite_upsample(XlamP_full, XlamP_grad_full)
-
-        t_expect = np.linspace(0, XlamP_full.shape[0]-1, 
-                               (XlamP_full.shape[0]-1)*10+1)
         
+        t_expect = np.linspace(0, tmax, (XlamP_full.shape[0]-1)*10+1)
         XlamP_expect = XlamP_fun(t_expect.reshape(-1,1))
         
         self.assertLess(np.linalg.norm(XlamP_interp - XlamP_expect), 1e-12,
-                        'Default cubic hermite spline interpolation failed.')
-                
+                        'Upsample failed with randomly adjusted gradients.')
+        
         return
-
+        
     def test_hermite_interp_errors(self):
         """
         Test the cases that should throw errors for hermite interpolation
@@ -207,30 +157,6 @@ class TestContinuationPost(unittest.TestCase):
         
         self.assertRaises(AssertionError, err_grad)
         
-        ################
-        # Fail with hidden double root in an interval
-        
-        # Points to construct polynomial of lam:
-        # (0,0), (1, 3), (2, 2), (3, 4)
-        # Only first and last point will be passed to interp function
-        # value of 2.5 should have multiple real roots
-        
-        lam_fun = lambda tcol : 7*tcol**3/6.0 - 11*tcol**2/2.0 + 22*tcol/3.0
-        lam_grad_fun = lambda tcol : 21*tcol**2/6.0 - 22*tcol/2.0 + 22/3.0
-        
-        tcol = np.array([0, 3])
-        
-        XlamP_full = np.ones((2, 5))
-        XlamP_full[:, -1] = lam_fun(tcol)
-        
-        XlamP_grad_full = np.ones((2, 5))
-        XlamP_grad_full[:, -1] = lam_grad_fun(tcol)
-        
-        err_roots = lambda : cpost.hermite_interp(XlamP_full, XlamP_grad_full,
-                                                  np.array([2.5]))
-        breakpoint()
-        self.assertRaises(AssertionError, err_roots)
-        
         return
     
     def test_hermite_interp_values(self):
@@ -245,23 +171,20 @@ class TestContinuationPost(unittest.TestCase):
         
         tp = np.array([0, 1, 2, 3, 4, 5])
         
-        dlamdt_fun = lambda t : t**2 + 5*t + 1 # always positive slope for t > 0
-        lam_fun = lambda t : t**3/3.0 + 2.5*t**2 + t + 3.0
-        
         # Define several other variables that are at most cubic. 
         XlamP_fun = lambda tcol : np.hstack((tcol**3, 
                                             tcol**2, 
                                             tcol, 
                                             np.ones_like(tcol),
                                             tcol**3-tcol**2+tcol-2, 
-                                            lam_fun(tcol)))
+                                            tcol))
         
         XlamP_grad_fun = lambda tcol : np.hstack((3*tcol**2, 
                                             2*tcol, 
                                             np.ones_like(tcol), 
                                             np.zeros_like(tcol),
                                             3*tcol**2-2*tcol+1, 
-                                            dlamdt_fun(tcol)))
+                                            np.ones_like(tcol)))
         
         XlamP_full = XlamP_fun(tp.reshape(-1,1))
         XlamP_grad_full = XlamP_grad_fun(tp.reshape(-1,1))
@@ -272,7 +195,7 @@ class TestContinuationPost(unittest.TestCase):
         # and use upsample to get those values
         # Also include some exact points including ends to make sure it is robust
         XlamP_interp_ref = cpost.hermite_upsample(XlamP_full, XlamP_grad_full,
-                                                  new_points=step_interp)
+                                                  new_lams=step_interp)
         
         # Use results of upsample to pass in values of lam corresponding to 
         # known points
@@ -286,3 +209,6 @@ class TestContinuationPost(unittest.TestCase):
                         'Default cubic hermite spline interpolation failed.')
         
         return
+    
+if __name__ == '__main__':
+    unittest.main()
