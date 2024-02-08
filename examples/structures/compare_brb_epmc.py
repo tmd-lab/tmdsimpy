@@ -36,10 +36,10 @@ import tmdsimpy.postprocess.continuation_post as cpost
 
 # Set this to 1 to use mesoscale or 0 to not use mesoscale by default
 # Command line input will override this if given.
-default_mesoscale = 1 
+default_mesoscale = 0 
 
 # Default mesh name. Command line input will override this if given
-default_sys_fname = './data/ROM_U_232ELS4py.mat'
+default_sys_fname = './data/BRB_ROM_U_122ELS4py.mat'
 
 
 ###############################################################################
@@ -116,7 +116,7 @@ XlamP_grad = epmc_py['dirP_prev'][1:, :]
 
 
 ### Upsample for Smooth Plotting
-XlamP_line = cpost.hermite_upsample(XlamP, XlamP_grad, upsample_freq=10)
+XlamP_line = cpost.hermite_upsample(XlamP, XlamP_grad, upsample_freq=50)
 
 ### Interpolate for Error Checking
 XlamP_err = cpost.hermite_interp(XlamP, XlamP_grad, 
@@ -189,14 +189,15 @@ if mesoscale_TF:
           +' (0.0719, 5.5288, 0.0411, 0.0742)%')
     
     print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
-          +' (TBD)%')
+          +' (0.1501, 92.5023*, 2.6476, 0.0762)% *Due to interpolation being ratio of cubics.')
+        
     
 else:
     print('Expected Errors for 232 ZTE (same mesh, previous order):'\
           +' (0.0707, 2.0150, 0.1290, 0.0715)%')
     
     print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
-          +' (TBD)%')
+          +' (0.1491, 4.2942, 3.1760, 0.0806)%')
     
 ###############################################################################
 ####### Plot Comparisons                                                #######
