@@ -15,7 +15,9 @@ Friction Model: Rough Contact [1] (TODO: Add flag for Elastic Dry Friction)
 Nonlinear Modal Analysis: Extended Periodic Motion Concept
 
 Model: 232 Zero Thickness Elements (ZTEs) [Hyper Reduction Paper]
-        Model file: data/ROM_U_232ELS4py.mat
+        Model file: data/BRB_ROM_U_122ELS4py.mat
+        Second model file can be downloaded from elsewhere and is named: 
+            data/BRB_ROM_U_122ELS4py.mat
         Model file must be downloaded from storage elsewhere. See README.md
         
 Surface Parameters: Surface parameters for rough contact are identified in [1]
@@ -37,6 +39,8 @@ TODO :
     4. Slurm file for running this script.
     5. Fully document command line inputs
     6. Some description of much of this is setup, for the actual modeling skip to line...
+    7. Note that saving outputs during run will die if there is a save from a 
+    different mesh size already in the folder. 
 
 The JAX matrix solves in here should automatically use OpenMP Parallelism.
 You can control the parallelism by invoking these commands on Linux prior 
@@ -56,6 +60,8 @@ The majorify of this script is loading parameters and initializing settings.
 The actual solution steps start on block #8 with the creation of the vibration 
 system.
 
+Simulations with 122 ZTE model take about 5-10 minutes on Computer with 
+12 cores, 24 threads, 32 GB RAM, 2.1 GHz processor
 """
 
 import sys
@@ -93,8 +99,8 @@ default_mesoscale = 1
 # default filename for a .mat file that contains the matrices appropriately 
 # formatted to be able to describe the structural system. 
 # Command line input will override this if given
-# python3 -u brb_epmc.py -system './data/ROM_U_232ELS4py.mat'
-default_sys_fname = './data/ROM_U_232ELS4py.mat'
+# python3 -u brb_epmc.py -system './data/BRB_ROM_U_232ELS4py.mat'
+default_sys_fname = './data/BRB_ROM_U_122ELS4py.mat'
 
 # Flag for running profiler. Command line argument will override this flag
 # If flag is not zero, then the code simulation will be profiled. Otherwise, 
@@ -342,7 +348,7 @@ if eig_diff > 1e-4:
 ref_area = 0.002921034742767
 area_error = (system_matrices['Tm'].sum() - ref_area) / ref_area
 
-assert area_error < 1e-4, 'Quadrature integration matrix gives wrong contact area.'
+assert area_error < 2e-3, 'Quadrature integration matrix gives wrong contact area.'
 
 ###############################################################################
 ####### 8. Create Vibration System                                      #######
