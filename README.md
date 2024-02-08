@@ -12,7 +12,7 @@ If using this code, please cite the relevant journal paper:
     year = {In Preparation}
 }
 ```
-For the Rough Contact Friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
+For the rough contact friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
 ```
 @article{porterTowardsAPredictive2023,
     title = {Towards a predictive, physics-based friction model for the dynamics of jointed structures},
@@ -35,6 +35,8 @@ This repository is intended to be cloned into a repository to provide necessary 
 
 Installing requirements (it is possible to run many items without jax, but it is included in the requirements to be comprehensive):
 ```
+git clone git@github.com:tmd-lab/tmdsimpy.git
+cd tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
 Running tests:
@@ -45,15 +47,19 @@ python3 -m unittest discover
 cd nlforces
 python3 -m unittest discover
 
+cd ../postprocess/
+python3 -m unittest discover
+
 # If jax is installed, also check those tests
 cd ../jax
 python3 -m unittest discover
 
+# These also require jax
 cd ../roughcontact/
 python3 -m unittest discover
 
-cd ../postprocess/
-python3 -m unittest discover
+# Return to top level
+cd ../..
 ```
 
 ### Computer Environment
@@ -61,105 +67,99 @@ python3 -m unittest discover
 This code base utilizes the JAX library for automatic differentiation and to speed up various computations. Many examples utilizing small systems and relatively simple nonlinearities can be run on any environment without JAX. However, JAX only officially supports running on Linux. For Windows machines, JAX can be used on the Windows Subsystem for Linux (WSL). If working on a Windows machine with WSL, the following workflow is recommended: 
 1. Utilize a standard python IDE installed on the windows side of the computer for editing code. 
 2. Run the code in the WSL terminal. For example:
-```
-cd examples 
-python3 2dof_eldry_fric.py
-```
+   ```
+   cd examples 
+   python3 2dof_eldry_fric.py
+   ```
 3. If you need to debug code, you will need to use the 'pdb' library in python. The easiest way to start with this is to add the line
-```
-import pdb; pdb.set_trace()
-```
-or
-```
-breakpoint()
-```
-where ever you want the code to pause when you are running it.
-Make sure to save the code, then execute the code from the terminal. 
-When it pauses, it opens a python command line where you can query variables and do simple calculations to check the correctness. 
-You can use 'c' to continue the execution or 'q' to quit the execution. The commands 'l' and 'll' will show the surrounding code if you are not sure where it has paused. More information on pdb can be found [here](https://docs.python.org/3/library/pdb.html#debugger-commands).
+   ```
+   import pdb; pdb.set_trace()
+   ```
+   or
+   ```
+   breakpoint()
+   ```
+   wherever you want the code to pause when you are running it.
+   Make sure to save the code, then execute the code from the terminal. 
+   When it pauses, it opens a python command line where you can query variables and do simple calculations to check the correctness. 
+   You can use 'c' to continue the execution or 'q' to quit the execution. The commands 'l' and 'll' will show the surrounding code if you are not sure where it has paused. More information on pdb can be found [here](https://docs.python.org/3/library/pdb.html#debugger-commands).
 4. If you need to generate figures, you can either have the script save them (e.g., as a .png file), or you can save the data and write a separate script to plot the results (with the later run on Windows or Linux as you desire). Using interactive plots from the terminal may be possible, but has not been tested.
 
 
 ## Examples
 
 Several examples are included to demonstrate the repository and can be run to further verify the correctness of the code. 
+One can also look at the tests folder to see further examples.
 
 ### Brake-Reuss Beam with Physics-Based Rough Contact
+
+This example calculates the nonlinear vibration response of the Brake-Ruess Beam as described in [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) and originally implemented in MATLAB [here](https://github.com/tmd-lab/microslip-rough-contact). This model uses provided system matrices originally calculated with Abaqus as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.106615) and [this tutorial](https://nidish96.github.io/Abaqus4Joints/). Model reduction was further conducted as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.107249).
 
 This example runs continuation to calculate the modal backbone with the Extended Periodic Motion Concept (EPMC) utilizing a physics-based contact model. This example requires the full repository (and JAX). Therefore, this example assumes you are running on a Linux machine (or WSL). 
 Starting from the top level of the repository:
 ```
 cd examples/structures
-python3 brb_epmc.py
-python3 compare_brb_epmc.py
+python3 brb_epmc.py -meso 1
 ```
-Note that brb_epmc.py may take about an hour running on approximately 16 cores with 32-64 GB of RAM. Most operations for this example work in shared memory parallelism. An example slurm submission script is provided in 
+Simulations with the default model take about 5-10 minutes on a computer with 12 cores, 32 GB of RAM and a 2.1 GHz processor. 
+The command line argument `-meso 1` can be changed to `-meso 0` to run the simulation with a flat interface instead. 
+While `brb_epmc.py` is running, you can look at a summary of the current results in the file `results/brb_epmc_meso_sum.dat` or `results/brb_epmc_flat_sum.dat` for with and without mesoscale topology respectively.
 
-TODO : Add slurm file and more description here. 
-
-TODO : Add description of expected results / errors in comparisons. 
-
-TODO : Description of files saved from running these steps.
-
-Results differ from the published reference because: 
-1. A further reduced model is utilized. Matrices describing the original model can be downloaded from [TODO : Insert link].
-2. The implementation of the rough contact model is very slightly different in the handling of residual tractions. This implementation utilizes an initial reference point to initialize as having zero traction rather than choosing the zeroth harmonic at every step. 
-3. The numerical solvers may mean that slight differences fall within the global tolerance norms. 
-
-## Tests 
-
-Testing is included to cover the functionality of the repository. Tests also can be checked to see additional examples of functionality. 
-All new routines added to this repository should have tests that verify that the routines give correct/expected results (add to TESTS folder). These tests should serve as good examples of how to use the related functions. Additional examples may be added to the EXAMPLES folder. 
-
-### Test Guidelines
-
-1. Logically name test files. The filename must start with "test_" for the unittest framework.  
-2. Place comments at the top of files with what is being tested.
-3. Clearly indicate if expected results are produced with the outputs.
-4. Verify all analytical gradients numerically, use functions in 'verification_utils.py'. 
-
-#### Unittest Framework 
-
-All tests should use the unittest framework. This requires that all tests start with the word "test" in the filename. This allows for easier running of tests and integration with existing tools for continuous testing. Unittest also requires that values be checked using class assertion statements (e.g., self.assertLess()).
-
-Tests written in the unittest framework can be run by navigating to the TESTS folder and running (substitute python3 for python if necessary)
+The results can then be checked against the published reference data by running
 ```
-python -m unittest discover
+python3 compare_brb_epmc.py -meso 1 # use same value of -meso input argument
 ```
-In addition, this command must also be run in the TESTS/NL_FORCES folder to test the nonlinear forces.
+For `compare_brb_epmc.py`, you may want to run it in an IDE for plotting instead of from the terminal (this script does not require JAX). You can change `default_mesoscale` in the script to change if it plots the comparison with or without mesoscale topology. 
+Errors in the comparison are attributed to: 
+1. Interpolation from different continuation points. 
+2. Different mesh if using the default mesh. 
+3. Slight difference in the initialization of slides (residual tractions). 
+4. Numerical solver tolerances. 
+
+The default model uses 122 zero-thickness elements (ZTEs). An alternative model using 232 ZTEs can be run by downloading the alternative matrices from [here](https://rice.box.com/s/y6q1fpm177mjp3ezkohrz295hhqpu3yn) to the `examples/structures/data` folder and running the lines:
+```
+cd examples/structures
+python3 brb_epmc.py -meso 1 -system './data/BRB_ROM_U_232ELS4py.mat'
+python3 compare_brb_epmc.py -meso 1 -system './data/BRB_ROM_U_232ELS4py.mat'  
+```
+Note, that you will need to delete any previous saved simulation results before running continuation with a different model. E.g.,
+```
+cd examples/structures/results
+# Remove saved numpy since these will throw errors when appending new data
+rm brb_epmc_meso_full.npz
+rm brb_epmc_flat_full.npz
+# Remove summary files since these will just get appended to with new simulations
+rm brb_epmc_meso_sum.dat
+rm brb_epmc_flat_sum.dat
+```
+
+## Code Development Guidance
+
+### Testing
+
+New functions should have unit tests associated with them. This requires that the filename start with "test_" and that the files follow the unittest packages requirements (see existing tests for examples). 
+All analytical gradients should use `tests/verification_utils.py` to check gradients against numerical approximations. 
+
+
 Individual tests can also be run as files in an IDE (assuming the correct lines are included at the bottom of the file) or with the command
 ```
-python -m unittest test_hbm_base.py
+cd tests
+python3 -m unittest test_epmc.py
+```
+A single test can be run as
+```
+python3 test_epmc.py TestEPMC.test_static_force
 ```
 
-### Test Summary for Important Functions
+### JAX and JIT
 
-This section summarizes files in the TESTS folder that also serve as examples for important functions. The folder 'MATLAB_VERSIONS' contains previous implementations of functions from MATLAB that are verified against in some tests.
-
-- *Nonlinear Forces* - see files under NL_FORCES folder.
-    - *Alternating Frequency Time (AFT)* - see test_duffing_aft.py (Duffing) and test_jenkins_hysteretic_aft.py (Jenkins)
-    - The vector versions of Iwan and Jenkins are much faster than the normal version under some conditions. See EXAMPLES/vectorized_jenkins_iwan_aft.py
-- *Continuation* - see test_continuation.py - uses harmonic balance and duffing.
-- *Extended Periodic Motion Concept (EPMC)* - see test_epmc.py - uses continuation, Duffing, and Jenkins as well.
-- *Harmonic Balance Method (HBM)* - see test_hbm.py - uses MATLAB/python integration to verify against previous routines. There is a flag at the top that can be set to False to avoid the MATLAB calls so the test can be run without the MATLAB comparisons. This function also uses the solver to check a number of solutions. 
-    - *HBM Utilities* - test_harmonic_utils.py - requires MATLAB/python integration to verify against previous routines.
-    - *HBM Base Excitation* - test_hbm_base.py - tests the base excitation HBM implementation.
-- *Nonlinear Solvers* - test_solver.py. More detailed uses can be found with continuation. 
-
-## Automatic Differentiation
-
-Automatic differentiation is a work in progress and is being attempted by using [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html).
-
-### Using JAX/JIT Versions
-
-Using JAX, the code is setup to use Just In Time Compilation (JIT). However, there are strict rules on what can be done with JIT. Read the JAX documentation carefully before editting these routines. 
-
-The JIT versions of the code assume that the same list of harmonics and the same number of time steps for AFT are used everywhere. If this is not the case, the routines will be forced to compile multiple versions for different sets of harmonics.
+The JAX library is a powerful tool for automatic differentiation and just-in-time (JIT) compilation. However, JAX has some very specific rules. One should carefully review their documentation [here](https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html).
 
 
-The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
-
-JAX/JIT examples have been created for Jenkins and Elastic Dry Friction nonlinearities (AFT only). 
+Notes on JAX implementations:
+1. The JIT versions of the code assume that the same list of harmonics and the same number of time steps for AFT are used everywhere. If this is not the case, the routines will be forced to compile multiple versions for different sets of harmonics.
+2. The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
+3. JAX/JIT examples have been created for Jenkins and Elastic Dry Friction nonlinearities (AFT only). 
 It is not recommended to use the JAX versions for Jenkins since they perform worse than the vectorized Jenkins algorithm for large Nt. A non-JAX implementation of Elastic Dry Friction is not provided and future work will likely exploit JAX for auto diff to decrease development time. 
 It is noted that the traditional AFT algorithm for Jenkins is much faster with JAX/JIT than traditional code.
 
