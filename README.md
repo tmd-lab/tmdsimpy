@@ -39,7 +39,7 @@ git clone git@github.com:tmd-lab/tmdsimpy.git
 cd tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
-Running tests:
+After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working:
 ```
 cd tests
 python3 -m unittest discover
