@@ -36,7 +36,7 @@ import tmdsimpy.postprocess.continuation_post as cpost
 
 # Set this to 1 to use mesoscale or 0 to not use mesoscale by default
 # Command line input will override this if given.
-default_mesoscale = 0 
+default_mesoscale = 1 
 
 # Default mesh name. Command line input will override this if given
 default_sys_fname = './data/BRB_ROM_U_122ELS4py.mat'
@@ -189,7 +189,7 @@ if mesoscale_TF:
           +' (0.0719, 5.5288, 0.0411, 0.0742)%')
     
     print('Expected Errors for 122 ZTE (reduced mesh, previous order):'\
-          +' (0.1501, 92.5023*, 2.6476, 0.0762)% *Due to interpolation being ratio of cubics.')
+          +' (0.1501, 92.5023*, 2.6476, 0.0762)% *Due to interpolation.')
         
     
 else:
