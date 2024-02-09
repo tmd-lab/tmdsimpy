@@ -1,15 +1,19 @@
 # TMDSimPy: Tribomechadynamics Simulations for Python  
 
-This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. Files intended for experimental analysis are not included here and can be found elsewhere. Some specific analyses are provided as examples. Specific projects are based in other repositories and use these shared modeling routines as a dependency.
+This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. 
+Files intended for experimental analysis are not included here and can be found elsewhere. 
+Specific projects are based in other repositories and use these shared modeling routines as a dependency. 
+This repository is not intended to include research problems beyond a few examples.
 
 ## Reference
 
-If using this code, please cite the relevant journal paper:
+If using this code, please cite the relevant journal paper ([preprint here](https://doi.org/10.48550/arXiv.2401.08790)):
 ```
 @article{porterTrackingSuperharmonic2024,
     title = {Tracking Superharmonic Resonances for Nonlinear Vibration},
+    journal = {Mechanical Systems and Signal Processing},
     author = {Justin H. Porter and Matthew R.W. Brake},
-    year = {In Preparation}
+    year = {Under Review},
 }
 ```
 For the rough contact friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
@@ -23,7 +27,6 @@ For the rough contact friction model, please cite (MATLAB code for this model an
     issn = {0888-3270},
     doi = {10.1016/j.ymssp.2023.110210},
     author = {Justin H. Porter and Matthew R.W. Brake},
-
 }
 ```
 This code is provided under the MIT License to aid in research, no guarantee is made for the accuracy of the results when applied to other structures.
@@ -31,14 +34,20 @@ This code is provided under the MIT License to aid in research, no guarantee is 
 
 ## Setup 
 
-This repository is intended to be cloned into a repository to provide necessary functions that are used for many different modeling cases.
+For research analyses, it is recommended to clone this as a dependency of a different repository containing scripts that define the analyses. 
+The following instructions all utilize a command line (Linux or macOS). 
+On Windows, you can use the Windows Subsystem for Linux (WSL), though you may have to repeat the installation of dependencies separately on the Windows side to run scripts natively on Windows.
+See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
 
-Installing requirements (it is possible to run many items without jax, but it is included in the requirements to be comprehensive):
+To clone and install requirements:
 ```
 git clone git@github.com:tmd-lab/tmdsimpy.git
 cd tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
+Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
+This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
+
 After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working:
 ```
 cd tests
@@ -62,29 +71,6 @@ python3 -m unittest discover
 cd ../..
 ```
 
-### Computer Environment
-
-This code base utilizes the JAX library for automatic differentiation and to speed up various computations. Many examples utilizing small systems and relatively simple nonlinearities can be run on any environment without JAX. However, JAX only officially supports running on Linux. For Windows machines, JAX can be used on the Windows Subsystem for Linux (WSL). If working on a Windows machine with WSL, the following workflow is recommended: 
-1. Utilize a standard python IDE installed on the windows side of the computer for editing code. 
-2. Run the code in the WSL terminal. For example:
-   ```
-   cd examples 
-   python3 2dof_eldry_fric.py
-   ```
-3. If you need to debug code, you will need to use the 'pdb' library in python. The easiest way to start with this is to add the line
-   ```
-   import pdb; pdb.set_trace()
-   ```
-   or
-   ```
-   breakpoint()
-   ```
-   wherever you want the code to pause when you are running it.
-   Make sure to save the code, then execute the code from the terminal. 
-   When it pauses, it opens a python command line where you can query variables and do simple calculations to check the correctness. 
-   You can use 'c' to continue the execution or 'q' to quit the execution. The commands 'l' and 'll' will show the surrounding code if you are not sure where it has paused. More information on pdb can be found [here](https://docs.python.org/3/library/pdb.html#debugger-commands).
-4. If you need to generate figures, you can either have the script save them (e.g., as a .png file), or you can save the data and write a separate script to plot the results (with the later run on Windows or Linux as you desire). Using interactive plots from the terminal may be possible, but has not been tested.
-
 
 ## Examples
 
@@ -95,7 +81,8 @@ One can also look at the tests folder to see further examples.
 
 This example calculates the nonlinear vibration response of the Brake-Ruess Beam as described in [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) and originally implemented in MATLAB [here](https://github.com/tmd-lab/microslip-rough-contact). This model uses provided system matrices originally calculated with Abaqus as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.106615) and [this tutorial](https://nidish96.github.io/Abaqus4Joints/). Model reduction was further conducted as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.107249).
 
-This example runs continuation to calculate the modal backbone with the Extended Periodic Motion Concept (EPMC) utilizing a physics-based contact model. This example requires the full repository (and JAX). Therefore, this example assumes you are running on a Linux machine (or WSL). 
+This example runs continuation to calculate the modal backbone with the Extended Periodic Motion Concept (EPMC) utilizing a physics-based contact model. This example requires the full repository (and JAX). 
+Therefore, this example assumes you are running on a command line (Linux, macOS, or WSL). 
 Starting from the top level of the repository:
 ```
 cd examples/structures
@@ -105,7 +92,7 @@ Simulations with the default model take about 5-10 minutes on a computer with 12
 The command line argument `-meso 1` can be changed to `-meso 0` to run the simulation with a flat interface instead. 
 While `brb_epmc.py` is running, you can look at a summary of the current results in the file `results/brb_epmc_meso_sum.dat` or `results/brb_epmc_flat_sum.dat` for with and without mesoscale topology respectively.
 
-The results can then be checked against the published reference data by running
+The results can then be checked against the published reference solution by running
 ```
 python3 compare_brb_epmc.py -meso 1 # use same value of -meso input argument
 ```
@@ -113,7 +100,7 @@ For `compare_brb_epmc.py`, you may want to run it in an IDE for plotting instead
 Errors in the comparison are attributed to: 
 1. Interpolation from different continuation points. 
 2. Different mesh if using the default mesh. 
-3. Slight difference in the initialization of slides (residual tractions). 
+3. Slight difference in the initialization of frictional sliders (e.g., residual tractions as described [here](https://doi.org/10.1016/j.ymssp.2023.110651)). 
 4. Numerical solver tolerances. 
 
 The default model uses 122 zero-thickness elements (ZTEs). An alternative model using 232 ZTEs can be run by downloading the alternative matrices from [here](https://rice.box.com/s/y6q1fpm177mjp3ezkohrz295hhqpu3yn) to the `examples/structures/data` folder and running the lines:
@@ -131,6 +118,7 @@ rm brb_epmc_flat_full.npz
 # Remove summary files since these will just get appended to with new simulations
 rm brb_epmc_meso_sum.dat
 rm brb_epmc_flat_sum.dat
+cd ..
 ```
 
 ## Code Development Guidance
@@ -167,7 +155,7 @@ The JAX library is a powerful tool for automatic differentiation and just-in-tim
 
 Notes on JAX implementations:
 1. The JIT versions of the code assume that the same list of harmonics and the same number of time steps for AFT are used everywhere. If this is not the case, the routines will be forced to compile multiple versions for different sets of harmonics.
-2. The present implementation assumes that 64-bit precision is desired. Therefore the init file sets jax to use 64-bit. If you use jax before importing tmdsimpy, then the correct precision may not be used. 
+2. The present implementation assumes that 64-bit precision is desired. Therefore the init file sets JAX to use 64-bit. If you use JAX before importing tmdsimpy, then the correct precision may not be used. 
 3. JAX/JIT examples have been created for Jenkins and Elastic Dry Friction nonlinearities (AFT only). 
 It is not recommended to use the JAX versions for Jenkins since they perform worse than the vectorized Jenkins algorithm for large Nt. A non-JAX implementation of Elastic Dry Friction is not provided and future work will likely exploit JAX for auto diff to decrease development time. 
 It is noted that the traditional AFT algorithm for Jenkins is much faster with JAX/JIT than traditional code.
@@ -200,4 +188,29 @@ Government or any agency thereof. The views and
 opinions of authors expressed herein do not necessarily
 state or reflect those of the United States Government or
 any agency thereof.
+
+## Appendix
+
+### Windows Computer Environment
+
+If working on a Windows machine with WSL, the following workflow is recommended: 
+1. Utilize a standard python IDE installed on the windows side of the computer for editing code. 
+2. Run the code in the WSL terminal. For example:
+   ```
+   cd examples 
+   python3 2dof_eldry_fric.py
+   ```
+3. If you need to debug code, you will need to use the 'pdb' library in python. The easiest way to start with this is to add the line
+   ```
+   import pdb; pdb.set_trace()
+   ```
+   or
+   ```
+   breakpoint()
+   ```
+   wherever you want the code to pause when you are running it.
+   Make sure to save the code, then execute the code from the terminal. 
+   When it pauses, it opens a python command line where you can query variables and do simple calculations to check the correctness. 
+   You can use 'c' to continue the execution or 'q' to quit the execution. The commands 'l' and 'll' will show the surrounding code if you are not sure where it has paused. More information on pdb can be found [here](https://docs.python.org/3/library/pdb.html#debugger-commands).
+4. If you need to generate figures, you can either have the script save them (e.g., as a .png file), or you can save the data and write a separate script to plot the results (with the later run on Windows or Linux as you desire). Using interactive plots from the terminal may be possible, but has not been tested.
 
