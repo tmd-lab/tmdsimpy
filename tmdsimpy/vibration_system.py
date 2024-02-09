@@ -2,21 +2,39 @@ import numpy as np
 from . import harmonic_utils as hutils
 from scipy.integrate import solve_ivp
 
+import warnings
 
 class VibrationSystem:
+    """
+    Create a vibration system model with several useful residual functions. 
+    The system has N degrees of Freedom. 
+    
+    Parameters
+    ----------
+    M : (N,N) numpy.ndarray
+        Mass Matrix
+    K : (N,N) numpy.ndarray
+        Stiffness Matrix, n x n
+    C : (N,N) numpy.ndarray or None, optional
+        Damping Matrix. If ab is provided, that will be used instead to 
+        construct a damping matrix. If both are None, then a zero damping 
+        matrix will be used.
+        Default is None.
+    ab : list of length 2 or None, optional
+        Mass and Stiffness Proportional Damping Coefficients. If provided, 
+        used to recalculate stiffness matrix as
+        C = ab[0]*self.M + ab[1]*self.K.
+        The default is None.
+
+    See Also
+    ----------
+    VibrationSystem.set_new_C : 
+        sets the damping matrix to a new value for an existing object
+    """
     
     def __init__(self, M, K, C=None, ab=None):
         """
         Initialize the linear part of a system
-
-        Parameters
-        ----------
-        M : Mass Matrix, n x n
-        K : Stiffness Matrix, n x n
-        C : Damping Matrix, n x n, Default is Zero
-        ab : Mass and Stiffness Proportional Damping Coefficients. If provided, 
-             used to recalculate stiffness matrix
-
         """
         self.M = M
         self.K = K
@@ -47,45 +65,221 @@ class VibrationSystem:
         
         self.nonlinear_forces = self.nonlinear_forces + [nlforce]
     
-    def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7):
+    def init_force_history(self):
+        """
+        Initialize all hysteretic forces to have initial zero force states. 
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        for nlforce in self.nonlinear_forces:
+            if nlforce.nl_force_type() == 1: #Hysteretic Force
+                nlforce.init_history()
+    
+    def update_force_history(self, U):
+        """
+        Update internal nonlinear force history variables so that the current
+        state is used for history. Generally called after a static analysis
+        such as for prestress.
+
+        Parameters
+        ----------
+        U : Displacements (generally of prestressed state)
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        # Call a force calculation function with update flag set to True
+        for nlforce in self.nonlinear_forces:
+            if nlforce.nl_force_type() == 1: #Hysteretic Force
+                Fnl_curr, dFnldU_curr = nlforce.force(U, update_hist=True)
+    
+    def set_prestress_mu(self):
+        """
+        Set friction coefficients to 0.0 for prestress analysis
+        """
+        
+        # Check if nonlinear force has a set prestress mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            pre_mu = getattr(nlforce, "set_prestress_mu", None)
+            if callable(pre_mu):
+                nlforce.set_prestress_mu()
+                
+        return
+    
+    
+    def reset_real_mu(self):
+        """
+        Reset friction coefficients for relevant nonlinear forces to real 
+        (non-zero) values after prestress analysis
+        """
+        
+        # Check if nonlinear force has a reset mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            pre_mu = getattr(nlforce, "reset_real_mu", None)
+            if callable(pre_mu):
+                nlforce.reset_real_mu()
+                
+        return
+    
+    def set_aft_initialize(self, X):
+        """
+        Reset friction coefficients for relevant nonlinear forces to real 
+        (non-zero) values after prestress analysis
+        """
+        
+        # Check if nonlinear force has a reset mu function and call if 
+        # it exists
+        for nlforce in self.nonlinear_forces:
+            set_aft = getattr(nlforce, "set_aft_initialize", None)
+            if callable(set_aft):
+                nlforce.set_aft_initialize(X)
+            else:
+                warnings.warn('Nonlinear force: {} does not have an AFT initialize'.format(nlforce))
+                
+        return
+    
+    def set_new_C(self, C=None, ab=None):
+        """
+        Set the damping matrix to a new value after the VibrationSystem has
+        already been created. 
+
+        Parameters
+        ----------
+        C : (N,N) numpy.ndarray, optional
+            New damping matrix. If ab is not None, then ab is used instead. If 
+            neither C nor ab is provided, the damping matrix is set to zeros.
+            The default is None.
+        ab : list of length 2, optional
+            If provided, the damping matrix is set to 
+            C = ab[0]*self.M + ab[1]*self.K. 
+            The default is None.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        if not (ab is None):
+            if not (C is None):
+                print('Ignoring C to overwrite with proportional damping.')
+            
+            C = ab[0]*self.M + ab[1]*self.K
+            self.ab = ab
+        
+        if C is None:
+            self.C = np.zeros_like(self.M)
+        else:
+            self.C = C
+        
+        return
+    
+    def static_res(self, U, Fstatic):
+        """
+        Static solution Residual
+
+        Parameters
+        ----------
+        U : Input displacements for DOFs (Ndof,)
+        Fstatic : Externally applied static forces (Ndof,)
+
+        Returns
+        -------
+        R : Residual for static analysis (Ndof,)
+        dRdU : Derivative of residual w.r.t. displacements (Ndof,Ndof)
+
+        """
+        
+        Fnl = np.zeros_like(U)
+        dFnldU = np.zeros((U.shape[0], U.shape[0]))
+        
+        for nlforce in self.nonlinear_forces:
+            Fnl_curr, dFnldU_curr = nlforce.force(U)
+            
+            Fnl += Fnl_curr
+            dFnldU += dFnldU_curr
+        
+        R = self.K @ U + Fnl - Fstatic
+        dRdU = self.K + dFnldU
+        
+        return R, dRdU
+    
+    def total_aft(self, U, w, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Apply Alternating Time Frequency Method to calculate nonlinear force
         coefficients for all nonlinear forces in system
         
+        Nhc is the number of harmonic components in that h represents
+        can be calculated by harmonic_utils.Nhc(h)
+        
         Parameters
         ----------
-        U : Harmonic DOFs, (n * Nhc) 
-        Fl : Applied forcing harmonic coefficients, (n * Nhc)
-        h : List of Harmonics
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        U : np.array (n * Nhc,) 
+            Harmonic DOFs, displacements, np.hstack((U0, U1c, U1s...)) with 
+            harmonics h
+        w : double
+            Frequency
+        h : 1D np.array
+            Sorted list of harmonics
+        Nt : integer, power of 2
+            Number of Time Steps for AFT. The default is 128.
+        aft_tol : double
+            Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
 
         Returns
         -------
-        Fnl : Nonlinear Force Harmonic Coefficients
-        dFnldU : Jacobian of Fnl w.r.t. Harmonic DOFs
-        dFnldw : Derivative of Fnl w.r.t. frequency
+        Fnl : np.array (n*Nhc,)
+            Nonlinear Force Harmonic Coefficients
+        dFnldU : np.array (n*Nhc, n*Nhc)
+            Jacobian of Fnl w.r.t. Harmonic DOFs
+        dFnldw : np.array (n*Nhc,)
+            Derivative of Fnl w.r.t. frequency
         
         """
         
         # Counting:
-        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        Nhc = hutils.Nhc(h) # Number of Harmonic Components
         Ndof = self.M.shape[0]
         
         # Initialize Memory
         Fnl = np.zeros((Nhc*Ndof,), np.double)
-        dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
-        dFnldw = np.zeros((Nhc*Ndof,), np.double)
         
-        # AFT for every set of nonlinear forces
-        for nlforce in self.nonlinear_forces:
-            Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
+        if calc_grad:
+            dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
+            dFnldw = np.zeros((Nhc*Ndof,), np.double)
             
-            Fnl += Fnl_curr
-            dFnldU += dFnldU_curr
-            dFnldw += dFnldw_curr
+            # AFT for every set of nonlinear forces
+            for nlforce in self.nonlinear_forces:
+                Fnl_curr, dFnldU_curr, dFnldw_curr = nlforce.aft(U, w, h, Nt, aft_tol)
+                
+                Fnl += Fnl_curr
+                dFnldU += dFnldU_curr
+                dFnldw += dFnldw_curr
             
-        return Fnl, dFnldU, dFnldw
+            return Fnl, dFnldU, dFnldw
+                
+        else: 
+            # AFT for every set of nonlinear forces
+            for nlforce in self.nonlinear_forces:
+                Fnl_curr = nlforce.aft(U, w, h, Nt, aft_tol, calc_grad=False)[0]
+                
+                Fnl += Fnl_curr
+            
+            
+            return (Fnl,)
 
     def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7):
         """
@@ -197,28 +391,43 @@ class VibrationSystem:
         return Xw
 
 
-    def epmc_res(self, Uwxa, Fl, h, Nt=128, aft_tol=1e-7):
+    def epmc_res(self, Uwxa, Fl, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Residual for Extended Periodic Motion Concept
+        
+        System has n=self.M.shape[0] degrees of freedom and this call has Nhc 
+        harmonic components (Nhc = hutils.Nhc(h))
 
         Parameters
         ----------
-        Uwxa : Harmonic DOFs followed by frequency, damping coefficient, 
-                and log10(amplitude). Harmonic DOFs are the mass normalized 
-                mode shape. (n * Nhc + 3) x 1
-        Fl : Applied forcing harmonic coefficients, (n * Nhc) x 1.
-                First n entries are an applied static force if the zeroeth 
-                harmonic is included
-        h : List of Harmonics, assumed to be sorted start [0, 1, ...] or 
-                [1, ...]
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        Uwxa : np.array, size (n*Nhc + 3,)
+            Harmonic DOFs followed by frequency, damping coefficient, 
+            and log10(amplitude). Harmonic DOFs are the mass normalized 
+            mode shape. (n*Nhc + 3,)
+        Fl : np.array, size (n*Nhc,)
+            Applied forcing harmonic coefficients.
+            First n entries are an applied static force if the zeroeth 
+            harmonic is included
+        h : np.array
+            List of Harmonics, assumed to be sorted start [0, 1, ...] or 
+            [1, ...].
+        Nt : Integer power of 2
+            Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : scalar
+            Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
 
         Returns
         -------
-        R : Residual
-        dRdUwx : Jacobian of residual w.r.t. Harmonic DOFs, frequency, damping
-        dRda : Derivative of residual w.r.t. log amplitude
+        R : np.array, size (n*Nhc+3)
+            Residual
+        dRdUwx : np.array, size (n*Nhc+3,n*Nhc+3)
+            Jacobian of residual w.r.t. Harmonic DOFs, frequency, damping
+        dRda : np.array, size (n*Nhc+3,)
+            Derivative of residual w.r.t. log amplitude
         
         Notes
         -------
@@ -233,13 +442,14 @@ class VibrationSystem:
         
         # Initialize Outputs
         R = np.zeros(Nhc*Ndof + 2)
-        dRdUwx = np.zeros((Nhc*Ndof + 2, Nhc*Ndof + 2))
-        dRda = np.zeros(Nhc*Ndof+2)
+        
+        if calc_grad:
+            dRdUwx = np.zeros((Nhc*Ndof + 2, Nhc*Ndof + 2))
+            dRda = np.zeros(Nhc*Ndof+2)
         
         # Convert Log Amplitude
         la = Uwxa[-1]
         Amp = 10**la
-        dAmpdla = Amp*np.log(10.0)
         
         # Separate out Zeroth Harmonic (no amplitude scaling and applied force)
         h0 = 1*(h[0] == 0)
@@ -247,7 +457,9 @@ class VibrationSystem:
         Ascale = np.kron(np.hstack((np.ones(h0), Amp*np.ones(Nhc-h0))), \
                          np.ones(Ndof))
         
-        dAscaledla = np.kron(np.hstack((np.zeros(h0), dAmpdla*np.ones(Nhc-h0))), \
+        if calc_grad:
+            dAmpdla = Amp*np.log(10.0)
+            dAscaledla = np.kron(np.hstack((np.zeros(h0), dAmpdla*np.ones(Nhc-h0))), \
                          np.ones(Ndof))
         
         # Static forces applied to zeroth harmonic
@@ -265,8 +477,17 @@ class VibrationSystem:
         xi = Uwxa[-2]
         
         # Harmonic Stiffness Matrices
-        E,dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h)
-        dEdxi,_ = hutils.harmonic_stiffness(self.M*0, -self.M, self.K*0, w, h)
+        E_dEdw = hutils.harmonic_stiffness(self.M, self.C - xi*self.M, self.K, w, h,
+                                           calc_grad=calc_grad)
+        
+        E = E_dEdw[0]
+        
+        if calc_grad:
+            dEdw = E_dEdw[1] # only exists if calc_grad=True
+            
+            dEdxi = hutils.harmonic_stiffness(0, -self.M, 0, 
+                                                w, h, calc_grad=False,
+                                                only_C=True)[0]
         
         
         ########### # OLD AFT:
@@ -282,8 +503,15 @@ class VibrationSystem:
         
         
         # Alternating Frequency Time Call
-        Fnl, dFnldU, dFnldw = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, aft_tol=aft_tol)
         
+        AFT_res = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, 
+                                             aft_tol=aft_tol,
+                                             calc_grad=calc_grad)
+        if calc_grad:
+            Fnl, dFnldU, dFnldw = AFT_res
+        else:
+            Fnl = AFT_res[0]
+            
         # Output Residual and Derivatives
         # Force Balance
         R[:-2] = E @ (Ascale*Uwxa[:-3]) + Fnl - Fstat
@@ -296,27 +524,32 @@ class VibrationSystem:
         # Phase Constraint
         R[-1]  = Fdyn @ Uwxa[:-3]
         
-        # d Force Balance / d Displacements
-        dRdUwx[:-2, :-2] = (E + dFnldU) * Ascale #.reshape(-1,1)
-        
-        # d Force Balance / d w
-        dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3]) + dFnldw
-        
-        # d Force Balance / d xi
-        dRdUwx[:-2, -1] = dEdxi @ (Ascale * Uwxa[:-3])
-        
-        # d Amplitude Constraint / d Displacements (only 1st harmonic)
-        dRdUwx[-2, h0*Ndof:(h0+1)*Ndof] = 2*Uwxa[h0*Ndof:((h0+1)*Ndof)] @ self.M
+        if calc_grad:
+            # d Force Balance / d Displacements
+            dRdUwx[:-2, :-2] = (E + dFnldU) * Ascale #.reshape(-1,1)
             
-        dRdUwx[-2, (h0+1)*Ndof:(h0+2)*Ndof] = 2*Uwxa[(h0+1)*Ndof:((h0+2)*Ndof)] @ self.M
+            # d Force Balance / d w
+            dRdUwx[:-2, -2] = dEdw @ (Ascale * Uwxa[:-3]) + dFnldw
+            
+            # d Force Balance / d xi
+            dRdUwx[:-2, -1] = dEdxi @ (Ascale * Uwxa[:-3])
+            
+            # d Amplitude Constraint / d Displacements (only 1st harmonic)
+            dRdUwx[-2, h0*Ndof:(h0+1)*Ndof] = 2*Uwxa[h0*Ndof:((h0+1)*Ndof)] @ self.M
+                
+            dRdUwx[-2, (h0+1)*Ndof:(h0+2)*Ndof] = 2*Uwxa[(h0+1)*Ndof:((h0+2)*Ndof)] @ self.M
+            
+            # d Phase Constraint / d Displacements
+            dRdUwx[-1, :-2] = Fdyn
+            
+            # d Force Balance / d Total Amplitude Scaling
+            dRda[:-2] = (E + dFnldU) @ (dAscaledla * Uwxa[:-3])
         
-        # d Phase Constraint / d Displacements
-        dRdUwx[-1, :-2] = Fdyn
-        
-        # d Force Balance / d Total Amplitude Scaling
-        dRda[:-2] = (E + dFnldU) @ (dAscaledla * Uwxa[:-3])
-        
-        return R, dRdUwx, dRda
+            return R, dRdUwx, dRda
+        else:
+            # Still return as a tuple, so can always index first result to get
+            # residual
+            return (R,) 
     
     def hbm_base_res(self, Uw, Ub, base_flag, h, Nt=128, aft_tol=1e-7):
         """

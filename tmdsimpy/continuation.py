@@ -3,49 +3,117 @@ from scipy.linalg import svd
 
 class Continuation:
     """
-    Terminology:
-        X - General vector of unknowns
-        lam - (lambda), control variable that continuation is following 
+    Parameters
+    ----------
+    solver : tmdsimpy.solvers.NonlinearSolver or similar 
+        Object with routines for linear and nonlinear solutions. 
+    ds0    : float, optional
+        Size of first step
+        The default is 0.01.
+    CtoP : 1D numpy.ndarray, optional
+        Scaling vector to convert from conditioned space Xc to physical 
+        coordinates Xp as Xp = CtoP*Xc. If None, the vector is set on the 
+        first continuation call to be numpy.ones(Xp.shape[0]). Corresponding
+        to no conditioning (though dynamic conditioning may still apply).
+        The default is None.
+    RPtoC: 1D numpy.ndarray or None
+        This is a conditioning vector applied to scale the residual.
+        If None, the vector defaults to 1. Dynamic conditioning may still apply
+        The default is None.
+    config : Dictionary of settings, optional.
+                FracLam : float, optional
+                    Fraction of importance of lamda in arclength. 
+                    1=lambda control, 0='displacement (X)' control, 
+                    The default is 0.5.
+                dsmax : float, optional
+                    Maximum step size.
+                    The default is 5*ds0.
+                dsmin : float, optional
+                    Minimum step size.
+                    The default is ds0/5.
+                MaxSteps : int, optional
+                    Maximum number of allowed solution points in the 
+                    continuation.
+                    The default is 500.
+                TargetFeval : int, optional
+                    Target number of function evaluations for each step
+                    used to adaptively adjust step size.
+                    The default is 20.
+                DynamicCtoP : bool, optional
+                    If True, the CtoP vector is dynamically updated for each 
+                    continuation step. The initial value of CtoP is used as 
+                    a minimum value of CtoP for any step, but CtoP can increase
+                    for some variables (each element independently). 
+                    Dynamic conditioning is also applied to the residual vector
+                    (RPtoC).
+                    The default is False.
+                verbose : int, optional
+                    Number of steps to output updates at. 
+                    If less than 0, all output is supressed. 
+                    If 0, some output is still printed. 
+                    The default is 100.
+                xtol : float or None, optional
+                    This tolerance is passed to the solver as
+                    solver.nsolve(xtol=xtol)
+                    The default is None.
+                corrector : {'Ortho', 'Pseudo'}, optional
+                    Option for the continuation constraint equation. 
+                    Ortho requires that the correction be orthogonal to the 
+                    prediction. 
+                    Pseudo requires that a norm (in conditioned space)
+                    of the solution minus the previous solution be a fixed
+                    value.
+                    The default is Ortho. 
+                FracLamList : list, optional
+                    List of FracLam values to try if the initial value of 
+                    FracLam fails at a step. If FracLam is the first value in
+                    this list, then the first value of this list is ignored.
+                    The default is [].
+                backtrackStop : float, optional
+                    If continuation starts backtracking by 
+                    more than this amount past the start value 
+                    it will end before taking the maximum 
+                    number of steps. Has not been fully tested.
+                    The default is numpy.inf.
+                nsolve_verbose : int, optional
+                    Setting passed to solver as
+                    solver.nsolve(verbose=nsolve_verbose)
+                    The default is False (0).
+                callback : function or None, optional
+                    Function that is called after every solution. 
+                    function is passed arguments of X,dirP_prev
+                    corresponding to the solution at the current
+                    point and the prediction direction that was 
+                    used to calculate that point. Function is 
+                    called after initial solution with np.nan 
+                    vector of dirP_prev and twice after the final
+                    converged solution. The final call has np.nan
+                    vector for X, and has dirP_prev if one was to 
+                    take another step (correponds to slope at final
+                    solution) for interpolation.
+                    The default is None.
+    
+    Terminology
+    ----------
+        X : numpy.array
+            General vector of unknowns
+        lam : float
+            (lambda), control variable that continuation is following 
                 (e.g., amplitude for EPMC, frequency for HBM)
-        C - variables in conditioned space, should all be Order(1). 
+        C : char
+            variables in conditioned space, should all be Order(1). 
                 Solutions are calculated in this space
-        P - variables in physical space - these are the values one is interested in.
-        fun - function for evaluations, all are done using physical coordinates 
-                and conditioning is handled in this class.
+        P : char
+            variables in physical space - these are the values one is interested in.
+        fun : function
+            function for evaluations, all are done using physical coordinates 
+            and conditioning is handled in this class.
     """
     
     def __init__(self, solver, ds0=0.01, CtoP=None, RPtoC=None, config={}):
         """
         Initialize Continuation Parameters
 
-        Parameters
-        ----------
-        solver : an object of type NonlinearSolver that will be used to do 
-                    nonlinear solutions
-        ds0    : Scalar, size of first step
-        Dscale : TYPE, optional
-            DESCRIPTION. The default is 1.
-        config : Dictionary of settings:
-                    FracLam : Fraction of importance of lamda in arclength. 
-                        1=lambda control, 0='displacement (X)' control, default=0.5
-                    dsmax : maximum step size, default 5*ds0
-                    dsmin : minimum step size, default ds0/5
-                    MaxSteps : Maximum number of allowed solution points in the continuation
-                    TargetFeval : Target number of function evaluations for each step
-                                    Used to adaptively adjust step size.
-                    predMask : optionally pass in a list of values of FracLam.
-                               These values will be tried if the initial value 
-                               of 'FracLam' fails to converge. The class always 
-                               starts with the value passed in for 'FracLam' 
-                               before considering this list.
-                    backtrackStop : if continuation starts backtracking by 
-                                     more than this amount past the start value 
-                                     it will end before taking the maximum 
-                                     number of steps. Has not been fully tested.
-                    verbose : Number of steps to output updates at. 
-                              If less than 0, all output is supressed. 
-                              If 0, some output is still printed. 
-                    
         Returns
         -------
         None.
@@ -75,9 +143,11 @@ class Continuation:
                         'DynamicCtoP': False,
                         'verbose' : 100, # Print every 100 Steps
                         'xtol'    : None, 
-                        'corrector': 'Ortho', # Psuedo or Ortho
+                        'corrector': 'Ortho', # Pseudo or Ortho
                         'FracLamList' : [], # List of vectors/numbers to multiply predictor by
-                        'backtrackStop': np.inf # Limit in how much backtracking past the start is allowed.
+                        'backtrackStop': np.inf, # Limit in how much backtracking past the start is allowed.
+                        'nsolve_verbose' : False,
+                        'callback' : None
                         }
         
         
@@ -94,34 +164,68 @@ class Continuation:
         self.config = default_config
         
         
-    def predict(self, fun, XlamP0, XlamPprev):
+    def predict(self, fun, XlamP0, XlamPprev, dirC_prev):
         """
         Predicts the direction of the next step with the correct sign and ds=1
-
+        
         Parameters
         ----------
-        fun : Function that continuation is following
-        XlamP0 : 1D numpy array of [physical coordinates, lambda]. Previous 
-                 solution, so start of next step.
-        XlamPprev : The start of the previous step (step before XlamP0)
+        fun : function
+            Function that continuation is following that produces N residual 
+            values given the (N+1,) numpy.ndarray Xlam
+        XlamP0 : (N+1,) numpy.ndarray 
+            of [physical coordinates, lambda]. Previous 
+            solution, so start of next step.
+        XlamPprev : (N+1,) numpy.ndarray
+            The start of the previous step (step before XlamP0)
+        dirC_prev : (N+1,) numpy.ndarray
+            Predicted direction from the previous step.
 
         Returns
         -------
-        dirC : Direction vector scaled to be a step size of ds = 1
+        dirC : numpy.ndarray
+            Direction vector scaled to be a step size of ds = 1
+            Vector is signed to be consistent with the direction between the 
+            previous two solutions.
+            
+        Notes
+        -------
+        1. This function currently solves an (N+1, N+1) linear system to find
+        an appropriate null-space vector for the top (N, N+1) matrix. This 
+        allows for using the same linear solvers with parallel options as 
+        the nonlinear solver, but may not be ideal for using few continuation
+        steps around sharp turning points.
+        \n
+        2. If multiple FracLam values are used in the case of nonconvergence, 
+        then this function is repeatedly called, but those later calls should
+        not have to re-evaluate the residual and re-find the null space since
+        it has not changed. Therefore, this could be sped up by eliminating
+        that work on repeat calls at the same XlamP0 value.
 
         """
         
         R, dRdXP, dRdlamP = fun(XlamP0)
         
-        # Conditioned space, N x N+1 matrix.
-        dRdXlamC = np.hstack((dRdXP*self.CtoP[:-1], np.atleast_2d(dRdlamP).T*self.CtoP[-1]))
+        # Augment the residual gradient with an additional equation 
+        # corresponding to an orthogonal constraint from the previous step
+        # dirC_prev is used here rather than (XlamP0 - XlamPprev) because
+        # for an orthogonal corrector, it is much harder for a previous
+        # step to result in a point with a tangent orthogonal to dirC_prev.
         
-        # Null-Space Corresponds to where the fun equations are still satisfied,
-        # and the distance can change by allowing motion.
-        U,s,Vh = svd(dRdXlamC, overwrite_a=True)
+        # Conditioned space, (N+1,N+1) ndarray for augmented residual
+        dRdXlamC = np.vstack((np.hstack((dRdXP*self.CtoP[:-1], 
+                                 np.atleast_2d(dRdlamP).T*self.CtoP[-1])),
+                              dirC_prev))
         
-        # Direction in conditioned space of the next step
-        dirC = Vh[-1, :]
+        # Want to still satisfy the first N equations described by fun
+        predictR = np.zeros(R.shape[0]+1)
+        
+        # Want to deliberately violate the arc length condition of previous 
+        # step because this is to take a new step.
+        predictR[-1] = 1.0
+        
+        dirC = self.solver.lin_solve(dRdXlamC, predictR)
+        
         
         # Arc Length Weighting Parameters
         b = self.config['FracLam']
@@ -143,7 +247,11 @@ class Continuation:
         sign = np.sign(signarg)
         
         if sign == 0:
-            sign = 1 # choose direction arbitrarily if perfectly orthogonal
+            # choose direction arbitrarily if perfectly orthogonal
+            # could use dirC_prev to choose the sign here instead, but it is 
+            # extremely unlikely that true orthogonality would be hit in 
+            # practice
+            sign = 1 
         
         dirC = dirC * sign
         
@@ -154,7 +262,7 @@ class Continuation:
         
         return dirC
         
-    def psuedo_arc_res(self, XlamC, XlamC0, ds, b, c):
+    def pseudo_arc_res(self, XlamC, XlamC0, ds, b, c):
         
         # Step Sizes in conditioned space
         dlamC = XlamC[-1] - XlamC0[-1]
@@ -188,7 +296,7 @@ class Continuation:
         
         return Rarc, dRarcdXlamC
     
-    def correct_res(self, fun, XlamC, XlamC0, ds, dirC=None):
+    def correct_res(self, fun, XlamC, XlamC0, ds, dirC=None, calc_grad=True):
         """
         Corrector Residual
 
@@ -208,9 +316,15 @@ class Continuation:
         """
         XlamP = XlamC * self.CtoP
         
-        R, dRdXP, dRdlamP = fun(XlamP)
+        if calc_grad:
+            R, dRdXP, dRdlamP = fun(XlamP)
+            
+            dRdXlamC = np.hstack((dRdXP*self.CtoP[:-1], 
+                                  np.atleast_2d(dRdlamP).T*self.CtoP[-1]))
         
-        dRdXlamC = np.hstack((dRdXP*self.CtoP[:-1], np.atleast_2d(dRdlamP).T*self.CtoP[-1]))
+        else:
+            # No Gradient Calculation
+            R = fun(XlamP, calc_grad)[0]
         
         
         # Relative Weighting of variables
@@ -218,7 +332,7 @@ class Continuation:
         c = (1-b) / np.linalg.norm(XlamC0[:-1])**2 # could store to eliminate an O(N) calculation each iteration. 
         
         if self.config['corrector'].upper() == 'PSEUDO':
-            Rarc, dRarcdXlamC = self.psuedo_arc_res(XlamC, XlamC0, ds, b, c)
+            Rarc, dRarcdXlamC = self.pseudo_arc_res(XlamC, XlamC0, ds, b, c)
         elif self.config['corrector'].upper() == 'ORTHO':
             assert not (dirC is None), 'In proper call, need dirC for ortho corrector.'
             Rarc, dRarcdXlamC = self.orthogonal_arc_res(XlamC, XlamC0, dirC, ds, b, c)
@@ -227,30 +341,139 @@ class Continuation:
         
         # Augment R and dRdXlamC with the arc length equation
         Raug = np.hstack((self.RPtoC*R, Rarc))
-        dRaugdXlamC = np.vstack((self.RPtoC*dRdXlamC, dRarcdXlamC))
-
-        return Raug, dRaugdXlamC
+        
+        if calc_grad:
+            dRaugdXlamC = np.vstack((self.RPtoC*dRdXlamC, dRarcdXlamC))
     
-    def continuation(self, fun, XlamP0, lam0, lam1):
+            return Raug, dRaugdXlamC
+        else:
+            return (Raug,)
+    
+    def continuation(self, fun, XlamP0, lam0, lam1, return_grad=False):
         """
         Function runs a continuation from lam0 to lam1 where lam is the last 
         entry of the unknowns.
 
         Parameters
         ----------
-        fun : Residual function which takes as input XlamP (N+1,) and returns:
-                R (N,), dRdXP (N,N), dRdlamP (N,)
-        XlamP0 : Initial Guess (Physical Coordinates)
-            DESCRIPTION.
-        lam0 : Scalar, starting value of lambda
-        lam1 : Scalar, final value of lambda
+        fun : function
+            Residual function which takes as input XlamP (N+1,) and returns:
+            R (N,), dRdXP (N,N), dRdlamP (N,) (inputs/outputs are 
+            numpy.ndarray).
+            Function may need to have an optional argument calc_grad=True
+            if the function will be used with a nonlinear solver that requires
+            two input arguments. e.g. 
+            'fun = lambda Xlam, calc_grad=True : residual(X, calc_grad)'.
+            When calc_grad is False, the function should return a tuple with 
+            the first entry of the tuple being R, the other entries may be
+            ignored.
+            By default, it is assumed that fun only takes one input. If a 
+            wrapper function for continuation receives calc_grad=False, then
+            it is assumed that fun will accept a second bool input.
+        XlamP0 : (N+1,) numpy.ndarray
+            Initial Guess (Physical Coordinates) for the solution at lam0.
+            The N+1 entry is ignored.
+        lam0 : float
+            starting value of lambda (continuation parameter)
+        lam1 : float
+            final value of lambda
+        return_grad : bool, optional
+            Flag to return the prediction directions corresponding to each step.
+            The default is False. 
 
         Returns
         -------
-        XlamP_full : Final history, rows are individual entries of XlamP 
-                     (physical coordinates)
+        XlamP_full : (M, N+1) numpy.ndarray
+            Final history, rows are individual entries of XlamP 
+            (physical coordinates), and M steps are taken.
+        XlamP_grad_full : (M, N+1) numpy.ndarray
+            Prediction direction vectors corresponding to each solution point.
+            These can be used for hermite interpolation.
+            Output is only returned if return_grad is True.
+            
+        See Also
+        --------
+        postprocess.continuation_post : 
+            Functions for interpolating and postporcessing continuation results. 
+            
+        Troubleshooting
+        -------
+        So continuation failed, what should you do next? This is not 
+        necessarily shocking or cause for too much alarm. It is expected that 
+        one can always come up with a difficult problem to break any algorithm.
+        However, by adjusting some settings you may be able to fix the issue
+        and finish your continuation. The following are tips for what to try.
+        
+        Initial Point Fails to Converge : 
+            You will need to provide a better guess or better solver settings
+            to fix this. This is not an issue with continuation. 
+            Continuation does not apply conditioning for the initial solution, 
+            so you may manually try applying conditioning outside of 
+            continuation and use your solver to find the solution to your 
+            function at lam0. Pass that new solution in as the initial guess.
+            For vibration problems, starting in a linear regime (e.g., low
+            amplitude for modal analysis or far from resonance for HBM) is more
+            likely to succeed here.
+        
+        Fails to Solve Consistently : 
+            You may be trying to take too large of steps, so try adjusting
+            dsmin / dsmax / ds0. Alternatively, the solver settings may be 
+            poor (e.g., reform_freq). If problem persists, try switching 
+            between 'Ortho' and 'Pseudo' corrector types. Also, changing the 
+            intial conditioning (and using dynamic conditioning) may improve
+            these issues.
+            
+        Solver improves residual, but does not converge:
+            Your solver tolerances may be unreasonable. Using relative 
+            tolerances may give a sense of if the improvement is sufficient. 
+            However, taking too small of steps with relative tolerances may 
+            mean that the initial guess is so good that it is not possible to 
+            improve it sufficiently. In those cases, use absolute tolerances.
+            
+        Fails with very small Minimum step size:
+            If the solution is repeatedly failing with minimum step size, 
+            trying different values of FracLam (use FracLamList) may be used to
+            occasionally get around problem points. 
+
+        No Apparent Reason :
+            This happens sometimes. You can try restarting continuation exactly
+            where you left off. Taking an initial step of a slightly different
+            size may allow the solution to converge. Also, the prediction 
+            direction when starting from a single point is not necessarily the 
+            same as when starting from having two previous solutions (this
+            may be most significant when illconditioning is an issue in the 
+            prediction step).
+            
+        Failing at Sharp Turning Point : 
+            An Orthogonal corrector may overshoot a sharp turn and fail. 
+            Usually, an adaptive step size is sufficient to fix this. If it 
+            still fails, try using the Pseudo corrector since it may work 
+            better in these cases. If that still doesnt work, try running
+            continuation from lam1 to lam0 instead. Going the opposite 
+            direction may solve the problem or at least give you more of the 
+            solution you are interested in.
+            
+        Solution starts backtracking (where it should not):
+            This could be caused by either a bad prediction or a bad solve. 
+            To check if it is the former, print out the lam value for each
+            initial guess of the step. If the initial step guesses are going
+            the expected direction, then the issue is a bad solve. For a bad 
+            solve, try adjusting solver settings and conditioning parameters.
+            If backtracking is due to the prediction choosing the wrong 
+            direction, consider using a different value of FracLam. However,
+            unless you go to exactly 1.0 or 0.0, this may not solve the 
+            fundamental issue. Other options include decreasing the step size
+            so you can resolve the feature that is causing the problem. Or you
+            could try increasing the step size to just bypass the feature if 
+            it is isolated. Conditioning plays a role in the prediction in 
+            how which sign has a consistent direction with the previous step, 
+            so you may need to adjust conditioning parameters. 
+            Restarting continuation from the furtherest along point may also
+            succeed in continuing the same direction. 
 
         """
+        
+        assert return_grad==False, 'Have not implemented this flag yet.'
         
         # Check about removing all output
         silent = self.config['verbose'] < 0
@@ -266,17 +489,24 @@ class Continuation:
             print('Starting Continuation from ', lam0, ' to ', lam1)
         
         # No continuation, fixed at initial lam0
-        fun0 = lambda X : fun( np.hstack((X, lam0)) )[0:2]
+        # Not sure if fun accepts calc_grad, so will always calculate the gradient
+        fun0 = lambda X, calc_grad=True : fun( np.hstack((X, lam0)) )[0:2]
         
         X, R, dRdX, sol = self.solver.nsolve(fun0, XlamP0[:-1], \
                                              xtol=self.config['xtol'], \
-                                             verbose=self.config['verbose'])
+                                             verbose=self.config['nsolve_verbose'])
                 
         assert sol['success'], 'Failed to converge to initial point, give a better initial guess.'
         
         if not silent:
             print('Converged to initial point! Starting continuation.')
         
+        if self.config['callback'] is not None:
+            # Callback save of initial solution
+            # dirC is not yet calculated, so passing NaN
+            self.config['callback'](np.hstack((X, lam0)), 
+                                    np.hstack((X, lam0))*np.nan)
+                
         # Define a Reference Direction as a previous solution for use in the 
         # predictor
         direct = np.sign(lam1 - lam0)
@@ -285,6 +515,9 @@ class Continuation:
         step = 0
         XlamP0 = np.hstack((X, lam0))
         XlamP_full[step] = XlamP0
+        
+        # 'previous' dirC for the first step
+        dirC = XlamP0 - XlamPprev
         
         step += 1
         
@@ -299,27 +532,29 @@ class Continuation:
         
         while step < self.config['MaxSteps'] \
             and direct*XlamP_full[step-1,-1] < direct*lam1 \
-            and direct*XlamP_full[step-1,-1] > direct*(lam0-direct*self.config['backtrackStop']):
+            and direct*XlamP_full[step-1,-1] > direct*(lam0-direct*self.config['backtrackStop']): #{ Continuation step loop
             
             # Update Conditioning Dynamically
             if self.config['DynamicCtoP']:
                 self.CtoP = np.maximum(np.abs(XlamP_full[step-1]), self.CtoP0)
                 
-            for fracLam_ind in range(len(self.config['FracLamList'])):
+            for fracLam_ind in range(len(self.config['FracLamList'])): #{ fracLam loop
                 
                 # Select the current value of weighting lambda v. other variables
                 self.config['FracLam'] = self.config['FracLamList'][fracLam_ind]
                 
                 # Predict Direction
-                dirC = self.predict(fun, XlamP0, XlamPprev)
+                dirC = self.predict(fun, XlamP0, XlamPprev, dirC)
                                 
                 # Correct
-                correct_fun = lambda XlamC : self.correct_res(fun, XlamC, XlamP0/self.CtoP, ds, dirC)
+                correct_fun = lambda XlamC, calc_grad=True : \
+                        self.correct_res(fun, XlamC, XlamP0/self.CtoP, 
+                                         ds, dirC, calc_grad=calc_grad)
                 
                 XlamC, R, dRdX, sol = self.solver.nsolve(correct_fun, \
                                                          XlamP0/self.CtoP + dirC*ds,\
                                                          xtol=self.config['xtol'],\
-                                                         verbose=False)
+                                                         verbose=self.config['nsolve_verbose'])
                 
                 # Retry with smaller steps if correction failed.
                 while (not sol['success']) and ds > self.config['dsmin']:
@@ -334,29 +569,23 @@ class Continuation:
                     XlamC, R, dRdX, sol = self.solver.nsolve(correct_fun, \
                                                              XlamP0/self.CtoP + dirC*ds,\
                                                              xtol=self.config['xtol'],\
-                                                             verbose=False)
+                                                             verbose=self.config['nsolve_verbose'])
             
-                # Break out of loop over masks if have converged
+                # Break out of loop over FracLam values if have converged
                 if sol['success']:
                     if fracLam_ind > 0 and self.config['verbose']:
                         print('Succeeded with FracLam index {} with value FracLam={}.'\
                               .format(fracLam_ind, self.config['FracLam']))
                     break
                 
-                
+            #} End fracLam loop
+            
             if(not sol['success'] and not silent):
                 print('Stopping since final solution failed to converge.')
                 break
             
             # Store Iteration and Advance
             XlamP_full[step] = self.CtoP * XlamC
-            
-            # Debug check with if statement in case it accidently starts going 
-            # backwards
-            # if XlamP_full[step, -1] < XlamP_full[step-1, -1]:
-            #     print('Started Backtracking')
-            #     dirC = self.predict(fun, XlamP0, XlamPprev)
-            #     pass
             
             if self.config['verbose'] and step % self.config['verbose'] == 0:
                 print('Step=', step, ' converged: lam=', XlamP_full[step, -1], \
@@ -367,15 +596,31 @@ class Continuation:
             
             ds = min(max(ds, self.config['dsmin']), self.config['dsmax'])
             
-            # TODO: Callback function
+            # Callback function
+            if self.config['callback'] is not None:
+                self.config['callback'](XlamP_full[step], dirC*self.CtoP)
             
             # Update information from previous steps
             XlamPprev = np.copy(XlamP0)
             XlamP0 = np.copy(XlamP_full[step])
             step += 1
             
+        #} End Continuation step loop  
+        
         # Only return solved history.
         XlamP_full = XlamP_full[:step]
+        
+        # Callback - save the final dirC 
+        if self.config['callback'] is not None:
+            if not sol['success']:
+                # Pass dirC for the previous step corresponding to the last
+                # converged solution
+                self.config['callback'](dirC*np.nan, dirC*self.CtoP)
+            else:
+                # Calculate dirC for the current solution to be saved
+                dirC = self.predict(fun, XlamP0, XlamPprev, dirC)
+                
+                self.config['callback'](dirC*np.nan, dirC*self.CtoP)
         
         if not silent:
             print('Continuation complete, at lam=', XlamP_full[step-1, -1])

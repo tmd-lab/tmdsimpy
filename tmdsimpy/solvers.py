@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.optimize
-from scipy.linalg import eigh
+import scipy.linalg
+import warnings
 
 class NonlinearSolver:
     
@@ -17,7 +18,74 @@ class NonlinearSolver:
         None.
 
         """
-        pass
+        self.stored_factor = ()
+    
+    def lin_solve(self, A, b):
+        """
+        Solve the linear system A * x = b 
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix.
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        x = np.linalg.solve(A, b)
+        
+        return x
+    
+    def lin_factor(self, A):
+        """
+        Factor a matrix A for later solving. This version simply stores and 
+        fully solves later.
+
+        Parameters
+        ----------
+        A : (N,N) np.array, 2d
+            Linear system matrix for later solving.
+
+        Returns
+        -------
+        factor_res : tuple
+            Resulting data from factoring the matrix A, can be passed to 
+            self.lin_factored_solve to solve the linear system. This solver
+            version does not do anything other than return A in a tuple
+
+        """
+        
+        return (A,)
+    
+    def lin_factored_solve(self, factor_res, b):
+        """
+        Solve the linear system with right hand side b and stored (factored)
+        matrix from self.factor(A)
+
+        Parameters
+        ----------
+        factor_res : tuple
+            Collected data from self.lin_factor that will be used here. This
+            version just is the tuple (A,)
+        b : (N,) np.array, 1d
+            Right hand side vector.
+
+        Returns
+        -------
+        x : (N,) np.array, 1d
+            Solution to the linear problem
+
+        """
+        A = factor_res[0]
+        
+        x = np.linalg.solve(A, b)
+        
+        return x
     
     def nsolve(self, fun, X0, verbose=True, xtol=None):
         
@@ -28,10 +96,6 @@ class NonlinearSolver:
         hybr_opts = {'xtol': xtol, 'maxfev': 0}
         
         sol = scipy.optimize.root(fun, X0, method='hybr', jac=True, options=hybr_opts)
-        
-        # # scipy.optimize.show_options('root', 'broyden1') # Does not support analytical Jacobians. 
-        # callback = CallbackTolerances(dxabstol = 1e-5)
-        # sol = scipy.optimize.root(lambda X : fun(X)[0], X0, method='broyden1', jac=False, callback=callback.callback)
         
         X = sol['x']
         
@@ -44,39 +108,35 @@ class NonlinearSolver:
         return X, R, dRdX, sol
     
     def eigs(self, K, M=None, subset_by_index=[0, 2]):
+        """
+        Conduct eigenvalue analysis for a linear system
+
+        Parameters
+        ----------
+        K : (N,N) np.array
+            Stiffness matrix for general second order system.
+        M : (N,N) np.array, optional
+            Mass matrix for general second order system. The default is None.
+        subset_by_index : list of length 2, optional
+            Subset indices for which eigenvalues should be calculated. 
+            See scipy.linalg.eigh for more details. 
+            Let M be the number of requested eigenvalues by this parameter.
+            The default is [0, 2].
+
+        Returns
+        -------
+        eigvals : (M,) np.array
+            Eigenvalues of the linear problem.
+        eigvecs : (N,M) np.array
+            Eigenvectors of linear problem with columns corresponding to 
+            individual eigenvalues.
+
+        """
         
         subset_by_index[1] = min(subset_by_index[1], K.shape[0]-1)
         
-        eigvals, eigvecs = eigh(K, M, subset_by_index=subset_by_index)
+        eigvals, eigvecs = scipy.linalg.eigh(K, M, 
+                                             subset_by_index=subset_by_index)
         
         return eigvals, eigvecs
     
-
-class CallbackTolerances:
-    
-    def __init__(self, dxabstol):
-        
-        self.dxabstol = dxabstol
-        self.Xprev = None
-        self.Rprev = None
-        self.itercount = 0
-        
-        return
-        
-    def callback(self, X, R):
-        
-        # First Iteration
-        if self.Xprev is None:
-            self.Xprev = X
-            self.Rprev = R
-            
-            return False
-        
-        self.itercount += 1
-        
-        Rnorm = np.linalg.norm(R)
-        
-        print("Iter: %3d, ||R||_2: %5.3e" % (self.itercount, Rnorm))
-        
-        return False
-        

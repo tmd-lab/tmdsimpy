@@ -86,7 +86,7 @@ def time_series_deriv(Nt, htuple, X0, order):
             sinrows = (k-1)*2 + 2
             
             D1[cosrows, sinrows] = k
-            D1[sinrows, cosrows] = -k
+            D1[sinrows, cosrows] = -1*k
             
         # This is not particularly fast, consider optimizing this portion.
         #   D could be constructed just be noting if rows flip for odd/even

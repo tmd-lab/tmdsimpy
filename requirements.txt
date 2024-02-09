@@ -1,13 +1,21 @@
 numpy 
 scipy 
 
-# for subset of routines using JAX and auto diff 
-jax[cpu]
+# Dependencies that are expected to come with python installation
+unittest
+argparse
+time
+cProfile # Profiler used on BRB example
+pstats # Investigate profile of BRB example
+
+# Rough Contact Tests (reference saved expected outputs from previous project version)
+pyyaml
 
 # Examples:
 matplotlib
 
-# MATLAB integration is also required for a single test. You can find instructions for installing MATLAB for python with MATLAB’s documentation. 
+# for subset of routines using JAX and auto diff 
+jax[cpu]
 
 # Precise dependencies that were used for testing are listed below. 
 # Python 3.10.11
@@ -16,4 +24,3 @@ matplotlib
 # jax[cpu]==0.3.25
 # jaxlib==0.3.25
 # matplotlib==3.5.2
-# unittest comes with distribution

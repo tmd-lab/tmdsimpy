@@ -97,7 +97,21 @@ class Iwan4Force(HystereticForce):
         
         assert self.Q.shape[0] == 1, 'Not tested for simultaneous Iwan elements.'
     
-    def init_history(self, unlth0, h=np.array([0])):
+    def set_prestress_mu(self):
+        """
+        Set friction coefficient to a different value (generally 0.0) for
+        prestress analysis
+        """
+        assert False, 'Prestress mu is not implemented for Iwan Element.'
+        
+    def init_history(self):
+        self.up = 0
+        self.fp = 0
+        self.fpsliders = np.zeros((self.Nsliders+1)) # Slider at the delta is not counted in Nsliders
+        
+        return
+        
+    def init_history_harmonic(self, unlth0, h=np.array([0])):
         """
         Initialize History
 
@@ -128,9 +142,25 @@ class Iwan4Force(HystereticForce):
         
         return
     
-    def force(self, X):
+    def force(self, X, update_hist=False):
+        """
+        To use the Iwan element with a static analysis, this force needs to be
+        implemented. In addition a number of routines related to history variables
+        are also required (e.g., see Jenkins)
+        """
         
-        assert False, 'Not implemented.'
+        unl = self.Q @ X
+        
+        fnl, dfnldunl, dfnlsliders_dunl = self.instant_force(unl, np.zeros_like(unl), update_prev=update_hist)
+        
+        fnl = np.atleast_1d(fnl)
+        dfnldunl = np.atleast_2d(dfnldunl)
+            
+        F = self.T @ fnl
+        
+        dFdX = self.T @ dfnldunl @ self.Q
+        
+        return F, dFdX
         
     
     def instant_force(self, unl, unldot, update_prev=False):
@@ -170,7 +200,6 @@ class Iwan4Force(HystereticForce):
         fnl = fnlsliders @ self.sliderweights
         dfnldunl = dfnlsliders_dunl @ self.sliderweights
         
-        
         if update_prev:
             # Update History
             self.up = unl
@@ -181,7 +210,7 @@ class Iwan4Force(HystereticForce):
     
     def instant_force_harmonic(self, unl, unldot, h, cst, update_prev=False):
         """
-        For evaluating a force state, uses history initialized in init_history.
+        For evaluating a force state, uses history initialized in init_history_harmonic.
         Updates history for the next call based on the current results. 
                 
         Parameters

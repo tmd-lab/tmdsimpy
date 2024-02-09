@@ -297,6 +297,16 @@ plt.rcParams['font.size'] = 16 # Default 10
 mpl.rc('text', usetex=True)
 mpl.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
+# Nice Labeled Settings
+lw = 2 # Line Width
+show_labels = True
+h3_line = '-.'
+
+# # Settings to Show Schematic without labels
+# lw = 4 # Line Width
+# show_labels = False
+# h3_line = '-'
+
 dof = 0 # SDOF, can only do dof=0 here.
 
 # Maximum Displacement Form of Response
@@ -309,23 +319,38 @@ if h_max >= 3:
     x1h3mag = np.sqrt(XlamP_full[:, 5*Ndof+dof]**2 + XlamP_full[:, 5*Ndof+Ndof+dof]**2)
 
 
-plt.plot(XlamP_full[:, -1], Xmax, '-', color='0.0', label='Total Max')
+plt.plot(XlamP_full[:, -1], Xmax, '-', color='0.0', 
+         label='Total Max', linewidth=lw)
 
-plt.plot(XlamP_full[:, -1], x1h1mag, '--', color='#0072B2', label='Harmonic 1')
+plt.plot(XlamP_full[:, -1], x1h1mag, '--', color='#0072B2', 
+         label='Harmonic 1', linewidth=lw)
 # color = '0.4' or '#0072B2' 
 
 if h_max >= 3:
-    plt.plot(XlamP_full[:, -1], x1h3mag, '-.', color='#D55E00', label='Harmonic 3')
+    plt.plot(XlamP_full[:, -1], x1h3mag, h3_line, color='#D55E00', 
+             label='Harmonic 3', linewidth=lw)
     # color = '0.6' or '#D55E00'
     
 ax = plt.gca()
 ax.tick_params(bottom=True, top=True, left=True, right=True,direction="in")
 
-plt.ylabel('Amplitude [m]')
-plt.xlabel('Forcing Frequency [rad/s]')
 plt.xlim((0.345, 0.63))
 plt.ylim((0.0, 1.6))
-plt.legend(framealpha=1.0, frameon=False)
+
+if show_labels:
+    plt.ylabel('Amplitude [m]')
+    plt.xlabel('Forcing Frequency [rad/s]')
+    plt.legend(framealpha=1.0, frameon=False)
+else:
+    ax = plt.gca()
+    ax.get_yaxis().set_ticks([])
+    ax.get_xaxis().set_ticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    
 plt.savefig('duffing_superharmonic.eps', bbox_inches='tight')
 plt.show()
 
