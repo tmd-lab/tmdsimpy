@@ -135,6 +135,15 @@ rm brb_epmc_flat_sum.dat
 
 ## Code Development Guidance
 
+### Documentation
+
+Documentation is in progress utilizing numpy docstring formatting as described [here](https://numpydoc.readthedocs.io/en/latest/format.html). 
+All new functions, modules, and classes should follow correct formatting of docstrings. 
+Methods, and functions should all include for "Parameters" and "Returns" sections.
+All Classes should have a "Parameters" section that includes information for the constructor method.
+The intention is to utilize Sphinx to generate documentation once everything is in correct numpy docstring formatting.
+
+
 ### Testing
 
 New functions should have unit tests associated with them. This requires that the filename start with "test_" and that the files follow the unittest packages requirements (see existing tests for examples). 

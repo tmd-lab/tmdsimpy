@@ -1,67 +1,112 @@
 """
-Example Script for a Simulation of the Brake-Reuss Beam utilizing an advanced
-rough contact model. This recreates one of the simulations from [1]. For full
-simulation descriptions and many details about the model and methods see [1].
+This is an example script for a simulation of the Brake-Reuss Beam (BRB)
+utilizing an advanced rough contact model [1]_. 
+
+Parameters 
+----------
+    -meso or --meso_scale_included: int, optional
+        Command line argument. If 0 then mesoscale topology is not used. 
+        Otherwise, it will used loaded mesoscale topology. Default behavior
+        set in script by `default_mesoscale`.
+    -system or --system_filename: str, optional
+        Command line argument. Filename for the system matrices. 
+        Default behavior set in script by `default_sys_fname` (122 ZTE model).
+        Running a second time with a different system file will likely cause
+        an error unless you delete the saved outputs of this function. 
+        See variables `epmc_full_name` and `epmc_dat` for output filenames.
+    -p or --profile_run: int, optional
+        Command line argument. If 0, the profiler will not be run. If nonzero
+        argument is passed then the execution will be profiled with cProfile.
+        Default behavior set in script by `default_run_profilers`.
+
+Notes
+-----
 
 This script can be directly run, or it can be called from the command line as:
     
-    python3 -u brb_epmc.py -meso 1
+    `python3 -u brb_epmc.py -meso 1`
     
 where after -meso, you can put 1 to include mesoscale topology or 0 to do a 
-flat interface.
+flat interface. Additional command line parameters documented above can also
+be used.
+Additional discussion about running this script is provided in the README.md
+as well as discussion about verify the results.
 
-Friction Model: Rough Contact [1] (TODO: Add flag for Elastic Dry Friction)
-
-Nonlinear Modal Analysis: Extended Periodic Motion Concept
-
-Model: 232 Zero Thickness Elements (ZTEs) [Hyper Reduction Paper]
-        Model file: data/BRB_ROM_U_122ELS4py.mat
-        Second model file can be downloaded from elsewhere and is named: 
-            data/BRB_ROM_U_122ELS4py.mat
-        Model file must be downloaded from storage elsewhere. See README.md
+Summary of Key Model Details: 
+    Friction Model: 
+        Physics-Based Rough Contact [1]_
+    Nonlinear Modal Analysis: 
+        Extended Periodic Motion Concept [2]_
+    Structural Model: 
+        122 Zero Thickness Elements (ZTEs) Mesh (or download
+        232 ZTE model from location listed in README.md) [3]_
+        122 ZTE model provided in file `data/BRB_ROM_U_122ELS4py.mat`
+    Surface Parameters: 
+        Surface parameters for rough contact are identified in [1]_. 
+        Parameters are provided in file `data/combined_14sep21_R1_4py.mat`
         
-Surface Parameters: Surface parameters for rough contact are identified in [1]
-        Surface Parameters file: data/combined_14sep21_R1_4py.mat
-        Surface parameter file must be downloaded from storage elsewhere. See
-        README.md
+List of execution steps (numbered code blocks below). Steps 1-7 are loading
+all of the data and checking that it is correct. Steps 8 and 9 create the model
+Steps 10-13 and 15 do all of the needed computational steps. Step 14 is just
+for understanding the computation time. Step 16 is optional and commented out.
+    1. Command Line Defaults 
+    2. User Inputs 
+    3. Friction Model Parameters 
+    4. Solver Settings 
+    5. Command Line Inputs Parsing 
+    6. EPMC Output Save Information 
+    7. Load System Matrices from .mat File  
+    8. Create Vibration System  <----------------This starts creating the model
+    9. Add Nonlinear Forces to System  
+    10. Prestress Analysis <------------This is the first nonlinear calculation
+    11. Updated Eigenvalue Analysis After Prestress
+    12. Updated Damping Matrix After Prestress
+    13. EPMC Initial Guess
+    14. Time Single EPMC Residual
+    15. EPMC Continuation <------------------------Main computation of interest
+    16. Open Debug Terminal at End for User to Query Variables 
+        (optional, uncomment to use)
 
-Reference Papers:
- [1] Porter, Justin H., and Matthew R. W. Brake. "Towards a Predictive, 
-     Physics-Based Friction Model for the Dynamics of Jointed Structures." 
-     Mechanical Systems and Signal Processing 192 (June 1, 2023): 110210.
-     https://doi.org/10.1016/j.ymssp.2023.110210.
+Parallelism: 
+    The execution uses numpy and jax.numpy libraries for various
+    linear algebra operations. The numpy operations respond to OpenMP 
+    environment variables and thus you can set the number of used threads in 
+    a linux terminal with:
+    
+    >> export OMP_PROC_BIND=spread # Spread threads out over physical cores
+    >> export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
 
-
-TODO : 
-    1. Readme for file downloads for matrices etc.
-    2. Terminology/nomenclature in this comment?
-    3. Add elastic dry friction flag option?
-    4. Slurm file for running this script.
-    5. Fully document command line inputs
-    6. Some description of much of this is setup, for the actual modeling skip to line...
-    7. Note that saving outputs during run will die if there is a save from a 
-    different mesh size already in the folder. 
-
-The JAX matrix solves in here should automatically use OpenMP Parallelism.
-You can control the parallelism by invoking these commands on Linux prior 
-to execution
-> export OMP_PROC_BIND=spread # Spread threads out over physical cores
-> export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
-
-non-blocking jax parallelism for friction evaluations appears to spreads across
-available threads ignoring the OMP_NUM_THREADS environment variable.
-
-
-Several comments are included describing parts. Additional documentation and
-guidance on specific functions can be found within the functions that are being
-called.
-
-The majorify of this script is loading parameters and initializing settings. 
-The actual solution steps start on block #8 with the creation of the vibration 
-system.
-
+    The JAX evaluations of the nonlinear forces are JIT compiled and are called
+    in a non-blocking fashion by default. In practical terms, this means all
+    threads will be used to simultaneously execute the nonlinear force 
+    evaluations.
+    
 Simulations with 122 ZTE model take about 5-10 minutes on Computer with 
 12 cores, 24 threads, 32 GB RAM, 2.1 GHz processor
+
+See Also
+--------
+
+Documentation in individual functions, classes, and methods called here 
+provides additional description of the usage. 
+
+References
+----------
+.. [1] Porter, Justin H., and Matthew R. W. Brake. "Towards a Predictive, 
+   Physics-Based Friction Model for the Dynamics of Jointed Structures." 
+   Mechanical Systems and Signal Processing 192 (June 1, 2023): 110210.
+   https://doi.org/10.1016/j.ymssp.2023.110210.
+   
+.. [2] Krack, Malte. "Nonlinear Modal Analysis of Nonconservative Systems: 
+    Extension of the Periodic Motion Concept." Computers & Structures 154 
+    (July 1, 2015): 59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
+    
+.. [3] Balaji, Nidish Narayanaa, Tobias Dreher, Malte Krack, and Matthew R. W. 
+   Brake. "Reduced Order Modeling for the Dynamics of Jointed Structures 
+   through Hyper-Reduced Interface Representation.” Mechanical Systems and 
+   Signal Processing 149 (February 15, 2021): 107249. 
+   https://doi.org/10.1016/j.ymssp.2020.107249.
+
 """
 
 import sys
@@ -75,7 +120,6 @@ import argparse # parse command line arguments
 sys.path.append('../..')
 from tmdsimpy import harmonic_utils as hutils
 
-from tmdsimpy.solvers import NonlinearSolver # unused, some places where you could swap to this
 from tmdsimpy.jax.solvers import NonlinearSolverOMP
 
 from tmdsimpy.continuation import Continuation
@@ -223,9 +267,8 @@ static_config={'max_steps' : 30,
                 'stopping_tol' : ['xtol']
                 }
 
-# solve function - can use python library routines or custom ones
-# static_solver = NonlinearSolver() # scipy nonlinear solver
-static_solver = NonlinearSolverOMP(config=static_config) # Custom Newton-Raphson solver
+# Custom Newton-Raphson solver
+static_solver = NonlinearSolverOMP(config=static_config) 
 
 
 ########################################
@@ -241,13 +284,11 @@ epmc_config={'max_steps' : 12, # balance with reform_freq
             'rtol_rel' : None,
             'etol_rel' : None,
             'stopping_tol' : ['xtol'], # stop on xtol 
-            'accepting_tol' : ['xtol_rel', 'rtol'] # accept solution based on other tolerances
+            'accepting_tol' : ['xtol_rel', 'rtol'] # accept solution on these
             }
 
-# solve function - can use python library routines or custom ones
-# epmc_solver = NonlinearSolver() # scipy nonlinear solver
-epmc_solver = NonlinearSolverOMP(config=epmc_config) # Custom Newton-Raphson solver
-
+# Custom Newton-Raphson solver
+epmc_solver = NonlinearSolverOMP(config=epmc_config)
 
 ###############################################################################
 ####### 5. Command Line Inputs Parsing                                  #######
@@ -276,30 +317,42 @@ print('Using system from file: {}'.format(system_fname))
 print('Mesoscale topology will be used? {}'.format(mesoscale_TF))
 print('Profiler will be run? {}'.format(run_profilers))
 
-
 ###############################################################################
 ####### 6. EPMC Output Save Information                                 #######
 ###############################################################################
 
 if mesoscale_TF:
     
-    epmc_full_name = './results/brb_epmc_meso_full.npz' # Detailed full output (numpy binary)
-    epmc_dat = './results/brb_epmc_meso_sum.dat' # Summary file output (text file)
+    # Detailed full output (numpy binary)
+    epmc_full_name = './results/brb_epmc_meso_full.npz' 
     
-    static_profile = './results/static_meso_profile' # File to save static analysis profiling
-    continue_profile = './results/continue_meso_profile' # File to save continuation profiling in
+    # Summary file output (text file)
+    epmc_dat = './results/brb_epmc_meso_sum.dat' 
+    
+    # File to save static analysis profiling
+    static_profile = './results/static_meso_profile' 
+    
+    # File to save continuation profiling in
+    continue_profile = './results/continue_meso_profile' 
 
 else:
     
-    epmc_full_name = './results/brb_epmc_flat_full.npz' # Detailed full output (numpy binary)
-    epmc_dat = './results/brb_epmc_flat_sum.dat' # Summary file output (text file)
+    # Detailed full output (numpy binary)
+    epmc_full_name = './results/brb_epmc_flat_full.npz' 
     
-    static_profile = './results/static_flat_profile' # File to save static analysis profiling
-    continue_profile = './results/continue_flat_profile' # File to save continuation profiling in
+    # Summary file output (text file)
+    epmc_dat = './results/brb_epmc_flat_sum.dat' 
+    
+    # File to save static analysis profiling
+    static_profile = './results/static_flat_profile' 
+    
+    # File to save continuation profiling in
+    continue_profile = './results/continue_flat_profile' 
 
-
-call_list = [lambda XlamP, dirP_prev : cont_utils.continuation_save(XlamP, dirP_prev, epmc_full_name),
-             lambda XlamP, dirP_prev : cont_utils.print_epmc_stats(XlamP, dirP_prev, epmc_dat)]
+call_list = [lambda XlamP, dirP_prev : cont_utils.continuation_save(XlamP, 
+                                                dirP_prev, epmc_full_name),
+             lambda XlamP, dirP_prev : cont_utils.print_epmc_stats(XlamP, 
+                                                          dirP_prev, epmc_dat)]
 
 callback_funs = lambda XlamP, dirP_prev : cont_utils.combine_callback_funs(\
                                                    call_list, XlamP, dirP_prev)
@@ -317,17 +370,18 @@ system_matrices = sio.loadmat(system_fname)
 
 # Sizes
 assert system_matrices['M'].shape == system_matrices['K'].shape, \
-        'Mass and stiffness matrices are not the same size, this will not work.'
+       'Mass and stiffness matrices are not the same size, this will not work.'
 
-if not (system_matrices['M'].shape == (859, 859)):
+if not (system_matrices['M'].shape == (481, 481)):
     warnings.warn("Warning: Mass and stiffness matrices are not the expected "\
-                  "size for the UROM 232 Model.")
+                  "size for the UROM 122 Model.")
 
 # Approximate Frequencies Without Contact
 # If running a different ROM, these will vary slightly
 
-eigvals, eigvecs = static_solver.eigs(system_matrices['K'], system_matrices['M'], 
-                               subset_by_index=[0, 9])
+eigvals, eigvecs = static_solver.eigs(system_matrices['K'], 
+                                      system_matrices['M'], 
+                                      subset_by_index=[0, 9])
 
 expected_eigvals = np.array([1.855211e+01, 1.701181e+05, 8.196151e+05, 
                               1.368695e+07, 1.543605e+07, 1.871511e+07, 
@@ -339,7 +393,7 @@ eig_diff = np.abs((eigvals - expected_eigvals)/expected_eigvals)[1:].max()
 
 if first_eig_ratio > 1e-3:
     warnings.warn("Expected rigid body mode of first eigenvalue "
-          "is high: ratio eigvals[0]/eigvals[1]={:.3e}".format(first_eig_ratio))
+         "is high: ratio eigvals[0]/eigvals[1]={:.3e}".format(first_eig_ratio))
 
 if eig_diff > 1e-4:
     warnings.warn("Eigenvalues differed by fraction: {:.3e}".format(eig_diff))
@@ -348,7 +402,8 @@ if eig_diff > 1e-4:
 ref_area = 0.002921034742767
 area_error = (system_matrices['Tm'].sum() - ref_area) / ref_area
 
-assert area_error < 2e-3, 'Quadrature integration matrix gives wrong contact area.'
+assert area_error < 2e-3, \
+        'Quadrature integration matrix gives wrong contact area.'
 
 ###############################################################################
 ####### 8. Create Vibration System                                      #######
@@ -390,9 +445,12 @@ meso_gap_nodes = interp_obj(system_matrices['node_coords'][:, 0], # node x
 
 # interpolate mesoscale at nodes to quadrature points
 meso_gap_quads = Qm @ meso_gap_nodes
-meso_gap_quads = meso_gap_quads - meso_gap_quads.min() # move so something is initially in contact
 
-meso_gap_quads = mesoscale_TF * meso_gap_quads # Set mesoscale to zero if not using it
+# move so something is initially in contact
+meso_gap_quads = meso_gap_quads - meso_gap_quads.min() 
+
+# Set mesoscale to zero if not using it
+meso_gap_quads = mesoscale_TF * meso_gap_quads 
 
 for i in range(Nnl):
     
@@ -454,23 +512,27 @@ if run_profilers:
     
     import cProfile
     
-    cProfile.run('Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)', 
+    cProfile.run('Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, '\
+                 +'verbose=True, xtol=1e-13)', 
                  static_profile)
     
-    print('Static run time saved to {}. This can be loaded and investigated.'.format(static_profile))
-    print('See https://docs.python.org/3/library/profile.html for more details.')
+    print(('Static run time saved to {}. This can be loaded and '\
+           +'investigated.').format(static_profile))
+        
+    print('See https://docs.python.org/3/library/profile.html for more.')
     
     """
     # Load and investigate profile: 
     import pstats
     from pstats import SortKey
-    p = pstats.Stats('static_profile')
+    p = pstats.Stats('static_meso_profile')
     p.sort_stats(SortKey.TIME).print_stats(10)
     """
     
 else:
     t0 = time.time()
-    Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0, verbose=True, xtol=1e-13)
+    Xpre, R, dRdX, sol = static_solver.nsolve(pre_fun, X0,
+                                              verbose=True, xtol=1e-13)
     
     t1 = time.time()
     
@@ -566,7 +628,9 @@ Fl = np.zeros(Nhc*Ndof)
 
 # Static Forces
 Fl[:Ndof] = prestress*Fv # EPMC static force
-Fl[Ndof:2*Ndof] = system_matrices['R'][2, :] # No cosine component at accel - EPMC phase constraint
+
+# EPMC phase constraint - No cosine component at accel
+Fl[Ndof:2*Ndof] = system_matrices['R'][2, :] 
 
 Uwxa0 = np.zeros(Nhc*Ndof + 3)
 
@@ -625,7 +689,7 @@ epmc_fun = lambda Uwxa, calc_grad=True : vib_sys.epmc_res(Uwxa, Fl, h, Nt=Nt,
 
 continue_config = {'DynamicCtoP': True, 
                    'TargetNfev' : 4,
-                   'MaxSteps'   : 40, # May need to be increased if using smaller steps
+                   'MaxSteps'   : 40, # May need more depending on ds and dsmin
                    'dsmin'      : dsmin,
                    'dsmax'      : dsmax,
                    'verbose'    : 1,
@@ -635,7 +699,7 @@ continue_config = {'DynamicCtoP': True,
                    'callback' : callback_funs,
                    'FracLam' : FracLam,
                    'FracLamList' : [0.9, 0.1, 1.0, 0.0],
-                   'backtrackStop' : 0.05 # stop if it backtracks to before start.
+                   'backtrackStop' : 0.05 # stop if backtracks to before lam0
                    }
 
 # The conditioning of the static displacements should be small since these
@@ -646,20 +710,27 @@ CtoPstatic = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-5)
 # space. - reduces importance of higher harmonics when calculating arc length
 CtoP = hutils.harmonic_wise_conditioning(Uwxa0, Ndof, h, delta=1e-3) 
 
-CtoP[:Ndof] = CtoPstatic[:Ndof] # Allow different CtoP for static displacements than harmonics.
-CtoP[-3:-1] = np.abs(Uwxa0[-3:-1]) # Exactly take damping and frequency regardless of delta
-CtoP[-1] = np.abs(Aend-Astart) # scale so step size is similar order as fraction of total distance from start to end
+# Allow different CtoP for static displacements than harmonics.
+CtoP[:Ndof] = CtoPstatic[:Ndof] 
 
+# Exactly take damping and frequency regardless of delta for conditioning
+CtoP[-3:-1] = np.abs(Uwxa0[-3:-1]) 
+
+# scale so step size is similar order as fraction of total distance from 
+# start to end
+CtoP[-1] = np.abs(Aend-Astart) 
 
 cont_solver = Continuation(epmc_solver, ds0=ds, CtoP=CtoP, 
                            config=continue_config)
 
 if run_profilers:
     
-    cProfile.run('Uwxa_full = cont_solver.continuation(epmc_fun, Uwxa0, Astart, Aend)', 
+    cProfile.run('Uwxa_full = cont_solver.continuation(epmc_fun, Uwxa0, '\
+                 +'Astart, Aend)', 
                  continue_profile)
     
-    print('Continuation computation time profile saved to {}.'.format(continue_profile))
+    print('Continuation computation time profile saved to '\
+          + '{}.'.format(continue_profile))
         
 else:
     
