@@ -43,11 +43,11 @@ def _normal_el_asperity_loading(un, Re, Estar):
     """ 
     
     # Positive 
-    pos_un = jnp.where(un >= 0, x=un, y=0)
+    pos_un = jnp.where(un >= 0, un, 0)
     
     # Contact Area Elastic
     a = jnp.sqrt( (2*Re) * (pos_un/2) )
-    a = jnp.where(un>0, x=a, y=0) # Want to avoid NaN gradients when not in contact
+    a = jnp.where(un>0, a, 0) # Want to avoid NaN gradients when not in contact
     
     fn = 4*(2*Estar)*jnp.sqrt(2*Re)/3*(pos_un/2)**(1.5)
     
@@ -92,14 +92,14 @@ def _normal_pl_asperity_loading(un, Re, Possion, Estar, Emod, Etan, delta_y, Sys
     
     C = 1.295*jnp.exp(0.736*Possion);
 
-    pos_un = jnp.where(un >= 0, x=un, y=0)
+    pos_un = jnp.where(un >= 0, un, 0)
     
     ###### Contact Area
     
     ae = jnp.sqrt( (2*Re)*(pos_un/2) )
     
     # this branch should not be hit when not in contact, or would need this:
-    # jnp.where(un>0, x=ae, y=0) # Want to avoid NaN gradients when not in contact
+    # jnp.where(un>0, ae, 0) # Want to avoid NaN gradients when not in contact
     
     B = 0.14*jnp.exp(23*Sys/(2*Estar))
     
@@ -177,19 +177,19 @@ def _normal_asperity_unloading(un, deltam, Fm, Re, Estar):
     
     deltabar = deltam*(1 - Fm/(4/3*Estar*jnp.sqrt(Re)*deltam**1.5))
         
-    pos_un = jnp.where((un-deltabar)>=0, x=(un-deltabar), y=0)
-    pos_deltam = jnp.where((deltam-deltabar)>=0, x=(deltam-deltabar), y=0)
+    pos_un = jnp.where((un-deltabar)>=0, (un-deltabar), 0)
+    pos_deltam = jnp.where((deltam-deltabar)>=0, (deltam-deltabar), 0)
     
     Rebar = Fm**2/( (4/3*Estar)**2 * (pos_deltam)**3)
     
     a = jnp.sqrt(Rebar*pos_un)
-    a = jnp.where(pos_un>0, x=a, y=0) # Want to avoid NaN gradients when not in contact
+    a = jnp.where(pos_un>0, a, 0) # Want to avoid NaN gradients when not in contact
     
     fn = 4/3*Estar*jnp.sqrt(Rebar)*(pos_un)**1.5
     
     # Fm could be 0 if never comes into contact, so this corrects the normal
     # force in those cases so it is not nan
-    fn = jnp.where(pos_un>0, x=fn, y=0) 
+    fn = jnp.where(pos_un>0, fn, 0) 
     
     ###### Return Data
     
@@ -241,10 +241,10 @@ def _normal_asperity_general(un, deltam, Fm,
     # Split Elastic v. Elastic Unloading After Plasticity
     elastic_flag = jnp.logical_and(un<1.9*delta_y, deltam<1.9*delta_y)
     
-    fn       = jnp.where(elastic_flag, x=fn_el,       y=fn_pu)
-    a        = jnp.where(elastic_flag, x=a_el,        y=a_pu)
-    deltabar = jnp.where(elastic_flag, x=deltabar_el, y=deltabar_pu)
-    Rebar    = jnp.where(elastic_flag, x=Rebar_el,    y=Rebar_pu)
+    fn       = jnp.where(elastic_flag, fn_el,       fn_pu)
+    a        = jnp.where(elastic_flag, a_el,        a_pu)
+    deltabar = jnp.where(elastic_flag, deltabar_el, deltabar_pu)
+    Rebar    = jnp.where(elastic_flag, Rebar_el,    Rebar_pu)
     
     # Add in Plastic Loading where appropriate
     # Strictly greater because want the unloading gradient if recall at the 
@@ -252,10 +252,10 @@ def _normal_asperity_general(un, deltam, Fm,
     # about the prestressed state.
     yielding_flag = jnp.logical_and(un>deltam, un>1.9*delta_y)
     
-    fn       = jnp.where(yielding_flag, x=fn_pl,       y=fn)
-    a        = jnp.where(yielding_flag, x=a_pl,        y=a)
-    deltabar = jnp.where(yielding_flag, x=deltabar_pl, y=deltabar)
-    Rebar    = jnp.where(yielding_flag, x=Rebar_pl,    y=Rebar)
+    fn       = jnp.where(yielding_flag, fn_pl,       fn)
+    a        = jnp.where(yielding_flag, a_pl,        a)
+    deltabar = jnp.where(yielding_flag, deltabar_pl, deltabar)
+    Rebar    = jnp.where(yielding_flag, Rebar_pl,    Rebar)
     
     return fn, a, deltabar, Rebar
 
