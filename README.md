@@ -96,7 +96,7 @@ The results can then be checked against the published reference solution by runn
 ```
 python3 compare_brb_epmc.py -meso 1 # use same value of -meso input argument
 ```
-For `compare_brb_epmc.py`, you may want to run it in an IDE for plotting instead of from the terminal (this script does not require JAX). You can change `default_mesoscale` in the script to change if it plots the comparison with or without mesoscale topology. 
+For `compare_brb_epmc.py`, you may want to run this script in an IDE (e.g., spyder) for plotting instead of from the terminal (this script does not require JAX). You can change `default_mesoscale` in the script to change if it plots the comparison with or without mesoscale topology. 
 Errors in the comparison are attributed to: 
 1. Interpolation from different continuation points. 
 2. Different mesh if using the default mesh. 
