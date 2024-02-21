@@ -283,23 +283,42 @@ class VibrationSystem:
 
     def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7):
         """
-        Residual for Harmonic Balance Method
+        Residual for Harmonic Balance Method (HBM). 
+        The system as N=self.M.shape[0] degrees of freedom.
 
         Parameters
         ----------
-        Uw : Harmonic DOFs followed by frequency, (n * Nhc + 1)
-        Fl : Applied forcing harmonic coefficients, (n * Nhc)
-        h : List of Harmonics
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        Uw : (N*Nhc+1,) numpy.ndarray
+            Harmonic DOFs followed by frequency in rad/s. Has all of 0th
+            harmonic (if included), then all of 1st cosine, then all of 1st 
+            sine etc. There are Nhc harmonic components in h.
+        Fl : (N*Nhc,) numpy.ndarray
+            Applied forcing harmonic coefficients
+        h : numpy.ndarray of integers, sorted
+            List of Harmonics. The total number of harmonic components is
+            Nhc = harmonic_utils.Nhc(h)
+        Nt : integer power of 2, optional
+            Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : float, optional
+            Tolerance for AFT. The default is 1e-7.
 
         Returns
         -------
-        R : Residual
-        dRdU : Jacobian of residual w.r.t. Harmonic DOFs
-        dRdw : Derivative of residual w.r.t. frequency
-        """
+        R : (N*Nhc,) numpy.ndarray
+            Residual
+        dRdU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of residual w.r.t. Harmonic DOFs
+        dRdw : (N*Nhc,) numpy.ndarray
+            Derivative of residual w.r.t. frequency
         
+        See Also
+        --------
+        hbm_res_dFl : 
+            Harmonic balance residual with a different input/third output
+            that allows for continuation with respect to scaling of external 
+            force.
+        
+        """
         
         # Frequency (rad/s)
         w = Uw[-1]
@@ -331,6 +350,54 @@ class VibrationSystem:
         dRdw = dEdw @ Uw[:-1] + dFnldw
         
         return R, dRdU, dRdw
+        
+    def hbm_res_dFl(self, UF, w, Fl, h, Nt=128, aft_tol=1e-7):
+        """
+        Residual for Harmonic Balance Method (HBM). 
+        The system as N=self.M.shape[0] degrees of freedom.
+
+        Parameters
+        ----------
+        UF : (N*Nhc+1,) numpy.ndarray
+            Harmonic DOFs followed by scaling of force vector. Has all of 0th
+            harmonic (if included), then all of 1st cosine, then all of 1st 
+            sine etc. There are Nhc harmonic components in h.
+        w : float
+            Frequency in rad/s of the 1st harmonic.
+        Fl : (N*Nhc,) numpy.ndarray
+            Applied forcing harmonic coefficients that will be scaled by UF[-1]
+        h : numpy.ndarray of integers, sorted
+            List of Harmonics. The total number of harmonic components is
+            Nhc = harmonic_utils.Nhc(h)
+        Nt : integer power of 2, optional
+            Number of Time Steps for AFT, use powers of 2. The default is 128.
+        aft_tol : float, optional
+            Tolerance for AFT. The default is 1e-7.
+
+        Returns
+        -------
+        R : (N*Nhc,) numpy.ndarray
+            Residual
+        dRdU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of residual w.r.t. Harmonic DOFs
+        dRdF : (N*Nhc,) numpy.ndarray
+            Derivative of residual w.r.t. scaling of Fl
+        
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual with a different input/output
+            that allows for continuation with respect to frequency
+        
+        """
+        
+        R, dRdU, _ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fl, 
+                                     h, Nt=Nt, aft_tol=aft_tol)
+        
+        dRdF = -Fl
+        
+        return R, dRdU, dRdF
+        
         
     def linear_frf(self, w, Fl, solver, neigs=3, Flsin=None):
         """
