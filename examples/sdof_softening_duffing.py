@@ -293,6 +293,9 @@ XlamP_full_isola = np.vstack((np.flipud(XlamP_full_isola_2), XlamP_full_isola_1)
 ####### Plot Frequency Response (Various)                               #######
 ###############################################################################
 
+plt.rcParams['figure.dpi'] = 300
+plt.rcParams['savefig.dpi'] = 300
+
 Nt_output = 1<<10
 
 # Maximum Displacement Form of Response
@@ -308,16 +311,18 @@ Xmax_isola = np.max(np.abs(Xt), axis=0)
 Xt = hutils.time_series_deriv(Nt_output, h, XFP_full_bridge[:,  :-1].T, 0)
 Xmax_bridge = np.max(np.abs(Xt), axis=0)
 
-plt.plot(XlamP_full0[:, -1], Xmax0, label='Fmag={}'.format(fmag0))
-plt.plot(XlamP_full1[:, -1], Xmax1, '--', label='Fmag={}'.format(fmag1))
-plt.plot(XlamP_full_isola[:, -1], Xmax_isola, label='Fmag={:.4f}'.format(UF_bridge[-1]))
+plt.plot(XlamP_full0[:, -1], Xmax0, label='F={:.3f} [N]'.format(fmag0))
+plt.plot(XlamP_full1[:, -1], Xmax1, '--', label='F={:.3f} [N]'.format(fmag1))
+plt.plot(XlamP_full_isola[:, -1], Xmax_isola, label='F={:.3f} [N]'.format(UF_bridge[-1]))
 
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((lam0, lam1))
 plt.ylim((0.0, Xmax1[np.isfinite(Xmax1)].max()*1.05))
 plt.legend()
+plt.savefig('soften_duffing_large.eps', bbox_inches='tight')
 plt.show()
+
 
 
 
@@ -327,10 +332,12 @@ plt.ylabel('Maximum Amplitude [m]')
 plt.show()
 
 
-plt.plot(XlamP_full_isola[:, -1], Xmax_isola, label='Fmag={:.4f}'.format(UF_bridge[-1]))
+plt.plot(XlamP_full_isola[:, -1], Xmax_isola, label='F={:.3f} [N]'.format(UF_bridge[-1]))
 plt.ylabel('Maximum Displacement [m]')
 plt.xlabel('Frequency [rad/s]')
 plt.xlim((0, XlamP_full_isola[:, -1].max()*1.05))
 plt.legend()
+plt.savefig('soften_duffing_isola.eps', bbox_inches='tight')
 plt.show()
+
 
