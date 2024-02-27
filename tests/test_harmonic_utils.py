@@ -116,6 +116,85 @@ class TestHarmonicUtils(unittest.TestCase):
         fname = 'MATLAB_VERSIONS/hutils_without_h0.mat'
         
         verify_hutils(fname, self)
+        
+    def test_harmonic_stiffness_opts(self):
+        """
+        Test options on harmonic stiffness to verify that they still give 
+        correct results.
+        """
+        
+        h_sets = [np.array([0, 1, 2, 3, 6]), 
+                  np.array([1, 2, 3, 5, 7, 9])]
+        
+        w = 1.393
+        
+        E_rtol = 1e-12
+        dEdw_rtol = 1e-12
+        
+        for h in h_sets:
+            
+            for Ndof in [1, 15]:
+            
+                rng = np.random.default_rng(seed=1023)
+                
+                M = rng.random((Ndof, Ndof))
+                C = rng.random((Ndof, Ndof))
+                K = rng.random((Ndof, Ndof))
+                
+                ###############
+                # Verify the option to not calculate the gradient + verify default
+                ref = hutils.harmonic_stiffness(M, C, K, w, h)
+                
+                yes_grad = hutils.harmonic_stiffness(M, C, K, w, h, 
+                                                    calc_grad=True)
+                
+                no_grad = hutils.harmonic_stiffness(M, C, K, w, h, 
+                                                    calc_grad=False)
+                
+                self.assertEqual(len(ref), len(yes_grad), 
+                         'Default does not return correct number of arguments')
+                
+                self.assertEqual(len(no_grad), 1)
+                
+                self.assertLess(np.linalg.norm(yes_grad[0] - ref[0]) \
+                                / np.linalg.norm(ref[0]), 
+                                E_rtol)
+                
+                self.assertLess(np.linalg.norm(yes_grad[1] - ref[1]) \
+                                / np.linalg.norm(ref[1]), 
+                                E_rtol)
+                    
+                self.assertLess(np.linalg.norm(no_grad[0] - ref[0]) \
+                                / np.linalg.norm(ref[0]), 
+                                dEdw_rtol)
+                    
+                ###############
+                # Verify the EPMC option of only calculating effects of C
+                ref_c = hutils.harmonic_stiffness(0.0*M, C, 0.0*K, w, h)
+                
+                all_mats = hutils.harmonic_stiffness(0.0*M, C, 0.0*K, w, h, 
+                                                    only_C=False)
+                
+                # Pass arbitrary arguments for M and K to verify that they
+                # don't influence anything
+                # EPMC also does not need the frequency gradient of this
+                only_c = hutils.harmonic_stiffness(1.5, C, 
+                                                   np.array([1.0, 2.0]), 
+                                                   w, h, only_C=True,
+                                                   calc_grad=False)
+                
+                self.assertLess(np.linalg.norm(all_mats[0] - ref_c[0]) \
+                                / np.linalg.norm(ref_c[0]), 
+                                E_rtol)
+                
+                self.assertLess(np.linalg.norm(all_mats[1] - ref_c[1]) \
+                                / np.linalg.norm(ref_c[1]), 
+                                E_rtol)
+                    
+                self.assertLess(np.linalg.norm(only_c[0] - ref_c[0]) \
+                                / np.linalg.norm(ref_c[0]), 
+                                dEdw_rtol)
+                
 
 if __name__ == '__main__':
     unittest.main()

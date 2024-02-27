@@ -15,6 +15,8 @@ Code for the MATLAB version is available on GitHub:
 
 # Standard imports
 import numpy as np
+import warnings
+
 
 # JAX imports
 import jax
@@ -80,8 +82,19 @@ class RoughContactFriction(NonlinearForce):
                 testing against previous versions
 
         """
-        self.Q = Q
-        self.T = T
+        self.Q = np.asarray(Q)
+        self.T = np.asarray(T)
+        
+        if not type(self.Q) == type(Q):
+            warnings.warn('Matrix Q argument is not a numpy array. Conversion '
+                          'to numpy array was attempted, but not '
+                          'guaranteed to work.')
+            
+        if not type(self.T) == type(T):
+            warnings.warn('Matrix T argument is not a numpy array. Conversion '
+                          'to numpy array was attempted, but not '
+                          'guaranteed to work.')
+        
         self.elastic_mod = ElasticMod
         self.poisson = PoissonRatio
         self.Re = Radius
@@ -160,6 +173,27 @@ class RoughContactFriction(NonlinearForce):
         dynamic analysis
         """
         self.mu = self.real_mu
+        
+    def set_aft_initialize(self, X):
+        """
+        Set a center for frictional sliders to be initialized at zero force
+        for AFT routines. 
+
+        Parameters
+        ----------
+        X : np.array, size (Ndof,)
+            Solution to a static solution or other desired set of displacements
+            that will be used as the baseline position of frictional sliders.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        self.uxyn_initialize = self.Q @ X
+        
+        return
     
     def force(self, X, update_hist=False, return_aux=False):
         """
@@ -263,7 +297,8 @@ class RoughContactFriction(NonlinearForce):
         return fxyn_t
         
 
-    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2):
+    def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False,
+            calc_grad=True):
         """
         
         Tolerances are ignored since slider representation should converge
@@ -272,21 +307,40 @@ class RoughContactFriction(NonlinearForce):
 
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            shape: (Nhc*nd,)
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
+        U : np.array, size (Nhc*nd,)
+            Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
+        w : double (scalar)
+            Frequency
+        h : np.array, sorted
+            List of harmonics that are considered, zeroth must be first
+        Nt : Integer power of 2
+             Number of time points to evaluate at. 
              The default is 128.
-        max_repeats : number of hysteresis loops to calculate to reach steady
-                        state. Maximum value allowed. 
-                        The default is 2
+        tol : scalar
+            Optional argument ignored, kept to match compatability with general
+            AFT. 
+        max_repeats : integer
+                      number of hysteresis loops to calculate to reach steady
+                      state. Maximum value allowed. 
+                      The default is 2
+        return_local : Boolean
+                        If False, it uses self.Q and self.T to convert forces 
+                        and gradients back to global domain.  If True, it does
+                        not apply these transforms to the results.
+                        default is False
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
 
         Returns
         -------
-        Fnl : Vector of nonlinear forces in frequency domain
-        dFnldU : Gradient of nonlinear forces w.r.t. U
-        dFnldw : Gradient w.r.t. w
+        Fnl : np.array, size (Nhc*nd,)
+            Vector of nonlinear forces in frequency domain
+        dFnldU : np.array, size (Nhc*nd,Nhc*nd)
+            Gradient of nonlinear forces w.r.t. U
+        dFnldw : np.array, size (Nhc*nd,)
+            Gradient w.r.t. w
 
         """
         
@@ -294,8 +348,9 @@ class RoughContactFriction(NonlinearForce):
         # Memory Initialization 
         
         Fnl = np.zeros_like(U)
-        dFnldU = np.zeros((U.shape[0], U.shape[0]))
-        dFnldw = np.zeros_like(U)
+        if calc_grad:
+            dFnldU = np.zeros((U.shape[0], U.shape[0]))
+            dFnldw = np.zeros_like(U)
         
         
         #########################
@@ -312,12 +367,16 @@ class RoughContactFriction(NonlinearForce):
         # Conduct AFT in Local Coordinates with JAX
         Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
         
-        
-        # # If no Grad is needed use:
-        # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
-        
-        # Case with gradient and local force
-        dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+        if calc_grad:
+            # Case with gradient and local force
+            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+                                    self.mu, self.meso_gap, self.gaps, 
+                                    self.gap_weights, self.Re, self.poisson, 
+                                    self.Estar, self.elastic_mod, self.tangent_mod, 
+                                    self.delta_y, self.sys, self.Gstar, 
+                                    tuple(h), Nt, repeats=max_repeats)
+        else:
+            Flocal,_ = _local_aft(Uwlocal, self.uxyn_initialize, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights, self.Re, self.poisson, 
                                     self.Estar, self.elastic_mod, self.tangent_mod, 
@@ -325,22 +384,37 @@ class RoughContactFriction(NonlinearForce):
                                     tuple(h), Nt, repeats=max_repeats)
         
         #########################
-        # Convert AFT to Global Coordinates
+        # Option to return local results
         
         # Reshape Flocal
         Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
+        
+        if return_local:
+            
+            if calc_grad:
+                return Flocal, dFdUwlocal[:, :-1], dFdUwlocal[:, -1]
+            else:
+                return (Flocal,)
+        
+        #########################
+        # Convert AFT to Global Coordinates
                 
         # Global coordinates        
         Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
-        dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
+        
+        if calc_grad:
+            dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
                                                 @ np.kron(np.eye(Nhc), self.Q)
         
-        dFnldw = np.reshape(self.T @ \
+            dFnldw = np.reshape(self.T @ \
                             np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
                             (U.shape[0],), 'F')
+            
+            return Fnl, dFnldU, dFnldw
+        else:
+            return (Fnl,)
         
         
-        return Fnl, dFnldU, dFnldw
 
     
 ###############################################################################
@@ -586,7 +660,7 @@ def _local_force_history(unlt, unlth0, mu, meso_gap, gaps, gap_weights,
 ###############################################################################
 
 
-# @partial(jax.jit, static_argnums=tuple(range(6, 15))) 
+@partial(jax.jit, static_argnums=tuple(range(6, 17))) 
 def _local_aft(Uwlocal, unlth0, mu, meso_gap, gaps, gap_weights,
                          Re, Possion, Estar, Emod, Etan, delta_y, Sys, Gstar, 
                          htuple, Nt, repeats=2):

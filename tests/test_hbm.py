@@ -443,6 +443,60 @@ class TestHarmonicBalance(unittest.TestCase):
         self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')    
 
         
+    def test_hbm_Fl_res(self):
+        """
+        Check gradients and values of the residual function for Fl continuation 
+        of HBM.
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        w = Uw[-1]
+        
+        Fl = np.zeros((27,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        Fmag = 3.245
+        
+        # Normal HBM Residual and Gradient to compare against:
+        Rhbm,dRdUhbm = self.vib_sys.hbm_res(Uw, Fmag*Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Fl continuation function call
+        R2,dR2dUhbm = self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)), 
+                                               w, Fl, h, 
+                                               Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Should be exact since one function just wraps the other for the 
+        # first two outputs
+        self.assertLess(np.linalg.norm(Rhbm-R2), 1e-12)
+        self.assertLess(np.linalg.norm(dRdUhbm-dR2dUhbm), 1e-12)
+        
+        
+        # Displacement Gradient
+        fun = lambda U : self.vib_sys.hbm_res_dFl(np.hstack((U, Fmag)),
+                                                  w, Fl, h, 
+                                                  Nt=128, aft_tol=1e-7)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=self.grad_rtol*10, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 'Incorrect gradient for displacements.')        
+        
+        # Frequency Gradient 
+        fun = lambda Fmag : self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)),
+                                                     w, Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
+                                        rtol=self.grad_rtol*10, verbose=False)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for force magnitude scaling.')   
         
 if __name__ == '__main__':
     unittest.main()

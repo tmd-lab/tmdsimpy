@@ -4,6 +4,7 @@ Definition of Elastic Dry Friction Element using JAX for automatic derivatives
 
 # Standard imports
 import numpy as np
+import warnings
 
 # JAX imports
 import jax
@@ -57,8 +58,19 @@ class ElasticDryFriction2D(NonlinearForce):
                 non-unique solutions. Not fully verified for None option.
 
         """
-        self.Q = Q
-        self.T = T
+        self.Q = np.asarray(Q)
+        self.T = np.asarray(T)
+        
+        if not type(self.Q) == type(Q):
+            warnings.warn('Matrix Q argument is not a numpy array. Conversion '
+                          'to numpy array was attempted, but not '
+                          'guaranteed to work.')
+            
+        if not type(self.T) == type(T):
+            warnings.warn('Matrix T argument is not a numpy array. Conversion '
+                          'to numpy array was attempted, but not '
+                          'guaranteed to work.')
+        
         self.kt = kt
         self.kn = kn
         self.mu = mu
