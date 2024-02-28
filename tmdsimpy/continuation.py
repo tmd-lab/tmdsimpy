@@ -17,8 +17,10 @@ class Continuation:
         to no conditioning (though dynamic conditioning may still apply).
         The default is None.
     RPtoC: 1D numpy.ndarray or None
-        This is a conditioning vector applied to scale the residual.
-        If None, the vector defaults to 1. Dynamic conditioning may still apply
+        This is a conditioning vector or scalar applied to scale the residual.
+        If None, the vector defaults to 1. 
+        Dynamic conditioning will calculate a scalar value at each step and
+        replace this vector if dynamic conditioning is used.
         The default is None.
     config : Dictionary of settings, optional.
                 FracLam : float, optional
@@ -397,6 +399,13 @@ class Continuation:
         postprocess.continuation_post : 
             Functions for interpolating and postporcessing continuation results. 
             
+        Notes 
+        -----
+        1. This continuation function is dependent on the object state. 
+        previous calls to this function may have changed the initial state of
+        conditioning vectors etc. Be aware when repeatedly calling this 
+        function. Future work should make this more robust.
+            
         Troubleshooting
         -------
         So continuation failed, what should you do next? This is not 
@@ -424,12 +433,27 @@ class Continuation:
             intial conditioning (and using dynamic conditioning) may improve
             these issues.
             
-        Solver improves residual, but does not converge:
+        Solver improves residual, but does not converge :
             Your solver tolerances may be unreasonable. Using relative 
             tolerances may give a sense of if the improvement is sufficient. 
             However, taking too small of steps with relative tolerances may 
             mean that the initial guess is so good that it is not possible to 
             improve it sufficiently. In those cases, use absolute tolerances.
+            
+        Solver converges, but steps are very small :
+            If the solver is converging, but steps are much smaller than 
+            expected based on the chosen value of ds. This is likely caused
+            by greater than expected changes in the variables other than lam
+            and thus smaller steps than expected. One easy option would be to 
+            change FracLam to reduce the importance of these variables. 
+            However, this generally does not provide satisfactory results. 
+            A better option is to provide an initial conditioning vector with 
+            a larger minimum value covering the variables that change the most. 
+            Additionally, turn on dynamic scaling. 
+            To determine the minimum value in the scaling vector, it is 
+            recommend to look at a plot a solution vector on a log scale. 
+            Experiment with a minimum conditioning value over a range of 
+            orders of magnitude around the mean value to see what works best.
             
         Fails with very small Minimum step size:
             If the solution is repeatedly failing with minimum step size, 
