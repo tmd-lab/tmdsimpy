@@ -957,7 +957,7 @@ class VibrationSystem:
 
         Parameters
         ----------
-        UwF : Harmonic Displacements, Force Scaling, Frequency (Ndof*Nhc+2,)
+        UFw : Harmonic Displacements, Force Scaling, Frequency (Ndof*Nhc+2,)
                 Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
         Fl : Forcing Vector without scaling for all harmonics (Nhc*Ndof,)
         h : List of harmonics used, must be sorted and include 1st harmonic.
