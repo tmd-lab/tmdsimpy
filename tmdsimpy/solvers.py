@@ -140,3 +140,87 @@ class NonlinearSolver:
         
         return eigvals, eigvecs
     
+    def conditioning_wrapper(self, fun, CtoP, RPtoC=1.0):
+        """
+        Function to create a wrapper around fun to solve within conditioned 
+        space
+
+        Parameters
+        ----------
+        fun : function
+            Function that is to be wrapped in condition space. Function should
+            take two arguments, one is unknown vector Xp, other is optional 
+            argument of calc_grad=True. 
+            The calc_grad=True is only passed to fun, if calc_grad=False 
+            is passed to the fun_conditioned that is returned.
+        CtoP : (N,) numpy.ndarray
+            Vector describing conversion from physical coordinates to 
+            conditioned coordinates for the unknown vector that is input to 
+            fun.
+        RPtoC : float, optional
+            Scales the full ouptut residual vector by this magnitude.
+            DESCRIPTION. The default is 1.0.
+
+        Returns
+        -------
+        fun_conditioned : function
+            Function that describes the same nonlinear problem as fun, but in
+            a conditioned space. 
+            Function takes input of Xc where Xp = CtoP * Xc.
+            Second optional input to the fuction is calc_grad=True.
+            This function returns a residual vector for conditioned inputs.
+            If calc_grad=True, the Jacobian in conditioned space is also 
+            returned by this function.
+
+        """
+        
+        return lambda Xc, calc_grad=True : _conditioned_fun(Xc, CtoP, RPtoC, \
+                                                            calc_grad, fun)
+        
+def _conditioned_fun(Xc, CtoP, RPtoC, calc_grad, fun):
+    """
+    Private function for conditioned space residual / nonlinear solution.
+
+    Parameters
+    ----------
+    Xc : (N,) numpy.ndarray
+        Conditioned coordinates for the unknown solution.
+    CtoP : (N,) numpy.ndarray
+        Converstion to physical Xp coordinates as Xp = Xc * CtoP.
+    RPtoC : float
+        Scaled value to multiply the returned residual by.
+    calc_grad : bool
+        Flag for calculating the gradient if true.
+    fun : function
+        Function that is going to be put into conditioned space. Function 
+        takes inputs of Xp and if calc_grad=False, it accepts calc_grad as
+        an optional argument with default True.
+        fun always returns a tuple with the first entry being the residual 
+        vector. If calc_grad=True, a second entry of the tuple is (N,N) dRdXp
+
+    Returns
+    -------
+    R : (N,) numpy.ndarray
+        Residual function that would like to solve to be zeros. 
+        ALways returned as first entry of a tuple
+    dRdXc : (N,N) numpy.ndarray
+        Jacobian matrix of derivative of residual w.r.t. Xc
+        Only returned if calc_grad=True
+
+    """
+    
+    Xp = Xc*CtoP
+    if calc_grad:
+        R, dRdXp = fun(Xp)
+        
+        Rc = RPtoC * R
+        dRcdXc = RPtoC*dRdXp*CtoP
+        
+        return (Rc, dRcdXc)
+        
+    else:
+        R = fun(Xp, calc_grad=False)[0]
+    
+        Rc = RPtoC * R[0]
+        
+        return (Rc,)
