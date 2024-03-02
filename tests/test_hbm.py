@@ -212,8 +212,48 @@ class TestHarmonicBalance(unittest.TestCase):
         grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
                                         rtol=self.grad_rtol, verbose=False)
 
-        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')   
+        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')  
         
+    def test_gradients_skipped_harmonics(self):
+        """
+        Check gradients against numerical differentiation when not including 
+        all harmonics
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        
+        # Remove data from the third harmonic to make sure code still works 
+        # correctly
+        h = np.hstack((h[0:3], h[4:]))
+        Uw = np.hstack((Uw[:5*3], Uw[-2*3-1:]))
+        
+        Fl = np.zeros((21,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        # Displacement Gradient
+        fun = lambda U : self.vib_sys.hbm_res(np.hstack((U, Uw[-1])), Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=self.grad_rtol, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 'Incorrect gradient for displacements.')        
+        
+        # Frequency Gradient 
+        fun = lambda w : self.vib_sys.hbm_res(np.hstack((Uw[:-1], w)), Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
+                                        rtol=self.grad_rtol, verbose=False)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')   
+            
     def test_solution(self):
         """
         Test HBM by solving a near linear problem at a point.

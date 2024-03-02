@@ -29,11 +29,11 @@ sys.path.append('../DEPENDENCIES/tmdsimpy/tests/')
 import verification_utils as vutils
 
 
-class TestPRNM(unittest.TestCase):
+class TestVPRNM(unittest.TestCase):
     
     def __init__(self, *args, **kwargs):
         
-        super(TestPRNM, self).__init__(*args, **kwargs)
+        super(TestVPRNM, self).__init__(*args, **kwargs)
         
         #######################################################################
         # Duffing Initialization
@@ -489,5 +489,174 @@ class TestPRNM(unittest.TestCase):
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. force magnitude')
         
+    def test_static_force(self):
+        """
+        copies 'test_gradient_damping_3dof', but adds a non-zero
+        static force that should not be scaled by Fl
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        Ndof = 3
+        
+        # Inputs for PRNM
+        h = np.array(range(6))
+        rhi = 3
+        UwF0 = np.zeros(Ndof*hutils.Nhc(h)+2)
+        
+        UwF0[0] = 0.1 # Static
+        UwF0[1] = 0.3 # Static
+        UwF0[2] = 0.3 # Static
+        
+        UwF0[Ndof + 0] = 0.5 # Cosine Fundamental
+        UwF0[Ndof + 1] = 0.7 # Cosine Fundamental
+        UwF0[Ndof + 2] = 0.5 # Cosine Fundamental
+        
+        UwF0[2*Ndof + 0] = -0.3 # Sine Fundamental
+        UwF0[2*Ndof + 1] = -0.1 # Sine Fundamental
+        UwF0[2*Ndof + 3] = -0.3 # Sine Fundamental
+        
+        UwF0[5*Ndof + 0] = 0.6 # Cosine 3rd
+        UwF0[5*Ndof + 1] = 6.0 # Cosine 3rd
+        UwF0[5*Ndof + 2] = -.5 # Cosine 3rd
+        
+        UwF0[6*Ndof + 0] = -0.5 # Sine 3rd
+        UwF0[6*Ndof + 1] = -0.3 # Sine 3rd
+        UwF0[6*Ndof + 2] = 1.2 # Sine 3rd
+        
+        UwF0[-2] = 1.4 # Frequency
+        UwF0[-1] = 2.0 # Force Level
+        
+        Fl = np.zeros_like(UwF0[:-2])
+        Fl[:Ndof] = 0.352
+        Fl[Ndof + 0] = 1
+        Fl[Ndof + 1] = 0.25
+        Fl[Ndof + 1] = 5.0
+        
+        Fl_half = np.copy(Fl)
+        Fl_half[Ndof:] *= 0.5
+        
+        ########## Correctness of scaling force by Fl_half by 2 gives same R
+        # as when using just Fl
+
+        R_ref = self.vib_sys_cubic_damp_3dof.vprnm_res(
+                            np.hstack((UwF0[:-1], UwF0[-1])), h, rhi, Fl)[0]
+        
+        
+        R_half = self.vib_sys_cubic_damp_3dof.vprnm_res(
+                    np.hstack((UwF0[:-1], 2.0*UwF0[-1])), h, rhi, Fl_half)[0]
+        
+        self.assertLess(np.linalg.norm(R_ref - R_half), 1e-12, 
+                        'Scaling likely changes static force.')
+        
+        ########## Gradients with Static Force
+        # Check of dRdUw
+        fun = lambda Uw : self.vib_sys_cubic_damp_3dof.vprnm_res(
+                                    np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
+        
+        self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
+        
+        
+        # Check of dRdF
+        fun = lambda F : self.vib_sys_cubic_damp_3dof.vprnm_res(
+                                    np.hstack((UwF0[:-1], F)), h, rhi, Fl)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, rtol=1e-1)
+        
+        self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. force magnitude')
+                
+    def test_skipped_harmonics(self):
+        """
+        Verify that VPRNM still works when some harmonics are skipped in h
+        Should not throw an indexing error (this was an original bug). 
+        
+        Test is similar to 5:1 duffing, but uses Jenkins so that the third
+        harmonic can be dropped and still excite the fifth harmonic
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        # Inputs for PRNM
+        h = np.array([0, 1, 5])
+        rhi = 5
+        UwF0 = np.zeros(hutils.Nhc(h)+2)
+        
+        UwF0[0] = 0.0 # Static
+        UwF0[1] = 1.0 # Cosine Fundamental
+        UwF0[2] = 0.0 # Sine Fundamental
+        
+        # Should give 1.0 for phase constraint since parallel to desired direction
+        UwF0[3] = 1.0 # Cosine 5th 
+        UwF0[4] = 0.0 # Sine 5th
+        
+        UwF0[-2] = 1.4
+        UwF0[-1] = 2.0
+        
+        Fl = np.zeros_like(UwF0[:-2])
+        Fl[1] = 1
+        
+        ####################
+        # Accuracy Check - Reference solution with all harmonics
+        
+        h_ref = np.array(range(10))
+        UwF0_ref = np.zeros(hutils.Nhc(h_ref)+2)
+        
+        UwF0_ref[0] = 0.0 # Static
+        UwF0_ref[1] = 1.0 # Cosine Fundamental
+        UwF0_ref[2] = 0.0 # Sine Fundamental
+        
+        # Should give 1.0 for phase constraint since parallel to desired direction
+        UwF0_ref[9] = 1.0 # Cosine 5th 
+        UwF0_ref[10] = 0.0 # Sine 5th
+        
+        UwF0_ref[-2] = 1.4
+        UwF0_ref[-1] = 2.0
+        
+        Fl_ref = np.zeros_like(UwF0_ref[:-2])
+        Fl_ref[1] = 1
+        
+        R_ref = self.vib_sys_jenkins.vprnm_res(UwF0_ref, h_ref, rhi, Fl_ref)[0]
+        
+        R_test = self.vib_sys_jenkins.vprnm_res(UwF0, h, rhi, Fl)[0]
+        
+        # Zeroth + 1st harmonic residual
+        self.assertLess(np.linalg.norm(R_ref[:3] - R_test[:3]), 1e-12)
+        
+        # Fifth harmonic Residual
+        self.assertLess(np.linalg.norm(R_ref[9:11] - R_test[3:5]), 1e-12)
+        
+        # VPRNM Constraint residual
+        self.assertLess(np.abs(R_ref[-1] - R_test[-1]), 1e-12)
+        
+        ####################
+        # Check Residual, then do Grad Checks
+        
+        # Check of dRdUw
+        fun = lambda Uw : self.vib_sys_jenkins.vprnm_res(
+                                    np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-9)
+        
+        self.assertFalse(grad_failed, 
+                         'Incorrect Gradient w.r.t. Uw for skipped harmonics')
+        
+        # Check of dRdF
+        fun = lambda F : self.vib_sys_jenkins.vprnm_res(
+                                    np.hstack((UwF0[:-1], F)), h, rhi, Fl)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, rtol=1e-11)
+        
+        self.assertFalse(grad_failed, 
+             'Incorrect Gradient w.r.t. force magnitude for skipped harmonics')
+        
+                
 if __name__ == '__main__':
     unittest.main()

@@ -388,7 +388,7 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual with a different input/output
             that allows for continuation with respect to frequency
-        
+    
         """
         
         R, dRdU, _ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fl, 
@@ -856,14 +856,23 @@ class VibrationSystem:
         
         Parameters
         ----------
-        UwF : Vector of Displacements, Frequency, Force Magnitude scaling of Fl
-        h : Vector of harmonics to include
-        rhi : index in h of higher harmonic in the superharmonic resonance 
-        Fl : external force direction experienced by system 
-                (to be scaled by UwF[-1])
-        Nt : Number of AFT Time steps
+        UwF : (Nhc*Ndof+2,) numpy.ndarray
+            Vector of Displacements (all of the first harmonic component, 
+            then all of second harmonic component etc), Frequency, 
+            Force Magnitude scaling of Fl (scales harmonics h not equal 0)
+            Here, Nhc = harmonic_utilities.Nhc(h)
+        h : sorted numpy.ndarray of positive or zero intergers without repeats
+            Vector of harmonics to include
+        rhi : int
+            index in h of higher harmonic in the superharmonic resonance 
+        Fl :  (Nhc*Ndof,) numpy.ndarray
+            external force direction experienced by system 
+            harmonics other than h=0 are scaled by UwF[-1]
+        Nt : int, power of 2
+            Number of AFT Time steps
             DESCRIPTION. The default is 128.
-        aft_tol : AFT Tolerance
+        aft_tol : float
+            AFT Tolerance for HBM
             DESCRIPTION. The default is 1e-7.
 
         Returns
@@ -871,7 +880,17 @@ class VibrationSystem:
         R : Residual
         dRdUw : Derivative w.r.t. Uw
         dRdF : Derivative vector w.r.t. F
-
+        
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual with a different input/output
+            that allows for continuation with respect to frequency
+        hbm_res_dFl : 
+            Harmonic balance residual with a different input/third output
+            that allows for continuation with respect to scaling of external 
+            force.
+            
         """
         
         #############
@@ -885,14 +904,20 @@ class VibrationSystem:
         # Harmonic indices
         Nhc = hutils.Nhc(h)
         Ndof = self.M.shape[0]
-        rhi_index = hutils.Nhc(h[:rhi]) # the index of the first rhi harmonic component
+        
+        # the index of the first rhi harmonic component
+        rhi_index = hutils.Nhc(h[h < rhi]) 
         
         
         #############
         # Baseline HBM for first set of Equations
         
         # Evaluate the N Harmonic Balance Equations
-        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(UwF[:-1], UwF[-1]*Fl, h, Nt=Nt, aft_tol=aft_tol)
+        Fscale = np.copy(Fl)
+        Fscale[(h[0]==0)*Ndof:] *= UwF[-1]
+        
+        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(UwF[:-1], Fscale, h, 
+                                              Nt=Nt, aft_tol=aft_tol)
         
         #############
         # VPRNM Equation
@@ -923,6 +948,7 @@ class VibrationSystem:
         
         # Add Orthogonality constrait using Frhi 
         # (harmonic rhi orthogonal to forcing for resonance)
+        # breakpoint()
         R = np.hstack((Rhbm, (Frhi @ UwF[Ndof*rhi_index:Ndof*(rhi_index+2)])/Fnorm))
         dRdUw[:Ndof*Nhc, :Ndof*Nhc] = dRhbmdU
         dRdUw[:Ndof*Nhc, -1]   = dRhbmdw
@@ -939,7 +965,6 @@ class VibrationSystem:
         
         # negative since HBM is internal minus external force
         dRdF[:Fl.shape[0]] = -Fl
-        
         
         # Return outputs include those needed for arclength equation        
         return R, dRdUw, dRdF
