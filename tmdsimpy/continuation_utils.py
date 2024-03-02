@@ -168,7 +168,8 @@ def print_hbm_amp_stats(XlamP, dirP_prev, fname, h, order,
         amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
         amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
         
-        amp = np.sqrt(amp_cos**2 + amp_sin**2)*(XlamP[-1]**order)
+        amp = np.sqrt(amp_cos**2 + amp_sin**2) \
+                *((output_harmonic*XlamP[-1])**order)
         
         file.write(body_format.format(freq, force, amp))
     
@@ -248,7 +249,8 @@ def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
             amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
             amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
             
-            amp_list[ind] = np.sqrt(amp_cos**2 + amp_sin**2)*(XlamP[-1]**order)
+            amp_list[ind] = np.sqrt(amp_cos**2 + amp_sin**2) \
+                                *((output_harmonic*XlamP[-2])**order)
             
         amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
         

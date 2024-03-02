@@ -566,7 +566,7 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda F : self.vib_sys_cubic_damp_3dof.vprnm_res(
                                     np.hstack((UwF0[:-1], F)), h, rhi, Fl)[0:3:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, rtol=1e-1)
+        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, rtol=1e-10)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. force magnitude')
                 

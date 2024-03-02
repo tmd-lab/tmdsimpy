@@ -366,6 +366,7 @@ class VibrationSystem:
             Frequency in rad/s of the 1st harmonic.
         Fl : (N*Nhc,) numpy.ndarray
             Applied forcing harmonic coefficients that will be scaled by UF[-1]
+            The zeroth harmonic of Fl is not scaled.
         h : numpy.ndarray of integers, sorted
             List of Harmonics. The total number of harmonic components is
             Nhc = harmonic_utils.Nhc(h)
@@ -391,10 +392,19 @@ class VibrationSystem:
     
         """
         
-        R, dRdU, _ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fl, 
+        Ndof = self.M.shape[0]
+        h0 = h[0] == 0
+        
+        Fstat = np.copy(Fl)
+        Fstat[h0*Ndof:] = 0.0
+        
+        Fdyn = np.copy(Fl)
+        Fdyn[:h0*Ndof] = 0.0
+        
+        R, dRdU, _ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fdyn+Fstat, 
                                      h, Nt=Nt, aft_tol=aft_tol)
         
-        dRdF = -Fl
+        dRdF = -Fdyn
         
         return R, dRdU, dRdF
         
@@ -854,6 +864,8 @@ class VibrationSystem:
         Function implements a residual option for Variable Phase Resonance 
         Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems.
         
+        Method adds a constraint to HBM to follow a superharmonic resonance.
+        
         Parameters
         ----------
         UwF : (Nhc*Ndof+2,) numpy.ndarray
@@ -890,6 +902,9 @@ class VibrationSystem:
             Harmonic balance residual with a different input/third output
             that allows for continuation with respect to scaling of external 
             force.
+        hbm_amp_control_res : 
+            Harmonic balance residual that follows a constant amplitude
+            rather than a constant force.
             
         """
         
@@ -965,6 +980,7 @@ class VibrationSystem:
         
         # negative since HBM is internal minus external force
         dRdF[:Fl.shape[0]] = -Fl
+        dRdF[:Ndof*(h[0]==0)] = 0.0
         
         # Return outputs include those needed for arclength equation        
         return R, dRdUw, dRdF
@@ -973,44 +989,79 @@ class VibrationSystem:
                             Nt=128, aft_tol=1e-7):
         """
         Amplitude Control with Harmonic Balance (rather than fixing force 
-                                                 level)
+        level)
         
         Control is applied exclusively to the 1st harmonic
         
-        For documentation Nhc is the number of harmonics
+        For documentation: Nhc is the number of harmonics
+        and
         Ndof is the number of Degree of Freedoms
 
         Parameters
         ----------
-        UFw : Harmonic Displacements, Force Scaling, Frequency (Ndof*Nhc+2,)
-                Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
-        Fl : Forcing Vector without scaling for all harmonics (Nhc*Ndof,)
-        h : List of harmonics used, must be sorted and include 1st harmonic.
-        Recov : Recovery matrix for the DOF that has amplitude control (Ndof,)
-        amp : Amplitude that the recovered DOF is controlled to 
-        order : order of the derivative that is controlled. order=0 means 
-                displacement control, order=2 means acceleration control
-        Nt : Number of time steps for AFT. The default is 128.
-        aft_tol : Tolerance for AFT evaluations. The default is 1e-7.
+        UFw : (Nhc*Ndof+2,) numpy.ndarray
+            Harmonic Displacements, Force Scaling, Frequency
+            Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
+        Fl : (Nhc*Ndof,) numpy.ndarray
+            Forcing Vector without scaling for all harmonics 
+            Static force is correctly scaled, other harmonics get scaled by
+            UFw[-2]
+        h : numpy.ndarray, sorted
+            List of harmonics used, must be sorted and include 1st harmonic.
+        Recov : (Ndof,) numpy.ndarray
+            Recovery matrix for the DOF that has amplitude control 
+        amp : float
+            Amplitude that the recovered DOF is controlled to 
+        order : int, positive or zero
+            order of the derivative that is controlled. order=0 means 
+            displacement control, order=2 means acceleration control
+        Nt : int, power of 2
+            Number of time steps for AFT. 
+            The default is 128.
+        aft_tol : float
+            Tolerance for AFT evaluations. 
+            The default is 1e-7.
 
         Returns
         -------
-        R : residual vector
-        dRdUF : derivative of the residual w.r.t. UF
-        dRdw : derivative w.r.t. frequency
+        R : (Nhc*Ndof+1,) numpy.ndarray
+            residual vector
+        dRdUF : (Nhc*Ndof+1,Nhc*Ndof+1) numpy.ndarray
+            derivative of the residual w.r.t. UF
+        dRdw : (Nhc*Ndof+1,) numpy.ndarray
+            derivative w.r.t. frequency
 
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual with a different input/output
+            that allows for continuation with respect to frequency
+            at constant external force
+        hbm_res_dFl : 
+            Harmonic balance residual with a different input/third output
+            that allows for continuation with respect to scaling of external 
+            force.
         """
         
-        Uw = np.hstack((UFw[:-2], UFw[-1]))
-        
-        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(Uw, UFw[-2]*Fl, h, 
-                                               Nt=Nt, aft_tol=aft_tol)
-        
+        ###### Basic Initialization
         Ndof = self.M.shape[0]
         Nhc = hutils.Nhc(h)
         
         h0 = h[0] == 0
+        Uw = np.hstack((UFw[:-2], UFw[-1]))
         
+        ###### Static v. Dynamic Forces
+        Fstat = np.copy(Fl)
+        Fstat[h0*Ndof:] = 0.0
+        
+        Fdyn = np.copy(Fl)
+        Fdyn[:h0*Ndof] = 0.0
+        
+        ###### Normal HBM
+        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(Uw, Fstat + Fdyn*UFw[-2], h, 
+                                               Nt=Nt, aft_tol=aft_tol)
+        
+        ###### Apply the amplitude control
         # 1st harmonic displacements
         u1c = UFw[h0*Ndof:(1+h0)*Ndof]
         u1s = UFw[(1+h0)*Ndof:(2+h0)*Ndof]
@@ -1034,7 +1085,7 @@ class VibrationSystem:
         dRaugdw = (2*order)*(UFw[-1]**((2*order)-1))*(udofc**2 + udofs**2)
         
         R = np.hstack((Rhbm, Raug))
-        dRdUF = np.vstack((np.hstack((dRhbmdU, -Fl.reshape(-1,1))),
+        dRdUF = np.vstack((np.hstack((dRhbmdU, -Fdyn.reshape(-1,1))),
                            dRaugdUF))
     
         dRdw = np.hstack((dRhbmdw, dRaugdw))
