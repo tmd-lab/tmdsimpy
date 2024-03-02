@@ -958,25 +958,30 @@ class VibrationSystem:
         # Normalize the force vector to be of unit length
         Fnorm = np.sqrt(np.sum(Frhi**2))
         
+        # Normalize Xrhi as well as F
+        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
+
+        Xrhi_norm = np.sqrt(np.sum(Xrhi**2))
+        
         #############
         # Assemble Full Gradient and Residual
         
         # Add Orthogonality constrait using Frhi 
         # (harmonic rhi orthogonal to forcing for resonance)
         # breakpoint()
-        R = np.hstack((Rhbm, (Frhi @ UwF[Ndof*rhi_index:Ndof*(rhi_index+2)])/Fnorm))
+        R = np.hstack((Rhbm, (Frhi @ Xrhi)/(Xrhi_norm*Fnorm) ))
         dRdUw[:Ndof*Nhc, :Ndof*Nhc] = dRhbmdU
         dRdUw[:Ndof*Nhc, -1]   = dRhbmdw
                 
-        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
         
-        dRdUw[-1, :Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / Fnorm \
-                    - (Frhi @ Xrhi) / Fnorm**3 * (dFrhidU01.T @ Frhi)
+        dRdUw[-1, :Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / (Xrhi_norm*Fnorm) \
+                   -(Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidU01.T @ Frhi)
 
-        dRdUw[-1, Ndof*rhi_index:Ndof*(rhi_index+2)] = Frhi / Fnorm
+        dRdUw[-1, Ndof*rhi_index:Ndof*(rhi_index+2)] = Frhi / (Xrhi_norm*Fnorm)\
+                                - (Frhi @ Xrhi)/(Xrhi_norm**3*Fnorm) * Xrhi
         
-        dRdUw[-1, -1] = (dFrhidw @ Xrhi) / Fnorm \
-                    - (Frhi @ Xrhi) / Fnorm**3 * (dFrhidw @ Frhi)
+        dRdUw[-1, -1] = (dFrhidw @ Xrhi) / (Xrhi_norm*Fnorm) \
+                    - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
         
         # negative since HBM is internal minus external force
         dRdF[:Fl.shape[0]] = -Fl
