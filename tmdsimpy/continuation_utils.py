@@ -222,33 +222,34 @@ def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
             
             harmonic_line = ('{:^18s} & {:^18s} '.format('','')) \
                 + ''.join(['& {:^22s}'.format('dof={}, h={}'.format(ind, rh[1])) \
-                           for ind,rh in enumerate(output_recov_harmonic_list)])
+                           for ind,rh in enumerate(output_recov_harmonic_list)]) \
+                + '\n'
             
             file.write(harmonic_line)
             
-            body_format = '{: ^18.3f} & {: ^18.3f} {} \n'
+        body_format = '{: ^18.3f} & {: ^18.3f} {} \n'
+        
+        force =  XlamP[-1] # Scaling factor (generally N)
+        freq = XlamP[-2] / 2 / np.pi # Frequency in Hz
+        
+        amp_subcomponent = '& {: ^22.3e}'
+        
+        amp_list = [None] * len(output_recov_harmonic_list)
+        
+        for ind, rh in enumerate(output_recov_harmonic_list):
             
-            force =  XlamP[-1] # Scaling factor (generally N)
-            freq = XlamP[-2] / 2 / np.pi # Frequency in Hz
+            output_recov = rh[0]
+            output_harmonic = rh[1]
             
-            amp_subcomponent = '& {: ^22.3e}'
+
+            Ndof = output_recov.shape[0]
+            Nhc_before = hutils.Nhc(h[h < output_harmonic])
             
-            amp_list = [None] * len(output_recov_harmonic_list)
+            amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
+            amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
             
-            for ind, rh in enumerate(output_recov_harmonic_list):
-                
-                output_recov = rh[0]
-                output_harmonic = rh[1]
-                
-    
-                Ndof = output_recov.shape[0]
-                Nhc_before = hutils.Nhc(h[h < output_harmonic])
-                
-                amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
-                amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
-                
-                amp_list[ind] = np.sqrt(amp_cos**2 + amp_sin**2)*(XlamP[-1]**order)
-                
-            amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
+            amp_list[ind] = np.sqrt(amp_cos**2 + amp_sin**2)*(XlamP[-1]**order)
             
-            file.write(body_format.format(force, freq, amp_string))
+        amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
+        
+        file.write(body_format.format(force, freq, amp_string))
