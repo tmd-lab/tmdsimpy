@@ -859,7 +859,8 @@ class VibrationSystem:
             return R, dRdU, dRdw
     
     
-    def vprnm_res(self, UwF, h, rhi, Fl, Nt=128, aft_tol=1e-7):
+    def vprnm_res(self, UwF, h, rhi, Fl, Nt=128, aft_tol=1e-7, 
+                  constraint_scale=1.0):
         """
         Function implements a residual option for Variable Phase Resonance 
         Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems.
@@ -885,13 +886,23 @@ class VibrationSystem:
             DESCRIPTION. The default is 128.
         aft_tol : float
             AFT Tolerance for HBM
-            DESCRIPTION. The default is 1e-7.
+            The default is 1e-7.
+        constraint_scale : float
+            Number to scale the residual of the constraint equation by. 
+            This is useful when a solver does not put sufficient weight on
+            the constraint equation and just solves the HBM equations ignoring
+            the constraint. It may need to be dynamically updated between 
+            solutions along continuation to avoid problems.
+            The default is 1.0
 
         Returns
         -------
-        R : Residual
-        dRdUw : Derivative w.r.t. Uw
-        dRdF : Derivative vector w.r.t. F
+        R : (Nhc*Ndof+1,) numpy.ndarray
+            Residual
+        dRdUw : (Nhc*Ndof+1,Nhc*Ndof+1) numpy.ndarray
+            Derivative of R w.r.t. Uw = UwF[:-1]
+        dRdF : (Nhc*Ndof+1,) numpy.ndarray
+            Derivative vector of R w.r.t. UwF[-1]
         
         See Also
         --------
@@ -969,7 +980,7 @@ class VibrationSystem:
         # Add Orthogonality constrait using Frhi 
         # (harmonic rhi orthogonal to forcing for resonance)
         # breakpoint()
-        R = np.hstack((Rhbm, (Frhi @ Xrhi)/(Xrhi_norm*Fnorm) ))
+        R = np.hstack((Rhbm, constraint_scale*(Frhi @ Xrhi)/(Xrhi_norm*Fnorm)))
         dRdUw[:Ndof*Nhc, :Ndof*Nhc] = dRhbmdU
         dRdUw[:Ndof*Nhc, -1]   = dRhbmdw
                 
@@ -982,8 +993,12 @@ class VibrationSystem:
         
         dRdUw[-1, -1] = (dFrhidw @ Xrhi) / (Xrhi_norm*Fnorm) \
                     - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
+                    
+        # Last line of residual is scaled by this float
+        dRdUw[-1, :] *= constraint_scale
         
-        # negative since HBM is internal minus external force
+        # negative since HBM is internal minus external force 
+        # (but not static force)
         dRdF[:Fl.shape[0]] = -Fl
         dRdF[:Ndof*(h[0]==0)] = 0.0
         

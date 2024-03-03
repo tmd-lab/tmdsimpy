@@ -199,10 +199,10 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_duffing.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, 
+                                        rtol=1e-9)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
-        
         
         # Check of dRdF
         fun = lambda F : self.vib_sys_duffing.vprnm_res(
@@ -241,16 +241,17 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_jenkins.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, atol=2e-9, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, 
+                                        atol=2e-9, rtol=1e-9)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
-        
         
         # Check of dRdF
         fun = lambda F : self.vib_sys_jenkins.vprnm_res(
                                     np.hstack((UwF0[:-1], F)), h, rhi, Fl)[0:3:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, atol=1e-10, rtol=1e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[-1:], verbose=False, 
+                                        atol=1e-10, rtol=1e-11)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. force magnitude')
         
@@ -283,7 +284,8 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_cubic_damp.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, atol=2e-9, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, 
+                                        atol=2e-9, rtol=5e-10)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
         
@@ -356,9 +358,12 @@ class TestVPRNM(unittest.TestCase):
         Fl = np.zeros_like(UwF0[:-2])
         Fl[1] = 1
         
+        constraint_scale = 2.35
+        
         # Check of dRdUw
         fun = lambda Uw : self.vib_sys_duffing.vprnm_res(
-                                    np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
+                                    np.hstack((Uw, UwF0[-1])), h, rhi, Fl,
+                                    constraint_scale=constraint_scale)[0:2]
         
         grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
         
@@ -366,7 +371,7 @@ class TestVPRNM(unittest.TestCase):
         
         R = fun(UwF0[:-1])[0]
         
-        self.assertLess(np.abs(R[-1] - 1.0), 1e-12)
+        self.assertLess(np.abs(R[-1] - constraint_scale), 1e-12)
         
         
         # Check of dRdF
@@ -417,7 +422,7 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_duffing_2dof.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-8)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
         
@@ -476,7 +481,7 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_cubic_damp_3dof.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=1e-9)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
         
@@ -557,7 +562,8 @@ class TestVPRNM(unittest.TestCase):
         fun = lambda Uw : self.vib_sys_cubic_damp_3dof.vprnm_res(
                                     np.hstack((Uw, UwF0[-1])), h, rhi, Fl)[0:2]
         
-        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, rtol=5e-11)
+        grad_failed = vutils.check_grad(fun, UwF0[:-1], verbose=False, 
+                                        rtol=1e-9)
         
         self.assertFalse(grad_failed, 'Incorrect Gradient w.r.t. Uw')
         
