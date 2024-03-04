@@ -516,7 +516,8 @@ class Continuation:
         # Not sure if fun accepts calc_grad, so will always calculate the gradient
         fun0 = lambda X, calc_grad=True : fun( np.hstack((X, lam0)) )[0:2]
 
-        fun0_cond = self.solver.conditioning_wrapper(fun0, self.CtoP[:-1])
+        fun0_cond = self.solver.conditioning_wrapper(fun0, self.CtoP[:-1], 
+                                                     RPtoC=self.RPtoC[:-1])
         
         Xc, R, dRdX, sol = self.solver.nsolve(fun0_cond, 
                                              XlamP0[:-1]/self.CtoP[:-1],
