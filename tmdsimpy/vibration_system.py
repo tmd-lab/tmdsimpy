@@ -281,7 +281,7 @@ class VibrationSystem:
             
             return (Fnl,)
 
-    def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7):
+    def hbm_res(self, Uw, Fl, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Residual for Harmonic Balance Method (HBM). 
         The system as N=self.M.shape[0] degrees of freedom.
@@ -301,6 +301,10 @@ class VibrationSystem:
             Number of Time Steps for AFT, use powers of 2. The default is 128.
         aft_tol : float, optional
             Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
 
         Returns
         -------
@@ -323,7 +327,8 @@ class VibrationSystem:
         # Frequency (rad/s)
         w = Uw[-1]
         
-        E,dEdw = hutils.harmonic_stiffness(self.M, self.C, self.K, w, h)
+        E_dEdw = hutils.harmonic_stiffness(self.M, self.C, self.K, w, h, 
+                                           calc_grad=calc_grad)
         
         #### OLD AFT:
         # # Counting:
@@ -341,17 +346,23 @@ class VibrationSystem:
         #     dFnldU += dFnldU_curr
         
         # Alternating Frequency Time Call
-        Fnl, dFnldU, dFnldw = self.total_aft(Uw[:-1], w, h, Nt=Nt, aft_tol=aft_tol)
+        Fnl_dFnldU_dFnldw = self.total_aft(Uw[:-1], w, h, Nt=Nt, 
+                                           aft_tol=aft_tol, 
+                                           calc_grad=calc_grad)
         
         # Conditioning applied here in previous MATLAB version
         
-        R = E @ Uw[:-1] + Fnl - Fl
-        dRdU = E + dFnldU
-        dRdw = dEdw @ Uw[:-1] + dFnldw
+        R = E_dEdw[0] @ Uw[:-1] + Fnl_dFnldU_dFnldw[0] - Fl
         
-        return R, dRdU, dRdw
+        if calc_grad:
+            dRdU = E_dEdw[0] + Fnl_dFnldU_dFnldw[1]
+            dRdw = E_dEdw[1] @ Uw[:-1] + Fnl_dFnldU_dFnldw[2]
         
-    def hbm_res_dFl(self, UF, w, Fl, h, Nt=128, aft_tol=1e-7):
+            return R, dRdU, dRdw
+        else:
+            return (R,)
+        
+    def hbm_res_dFl(self, UF, w, Fl, h, Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Residual for Harmonic Balance Method (HBM). 
         The system as N=self.M.shape[0] degrees of freedom.
@@ -374,15 +385,21 @@ class VibrationSystem:
             Number of Time Steps for AFT, use powers of 2. The default is 128.
         aft_tol : float, optional
             Tolerance for AFT. The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
 
         Returns
         -------
         R : (N*Nhc,) numpy.ndarray
-            Residual
+            Residual, always returned as first entry of a tuple
         dRdU : (N*Nhc,N*Nhc) numpy.ndarray
-            Jacobian of residual w.r.t. Harmonic DOFs
+            Jacobian of residual w.r.t. Harmonic DOFs.
+            Only returned if calc_grad=True (default behavior).
         dRdF : (N*Nhc,) numpy.ndarray
-            Derivative of residual w.r.t. scaling of Fl
+            Derivative of residual w.r.t. scaling of Fl.
+            Only returned if calc_grad=True (default behavior).
         
         See Also
         --------
@@ -401,12 +418,17 @@ class VibrationSystem:
         Fdyn = np.copy(Fl)
         Fdyn[:h0*Ndof] = 0.0
         
-        R, dRdU, _ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fdyn+Fstat, 
-                                     h, Nt=Nt, aft_tol=aft_tol)
+        R_dRdU_ = self.hbm_res(np.hstack((UF[:-1], w)), UF[-1]*Fdyn+Fstat, 
+                                     h, Nt=Nt, aft_tol=aft_tol, 
+                                     calc_grad=calc_grad)
         
-        dRdF = -Fdyn
+        if calc_grad:
+            dRdF = -Fdyn
+            
+            return R_dRdU_[0], R_dRdU_[1], dRdF
         
-        return R, dRdU, dRdF
+        else:
+            return (R_dRdU_[0],)
         
         
     def linear_frf(self, w, Fl, solver, neigs=3, Flsin=None):
@@ -1006,7 +1028,7 @@ class VibrationSystem:
         return R, dRdUw, dRdF
     
     def hbm_amp_control_res(self, UFw, Fl, h, Recov, amp, order, 
-                            Nt=128, aft_tol=1e-7):
+                            Nt=128, aft_tol=1e-7, calc_grad=True):
         """
         Amplitude Control with Harmonic Balance (rather than fixing force 
         level)
@@ -1041,15 +1063,21 @@ class VibrationSystem:
         aft_tol : float
             Tolerance for AFT evaluations. 
             The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
 
         Returns
         -------
         R : (Nhc*Ndof+1,) numpy.ndarray
-            residual vector
+            Residual vector, always returned as first entry of a tuple.
         dRdUF : (Nhc*Ndof+1,Nhc*Ndof+1) numpy.ndarray
-            derivative of the residual w.r.t. UF
+            Derivative of the residual w.r.t. UF. 
+            Only returned if calc_grad=True (default behavior).
         dRdw : (Nhc*Ndof+1,) numpy.ndarray
-            derivative w.r.t. frequency
+            Derivative w.r.t. frequency.
+            Only returned if calc_grad=True (default behavior).
 
         See Also
         --------
@@ -1078,8 +1106,9 @@ class VibrationSystem:
         Fdyn[:h0*Ndof] = 0.0
         
         ###### Normal HBM
-        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(Uw, Fstat + Fdyn*UFw[-2], h, 
-                                               Nt=Nt, aft_tol=aft_tol)
+        Rhbm_dRhbmdU_dRhbmdw = self.hbm_res(Uw, Fstat + Fdyn*UFw[-2], h, 
+                                               Nt=Nt, aft_tol=aft_tol, 
+                                               calc_grad=calc_grad)
         
         ###### Apply the amplitude control
         # 1st harmonic displacements
@@ -1094,25 +1123,27 @@ class VibrationSystem:
         # residual is on the amplitude squared.
         Raug =  (UFw[-1]**(2*order))*(udofc**2 + udofs**2) - amp**2
         
-        # dRhbmdF = -Fl # don't create extra memory at this point
+        R = np.hstack((Rhbm_dRhbmdU_dRhbmdw[0], Raug))
         
-        dRaugdUF = np.zeros((1, Nhc*Ndof+1))
-        dRaugdUF[0,     h0*Ndof:(1+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofc*Recov)
-        dRaugdUF[0, (1+h0)*Ndof:(2+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofs*Recov)
+        if calc_grad:
+            # dRhbmdF = -Fl # don't create extra memory at this point
+            
+            dRaugdUF = np.zeros((1, Nhc*Ndof+1))
+            dRaugdUF[0,     h0*Ndof:(1+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofc*Recov)
+            dRaugdUF[0, (1+h0)*Ndof:(2+h0)*Ndof] = (UFw[-1]**(2*order))*(2*udofs*Recov)
+            
+            # dRaugdUF[0, -1] = 0 # augmented equation is independent of force scale
+            
+            dRaugdw = (2*order)*(UFw[-1]**((2*order)-1))*(udofc**2 + udofs**2)
+            
+            dRdUF = np.vstack((np.hstack((Rhbm_dRhbmdU_dRhbmdw[1], -Fdyn.reshape(-1,1))),
+                               dRaugdUF))
         
-        # dRaugdUF[0, -1] = 0 # augmented equation is independent of force scale
+            dRdw = np.hstack((Rhbm_dRhbmdU_dRhbmdw[2], dRaugdw))
         
-        dRaugdw = (2*order)*(UFw[-1]**((2*order)-1))*(udofc**2 + udofs**2)
-        
-        R = np.hstack((Rhbm, Raug))
-        dRdUF = np.vstack((np.hstack((dRhbmdU, -Fdyn.reshape(-1,1))),
-                           dRaugdUF))
-    
-        dRdw = np.hstack((dRhbmdw, dRaugdw))
-    
-        return R, dRdUF, dRdw
-    
-    
+            return R, dRdUF, dRdw
+        else:
+            return (R,)
     
 def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
     """

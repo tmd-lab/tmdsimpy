@@ -212,7 +212,7 @@ class TestHarmonicBalanceControl(unittest.TestCase):
                                         rtol=self.grad_rtol, verbose=False)
         
         self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')   
-        
+                
         return
     
     
@@ -348,6 +348,67 @@ class TestHarmonicBalanceControl(unittest.TestCase):
         
         return
     
+    def test_calc_grad(self):
+        """
+        Test that the calc_grad argument works correctly for amplitude
+        controlled HBM.
+        
+        Returns
+        -------
+        None.
+
+        """
+        
+        vib_sys_nl  = self.vib_sys_nl
+        
+        h = np.array(range(1, 6))
+        recov = np.array([0.0, -1.5, 2.0])
+        
+        w = 0.5
+        control_order = 2 # acceleration = second derivative
+        
+        Flcos1 = np.array([0.0, 2.0, -1.0])
+        Fmag = 2.5
+        
+        
+        Ndof = vib_sys_nl.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        h0 = h[0] == 0
+        
+        Fl = np.zeros(Ndof*Nhc)
+        Fl[h0*Ndof:(1+h0)*Ndof] = Flcos1
+        
+        UFw = np.ones(Ndof*Nhc+2)
+        UFw[h0*Ndof:(2+h0)*Ndof] *= 1.3
+        UFw[-2] = Fmag
+        UFw[-1] = w
+        
+        amp_desired = 1.75
+        
+        
+        R_default = vib_sys_nl.hbm_amp_control_res(UFw, Fl, h, recov, 
+                                                   amp_desired, control_order)
+    
+        R_true = vib_sys_nl.hbm_amp_control_res(UFw, Fl, h, recov, 
+                                                   amp_desired, control_order,
+                                                   calc_grad=True)
+        
+        R_false = vib_sys_nl.hbm_amp_control_res(UFw, Fl, h, recov, 
+                                                   amp_desired, control_order,
+                                                   calc_grad=False)
+        
+        self.assertEqual(len(R_default), 3, 
+                         'Control HBM does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_true), 3, 
+                         'Control HBM with calc_grad=True does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_false), 1, 
+                         'Control HBM with calc_grad=False returns extra arguments.')
+        
+        self.assertEqual(np.linalg.norm(R_default[0]-R_false[0]), 0.0,
+                         'R without gradient does not match for Control HBM.')
+        
     def test_static_force(self):
         """
         Test that force scaling gets appropriately applied when there are 

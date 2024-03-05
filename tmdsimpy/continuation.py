@@ -131,9 +131,11 @@ class Continuation:
             self.CtoP = np.abs(CtoP)
             
         if RPtoC is None:
-            self.RPtoC = 1
+            self.setRPtoCto1 = True # Needed vector for using RPtoC in initial solve
+            self.RPtoC = 1 # General backup of use 1 to do nothing in RPtoC
         else:
             self.RPtoC = RPtoC
+            self.setRPtoCto1 = False
             
         default_config={'FracLam' : 0.5, 
                         'ds0' : ds0,
@@ -512,6 +514,15 @@ class Continuation:
         if not silent:
             print('Starting Continuation from ', lam0, ' to ', lam1)
         
+        
+        # Conditioning up front for static solution
+        if self.setCtoPto1:
+            self.CtoP = np.ones_like(XlamP0)
+            
+        if self.setRPtoCto1:
+            self.RPtoC = np.ones_like(XlamP0)
+            
+        
         # No continuation, fixed at initial lam0
         # Not sure if fun accepts calc_grad, so will always calculate the gradient
         fun0 = lambda X, calc_grad=True : fun( np.hstack((X, lam0)) )[0:2]
@@ -551,10 +562,6 @@ class Continuation:
         dirC = XlamP0 - XlamPprev
         
         step += 1
-        
-        # Conditioning
-        if self.setCtoPto1:
-            self.CtoP = np.ones_like(XlamP0)
             
         if self.config['DynamicCtoP']:
             self.CtoP0 = np.copy(self.CtoP)
