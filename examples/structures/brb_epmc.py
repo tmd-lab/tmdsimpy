@@ -400,7 +400,7 @@ if eig_diff > 1e-4:
 
 # Check that the integrated area is as expected
 ref_area = 0.002921034742767
-area_error = (system_matrices['Tm'].sum() - ref_area) / ref_area
+area_error = np.abs(system_matrices['Tm'].sum() - ref_area) / ref_area
 
 assert area_error < 2e-3, \
         'Quadrature integration matrix gives wrong contact area.'
