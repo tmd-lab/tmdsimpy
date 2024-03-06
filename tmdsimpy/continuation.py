@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.linalg import svd
 
 class Continuation:
     """
@@ -17,8 +16,10 @@ class Continuation:
         to no conditioning (though dynamic conditioning may still apply).
         The default is None.
     RPtoC: 1D numpy.ndarray or None
-        This is a conditioning vector applied to scale the residual.
-        If None, the vector defaults to 1. Dynamic conditioning may still apply
+        This is a conditioning vector or scalar applied to scale the residual.
+        If None, the vector defaults to 1. 
+        Dynamic conditioning will calculate a scalar value at each step and
+        replace this vector if dynamic conditioning is used.
         The default is None.
     config : Dictionary of settings, optional.
                 FracLam : float, optional
@@ -130,9 +131,11 @@ class Continuation:
             self.CtoP = np.abs(CtoP)
             
         if RPtoC is None:
-            self.RPtoC = 1
+            self.setRPtoCto1 = True # Needed vector for using RPtoC in initial solve
+            self.RPtoC = 1 # General backup of use 1 to do nothing in RPtoC
         else:
             self.RPtoC = RPtoC
+            self.setRPtoCto1 = False
             
         default_config={'FracLam' : 0.5, 
                         'ds0' : ds0,
@@ -146,6 +149,7 @@ class Continuation:
                         'corrector': 'Ortho', # Pseudo or Ortho
                         'FracLamList' : [], # List of vectors/numbers to multiply predictor by
                         'backtrackStop': np.inf, # Limit in how much backtracking past the start is allowed.
+                        'MaxIncrease': 1.2, # maximum factor that the step can be increased by after 1 step.
                         'nsolve_verbose' : False,
                         'callback' : None
                         }
@@ -396,6 +400,13 @@ class Continuation:
         postprocess.continuation_post : 
             Functions for interpolating and postporcessing continuation results. 
             
+        Notes 
+        -----
+        1. This continuation function is dependent on the object state. 
+        previous calls to this function may have changed the initial state of
+        conditioning vectors etc. Be aware when repeatedly calling this 
+        function. Future work should make this more robust.
+            
         Troubleshooting
         -------
         So continuation failed, what should you do next? This is not 
@@ -423,12 +434,27 @@ class Continuation:
             intial conditioning (and using dynamic conditioning) may improve
             these issues.
             
-        Solver improves residual, but does not converge:
+        Solver improves residual, but does not converge :
             Your solver tolerances may be unreasonable. Using relative 
             tolerances may give a sense of if the improvement is sufficient. 
             However, taking too small of steps with relative tolerances may 
             mean that the initial guess is so good that it is not possible to 
             improve it sufficiently. In those cases, use absolute tolerances.
+            
+        Solver converges, but steps are very small :
+            If the solver is converging, but steps are much smaller than 
+            expected based on the chosen value of ds. This is likely caused
+            by greater than expected changes in the variables other than lam
+            and thus smaller steps than expected. One easy option would be to 
+            change FracLam to reduce the importance of these variables. 
+            However, this generally does not provide satisfactory results. 
+            A better option is to provide an initial conditioning vector with 
+            a larger minimum value covering the variables that change the most. 
+            Additionally, turn on dynamic scaling. 
+            To determine the minimum value in the scaling vector, it is 
+            recommend to look at a plot a solution vector on a log scale. 
+            Experiment with a minimum conditioning value over a range of 
+            orders of magnitude around the mean value to see what works best.
             
         Fails with very small Minimum step size:
             If the solution is repeatedly failing with minimum step size, 
@@ -488,13 +514,30 @@ class Continuation:
         if not silent:
             print('Starting Continuation from ', lam0, ' to ', lam1)
         
+        
+        # Conditioning up front for static solution
+        if self.setCtoPto1:
+            self.CtoP = np.ones_like(XlamP0)
+            
+        if self.setRPtoCto1:
+            self.RPtoC = np.ones_like(XlamP0)
+            
+        
         # No continuation, fixed at initial lam0
         # Not sure if fun accepts calc_grad, so will always calculate the gradient
-        fun0 = lambda X, calc_grad=True : fun( np.hstack((X, lam0)) )[0:2]
+        fun0 = lambda X, calc_grad=True : _initial_wrapper_fun(fun, X, lam0,
+                                                           calc_grad=calc_grad)
+
+        fun0_cond = self.solver.conditioning_wrapper(fun0, self.CtoP[:-1], 
+                                                     RPtoC=self.RPtoC[:-1])
         
-        X, R, dRdX, sol = self.solver.nsolve(fun0, XlamP0[:-1], \
+        Xc, R, dRdX, sol = self.solver.nsolve(fun0_cond, 
+                                             XlamP0[:-1]/self.CtoP[:-1],
                                              xtol=self.config['xtol'], \
                                              verbose=self.config['nsolve_verbose'])
+        
+        # Convert back to physical coordinates
+        X = Xc * self.CtoP[:-1]
                 
         assert sol['success'], 'Failed to converge to initial point, give a better initial guess.'
         
@@ -520,10 +563,6 @@ class Continuation:
         dirC = XlamP0 - XlamPprev
         
         step += 1
-        
-        # Conditioning
-        if self.setCtoPto1:
-            self.CtoP = np.ones_like(XlamP0)
             
         if self.config['DynamicCtoP']:
             self.CtoP0 = np.copy(self.CtoP)
@@ -592,7 +631,8 @@ class Continuation:
                       ' ds=', ds, ' and nfev=', sol['nfev'])
             
             # Heuristic For updating ds
-            ds = ds * self.config['TargetNfev'] / sol['nfev']
+            ds = ds * min(self.config['TargetNfev'] / sol['nfev'], 
+                          self.config['MaxIncrease'])
             
             ds = min(max(ds, self.config['dsmin']), self.config['dsmax'])
             
@@ -627,3 +667,29 @@ class Continuation:
         
         return XlamP_full
     
+
+def _initial_wrapper_fun(fun, X, lam0, calc_grad=True):
+    """
+    Private wrapper for initial solution at lam0 point with 
+    support for calc_grad=False and calc_grad=True not passed to fun
+
+    Parameters
+    ----------
+    fun : TYPE
+        DESCRIPTION.
+    X : TYPE
+        DESCRIPTION.
+    lam0 : TYPE
+        DESCRIPTION.
+    calc_grad : TYPE, optional
+        DESCRIPTION. The default is True.
+
+    Returns
+    -------
+    None.
+
+    """
+    if calc_grad:
+        return fun( np.hstack((X, lam0)) )[0:2]
+    else:
+        return fun( np.hstack((X, lam0)), calc_grad=False)[0:1]

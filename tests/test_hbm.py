@@ -212,8 +212,48 @@ class TestHarmonicBalance(unittest.TestCase):
         grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
                                         rtol=self.grad_rtol, verbose=False)
 
-        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')   
+        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')  
         
+    def test_gradients_skipped_harmonics(self):
+        """
+        Check gradients against numerical differentiation when not including 
+        all harmonics
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        
+        # Remove data from the third harmonic to make sure code still works 
+        # correctly
+        h = np.hstack((h[0:3], h[4:]))
+        Uw = np.hstack((Uw[:5*3], Uw[-2*3-1:]))
+        
+        Fl = np.zeros((21,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        # Displacement Gradient
+        fun = lambda U : self.vib_sys.hbm_res(np.hstack((U, Uw[-1])), Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=self.grad_rtol, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 'Incorrect gradient for displacements.')        
+        
+        # Frequency Gradient 
+        fun = lambda w : self.vib_sys.hbm_res(np.hstack((Uw[:-1], w)), Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
+                                        rtol=self.grad_rtol, verbose=False)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')   
+            
     def test_solution(self):
         """
         Test HBM by solving a near linear problem at a point.
@@ -442,7 +482,205 @@ class TestHarmonicBalance(unittest.TestCase):
 
         self.assertFalse(grad_failed, 'Incorrect gradient for frequency.')    
 
+    def test_hbm_calc_grad(self):
+        """
+        Test that the HBM calc_grad option works correctly.
+
+        Returns
+        -------
+        None.
+
+        """
         
+        h, Uw = self.baseline_data[0:2]
+        
+        Fl = np.zeros((27,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+
+        # Displacement Gradient
+        R_default = self.vib_sys.hbm_res(Uw, Fl, h, 
+                                              Nt=128, aft_tol=1e-7)
+        
+        R_true = self.vib_sys.hbm_res(Uw, Fl, h, 
+                                              Nt=128, aft_tol=1e-7,
+                                              calc_grad=True)
+        
+        R_false = self.vib_sys.hbm_res(Uw, Fl, h, 
+                                              Nt=128, aft_tol=1e-7,
+                                              calc_grad=False)
+        
+        self.assertEqual(len(R_default), 3, 
+                         'HBM does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_true), 3, 
+                         'HBM with calc_grad=True does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_false), 1, 
+                         'HBM with calc_grad=False returns extra arguments.')
+        
+        self.assertEqual(np.linalg.norm(R_default[0]-R_false[0]), 0.0,
+                         'R without gradient does not match for HBM.')
+        
+    def test_hbm_Fl_res(self):
+        """
+        Check gradients and values of the residual function for Fl continuation 
+        of HBM.
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        w = Uw[-1]
+        
+        Fl = np.zeros((27,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        Fmag = 3.245
+        
+        # Normal HBM Residual and Gradient to compare against:
+        Rhbm,dRdUhbm = self.vib_sys.hbm_res(Uw, Fmag*Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Fl continuation function call
+        R2,dR2dUhbm = self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)), 
+                                               w, Fl, h, 
+                                               Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Should be exact since one function just wraps the other for the 
+        # first two outputs
+        self.assertLess(np.linalg.norm(Rhbm-R2), 1e-12)
+        self.assertLess(np.linalg.norm(dRdUhbm-dR2dUhbm), 1e-12)
+        
+        
+        # Displacement Gradient
+        fun = lambda U : self.vib_sys.hbm_res_dFl(np.hstack((U, Fmag)),
+                                                  w, Fl, h, 
+                                                  Nt=128, aft_tol=1e-7)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=self.grad_rtol*10, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 'Incorrect gradient for displacements.')        
+        
+        # Frequency Gradient 
+        fun = lambda Fmag : self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)),
+                                                     w, Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
+                                        rtol=self.grad_rtol*10, verbose=False)
+
+        self.assertFalse(grad_failed, 'Incorrect gradient for force magnitude scaling.')   
+
+    def test_hbm_Fl_calc_grad(self):
+        """
+        Check calc_grad option for HBM with dFl continuation.
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        
+        Fl = np.zeros((27,))
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        Fmag = 3.245
+        
+        # Normal HBM Residual and Gradient to compare against:
+        R_default = self.vib_sys.hbm_res(Uw, Fmag*Fl, h, 
+                                              Nt=128, aft_tol=1e-7)
+        
+        R_true = self.vib_sys.hbm_res(Uw, Fmag*Fl, h, 
+                                              Nt=128, aft_tol=1e-7,
+                                              calc_grad=True)
+        
+        R_false = self.vib_sys.hbm_res(Uw, Fmag*Fl, h, 
+                                              Nt=128, aft_tol=1e-7,
+                                              calc_grad=False)
+        
+        self.assertEqual(len(R_default), 3, 
+                         'HBM dFL does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_true), 3, 
+                         'HBM dFL with calc_grad=True does not give correct default of 3 return arguments.')
+        
+        self.assertEqual(len(R_false), 1, 
+                         'HBM dFL with calc_grad=False returns extra arguments.')
+        
+        self.assertEqual(np.linalg.norm(R_default[0]-R_false[0]), 0.0,
+                         'R without gradient does not match for HBM dFL.')
+        
+    def test_hbm_Fl_h0(self):
+        """
+        Check gradients and values of the residual function for Fl continuation 
+        of HBM when there is a static force. 
+        
+        Static force should not be scaled by Fmag
+
+        Returns
+        -------
+        None.
+
+        """
+            
+        h, Uw = self.baseline_data[0:2]
+        w = Uw[-1]
+        
+        Fl = np.zeros((27,))
+        Fl[0] = 3.14
+        Fl[1] = 2.15
+        Fl[1*3] = 1.0 # First Harmonic Cosine, DOF 1
+        Fl[3*3] = 0.8 # Second Harmonic Cosine, DOF 1
+        
+        Fmag = 3.245
+        
+        Fl_scaled = np.copy(Fl)
+        Fl_scaled[3:] *= Fmag
+        
+        # Normal HBM Residual and Gradient to compare against:
+        Rhbm,dRdUhbm = self.vib_sys.hbm_res(Uw, Fl_scaled, h, 
+                                              Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Fl continuation function call
+        R2,dR2dUhbm = self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)), 
+                                               w, Fl, h, 
+                                               Nt=128, aft_tol=1e-7)[0:2]
+        
+        # Should be exact since one function just wraps the other for the 
+        # first two outputs
+        self.assertLess(np.linalg.norm(Rhbm-R2), 1e-12)
+        self.assertLess(np.linalg.norm(dRdUhbm-dR2dUhbm), 1e-12)
+        
+        
+        # Displacement Gradient
+        fun = lambda U : self.vib_sys.hbm_res_dFl(np.hstack((U, Fmag)),
+                                                  w, Fl, h, 
+                                                  Nt=128, aft_tol=1e-7)[0:2]
+        
+        grad_failed = vutils.check_grad(fun, Uw[:-1], rtol=self.grad_rtol*10, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 'Incorrect gradient for displacements.')        
+        
+        # Frequency Gradient 
+        fun = lambda Fmag : self.vib_sys.hbm_res_dFl(np.hstack((Uw[:-1], Fmag)),
+                                                     w, Fl, h, 
+                                              Nt=128, aft_tol=1e-7)[0:3:2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(Uw[-1]), 
+                                        rtol=self.grad_rtol*10, verbose=False)
+
+        self.assertFalse(grad_failed, 
+                         'Incorrect gradient for force magnitude scaling.')   
         
 if __name__ == '__main__':
     unittest.main()

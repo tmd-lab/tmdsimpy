@@ -181,7 +181,7 @@ class TestHBMBase(unittest.TestCase):
                            'MaxSteps'   : 2000,
                            'dsmin'      : 0.005,
                            'verbose'    : -1,
-                           'xtol'       : 5e-8*Uw0.shape[0], 
+                           'xtol'       : 1e-8*Uw0.shape[0], 
                            'corrector'  : 'Ortho'}
         
         CtoP = hutils.harmonic_wise_conditioning(Uw0, Ndof, h, delta=1e-3*Ubase[1])

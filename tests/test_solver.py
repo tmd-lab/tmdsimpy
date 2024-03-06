@@ -13,6 +13,8 @@ import sys
 import numpy as np
 import unittest
 
+import verification_utils as vutils
+
 sys.path.append('..')
 from tmdsimpy.solvers import NonlinearSolver
 
@@ -111,6 +113,54 @@ class TestSolver(unittest.TestCase):
         
         self.assertLess(np.linalg.norm(eigvecs - Phi[:, :Ncalc]), 1e-9,
                         'Incorrect eigenvectors.')
+        
+    def test_condition_fun(self):
+        """
+        Test that the conditioning function with the solver returns an 
+        appropriate function.
+
+        Returns
+        -------
+        None.
+
+        """
+        
+        ###########
+        # Function and Input to test
+        
+        fun = lambda X : (np.array([(X[0]-1)**3, 1e6*(X[1] - 0.01)**3]),
+                          np.diag([3*(X[0]-1)**2, 3e6*(X[1] - 0.01)**2]))
+                          
+        X = np.array([1.1, 0.02])
+        
+        CtoP = np.array([1.0, 0.01])
+        RPtoC = 3.1415
+        
+        ###########
+        # Create the conditioned function and check the solution
+        
+        solver = NonlinearSolver()
+        
+        fun_cond = solver.conditioning_wrapper(fun, CtoP, RPtoC=RPtoC)
+        
+        Rc_fun, dRcdXc_fun = fun_cond(X/CtoP)
+        
+        Rc_ref = RPtoC*fun(X)[0]
+        
+        dRcdXc_ref = RPtoC*fun(X)[1]*np.diag(CtoP)
+        
+        self.assertLess(np.linalg.norm(Rc_fun - Rc_ref), 1e-10, 
+                        'Conditioned residual is wrong.')
+        
+        self.assertLess(np.linalg.norm(dRcdXc_fun - dRcdXc_ref), 1e-10,
+                        'Conditioned derivative is not expected value')
+        
+        # Check the gradient numerically of the new function
+        grad_failed = vutils.check_grad(fun_cond, X, rtol=1e-10, 
+                                        verbose=False)
+        
+        self.assertFalse(grad_failed, 
+                     'Numerical dRdX of conditioned function does not match')
 
         
 if __name__ == '__main__':
