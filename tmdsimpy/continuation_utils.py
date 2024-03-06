@@ -122,7 +122,7 @@ def print_hbm_amp_stats(XlamP, dirP_prev, fname, h, order,
     Parameters
     ----------
     XlamP : np.array
-        Solution to EPMC continuation.
+        Solution to HBM amplitude control continuation.
     dirP_prev : np.array
         Prediction direction at previous solution.
     fname : String

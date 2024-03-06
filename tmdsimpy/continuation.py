@@ -525,7 +525,8 @@ class Continuation:
         
         # No continuation, fixed at initial lam0
         # Not sure if fun accepts calc_grad, so will always calculate the gradient
-        fun0 = lambda X, calc_grad=True : fun( np.hstack((X, lam0)) )[0:2]
+        fun0 = lambda X, calc_grad=True : _initial_wrapper_fun(fun, X, lam0,
+                                                           calc_grad=calc_grad)
 
         fun0_cond = self.solver.conditioning_wrapper(fun0, self.CtoP[:-1], 
                                                      RPtoC=self.RPtoC[:-1])
@@ -666,3 +667,29 @@ class Continuation:
         
         return XlamP_full
     
+
+def _initial_wrapper_fun(fun, X, lam0, calc_grad=True):
+    """
+    Private wrapper for initial solution at lam0 point with 
+    support for calc_grad=False and calc_grad=True not passed to fun
+
+    Parameters
+    ----------
+    fun : TYPE
+        DESCRIPTION.
+    X : TYPE
+        DESCRIPTION.
+    lam0 : TYPE
+        DESCRIPTION.
+    calc_grad : TYPE, optional
+        DESCRIPTION. The default is True.
+
+    Returns
+    -------
+    None.
+
+    """
+    if calc_grad:
+        return fun( np.hstack((X, lam0)) )[0:2]
+    else:
+        return fun( np.hstack((X, lam0)), calc_grad=False)[0:1]
