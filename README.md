@@ -48,27 +48,10 @@ python3 -m pip install --upgrade -r requirements.txt
 Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
 This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
 
-After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working:
+After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working.
+These have been combined in a bash script, so execute:
 ```
-cd tests
-python3 -m unittest discover
-
-cd nlforces
-python3 -m unittest discover
-
-cd ../postprocess/
-python3 -m unittest discover
-
-# If jax is installed, also check those tests
-cd ../jax
-python3 -m unittest discover
-
-# These also require jax
-cd ../roughcontact/
-python3 -m unittest discover
-
-# Return to top level
-cd ../..
+source run_tests.sh
 ```
 
 
