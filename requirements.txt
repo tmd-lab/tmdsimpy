@@ -10,18 +10,13 @@ matplotlib
 # for subset of routines using JAX and auto diff 
 jax[cpu]
 
+# Other packages come with newer python versions, so follow README.md instructions.
+# Specific packages used in current testing are provided in the file:
+#    specific_reqs.txt
 
-# Dependencies that are expected to come with python installation
-# unittest - throws an error on newer python if attempt to install
-argparse
-time
-cProfile # Profiler used on BRB example
-pstats # Investigate profile of BRB example
-
-# Precise dependencies that were used for testing are listed below. 
-# Python 3.10.11
-# numpy==1.21.5
-# scipy==1.7.3
-# jax[cpu]==0.3.25
-# jaxlib==0.3.25
-# matplotlib==3.5.2
+# Standard Library Packages that should not need to specify:
+# unittest 
+# argparse
+# time
+# cProfile # Profiler used on BRB example
+# pstats # Investigate profile of BRB example
