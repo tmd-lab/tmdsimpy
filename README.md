@@ -63,6 +63,10 @@ To use that list, replace the final install line from above with
 python3 -m pip install -r specific_reqs.txt
 ```
 You can verify the installed versions with `python3 -m pip list`.
+If you would like to exactly match the spyder IDE installation used in development on Linux, you can instead use
+```
+python3 -m pip install -r spyder_reqs.txt
+```
 
 
 ### Setup Notes
