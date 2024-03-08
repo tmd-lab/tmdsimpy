@@ -522,6 +522,11 @@ class Continuation:
         if self.setRPtoCto1:
             self.RPtoC = np.ones_like(XlamP0)
             
+        # Make sure that RPtoC is initially a vector for use in 
+        # initial solution
+        if np.atleast_1d(self.RPtoC).shape[0] == 1:
+            self.RPtoC = self.RPtoC*np.ones_like(XlamP0)
+            
         
         # No continuation, fixed at initial lam0
         # Not sure if fun accepts calc_grad, so will always calculate the gradient
