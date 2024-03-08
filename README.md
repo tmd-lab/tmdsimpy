@@ -39,14 +39,33 @@ The following instructions all utilize a command line (Linux or macOS).
 On Windows, you can use the Windows Subsystem for Linux (WSL), though you may have to repeat the installation of dependencies separately on the Windows side to run scripts natively on Windows.
 See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
 
+This example will clone the repo and then setup a conda environment named `tmdsimpy` for the installation. 
+Installing packages directly through conda may be a more reliable way to get a fully reproducible environment. 
+However, conda comes with it's own challenges.
+Instructions for installing anaconda can be found [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+ 
 To clone and install requirements:
 ```
 git clone git@github.com:tmd-lab/tmdsimpy.git
 cd tmdsimpy
+conda create --name tmdsimpy python=3.10.13 pip # new environment with specified python and pip.
+conda activate tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
 Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
 This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
+The use of conda environments to isolate code while exclusively installing via pip appears to be a 
+reasonable approach based on [this](https://www.anaconda.com/blog/using-pip-in-a-conda-environment).
+
+Note, that there is no particular reason for this specific version of python, and an attempt will be made
+to keep the code compatible with current packages. 
+Specific package versions are included in `specific_reqs.txt`. 
+Note this may capture extra python packages that are not needed.
+To use that list, replace the final line from above with
+```
+python3 -m pip install -r specific_reqs.txt
+```
+You can verify the installed versions with `python3 -m pip list`.
 
 After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working.
 These have been combined in a bash script, so execute:

@@ -8,15 +8,6 @@ import numpy as np
 import sys
 import timeit
 
-# # JAX imports
-# import jax
-# jax.config.update("jax_enable_x64", True)
-# import jax.numpy as jnp
-
-# # Decoractions for Partial compilation
-# from functools import partial
-
-
 # Imports of Custom Functions and Classes
 sys.path.append('../..')
 import tmdsimpy.harmonic_utils as hutils
