@@ -32,6 +32,7 @@ class TestGenPolyAFT(unittest.TestCase):
         self.analytical_tol = 1e-12 # Comparison to analytical solution tolerance
         
         self.rtol_grad = 1e-11 # Relative gradient tolerance
+        
 
 
     def test_analytical_aft(self):
@@ -70,15 +71,13 @@ class TestGenPolyAFT(unittest.TestCase):
                        [2, 1, 0], \
                        [1, 1,1]])
             
-        Emat = np.ones((3,qq.shape[0]))
+        Emat = np.ones((Q.shape[1],qq.shape[0]))
             
         nl_force = GenPolyForce(Q, T, Emat, qq)
         
         """
         Case 1: 
-            -Fix Center DOF
-            -Only move the first Harmonic
-            -Compare to analytical expansion of cos^3/sin^3
+            -Compare to analytical expansion
         """
         # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
         h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
@@ -113,7 +112,7 @@ class TestGenPolyAFT(unittest.TestCase):
         
         temp = np.array ([15.5, 54, 18, 0.5, 6, 10, 10,0, 0, 0, 0, 0, 0, 0, 0])
         Fnl_analytical=np.repeat(temp, 3)
-
+     
 
         
         
@@ -123,13 +122,134 @@ class TestGenPolyAFT(unittest.TestCase):
                         'Quintic stiffness does not match analytical AFT.')
         
         
-        # Numerically Verify Gradient
+        
+    def test_force(self):        
+
+        # Test System
+        
+        # Simple Mapping to spring displacements
+        Q = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+        # Weighted / integrated mapping back for testing purposes
+        T = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+      
+        qq = np.array([[2, 0, 0], \
+                       [0, 2, 0], \
+                       [3, 0, 0], \
+                       [0, 0, 3],  \
+                       [1, 1, 0], \
+                       [0, 1, 1],  \
+                       [2, 1, 0], \
+                       [1, 1,1]])
+            
+        Emat = np.ones((3,qq.shape[0]))
+        Nd = Q.shape[1]
+            
+        nl_force = GenPolyForce(Q, T, Emat, qq)
+        
+        """
+        Case 1: 
+            -Compare to analytical expansion
+        """
+
+        
+        Nd = Q.shape[1]
+
+        u0=[2,3,4]
+        
+        
+        # Move to new function + numerically check this gradient
+        # Verify Nonlinear force function analytical
+        Fnl_f, dFnldU_f =nl_force.force(u0) #output from function
+        Fnl_a=Emat @ np.array([4,9,8,64,6,12,12,24])
+        dFnldU_a =Emat @  np.array([[4, 0, 12, 0, 3, 0, 12, 12],\
+                     [0, 6, 0, 0, 2, 4, 4, 8],\
+                     [0, 0, 0, 48, 0, 3, 0, 6]]).T 
+        
+        error_force = np.max(np.abs(Fnl_f - Fnl_a))
+        error_J = np.max(np.abs(dFnldU_f - dFnldU_a))
+        
+        
+        force_failed = (error_force > 1e-10)
+        J_failed = (error_J > 1e-10)
+        
+        self.assertFalse((force_failed > 1e-10), 
+            'Incorrect force evaluation from nl_force.force, analytical check')
+        
+        self.assertFalse((J_failed > 1e-10), 
+            'Incorrect jacobian evaluation from nl_force.force, analytical check')
+        
+        """
+        Case 2: 
+            -Compare to Numerical gradient
+        """
+        rng = np.random.default_rng()
+        u0 = rng.random((Nd))
+        Fnl_f, dFnldU_f = nl_force.force(u0) #output from function 
+        Emat = rng.random((Nd,1))
+        
+        grad_check= vutils.check_grad(nl_force.force, u0, verbose=False, 
+                                        rtol=100*self.rtol_grad)    
+        
+        self.assertFalse(grad_check, 
+            'Incorrect jacobian evaluation from nl_force.force, numerical check')
+              
+    def test_aftgradient(self):   
+        # Test System
+        
+        # Simple Mapping to spring displacements
+        Q = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+        # Weighted / integrated mapping back for testing purposes
+        T = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+      
+        qq = np.array([[2, 0, 0], \
+                       [0, 2, 0], \
+                       [3, 0, 0], \
+                       [0, 0, 3],  \
+                       [1, 1, 0], \
+                       [0, 1, 1],  \
+                       [2, 1, 0], \
+                       [1, 1,1]])
+            
+        Emat = np.ones((3,qq.shape[0]))
+        Nd = Q.shape[1]
+            
+        nl_force = GenPolyForce(Q, T, Emat, qq)
+        
+        """
+        Case 1: 
+            -Compare to analytical expansion
+        """
+        
+        # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
+        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        w = 1 # Test for various w
+        
+        Nd = Q.shape[1]
+       
+        #U[:3] = 1.0
+        rng = np.random.default_rng()
+        U = rng.random((Nd*Nhc, 1))
+        
+        # Numerically Verify Gradient 
         fun = lambda U: nl_force.aft(U, w, h)[0:2]
         grad_failed = vutils.check_grad(fun, U, verbose=False, 
                                         rtol=self.rtol_grad)
         
         self.assertFalse(grad_failed, 
-                         'Incorrect displacement w.r.t. displacement.')
+                         'Incorrect gradiant w.r.t. displacement.')
         
         # Numerically Verify Frequency Gradient
         fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
@@ -151,30 +271,43 @@ class TestGenPolyAFT(unittest.TestCase):
 
         """
                 
-        # np.random.seed(42)
-        np.random.seed(1023)
-        # np.random.seed(0)
+        # Test System
         
         # Simple Mapping to spring displacements
-        Q = np.array([[1.0, 0], \
-                      [-1.0, 1.0], \
-                      [0, 1.0]])
-        
-        h = np.array([0, 1, 2, 3, 5, 6, 7]) # Automate Checking with this
-        kalpha = np.array([3, 5, 7])
+        Q = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
         
         # Weighted / integrated mapping back for testing purposes
-        T = np.array([[1.0, 0.25, 0.0], \
-                      [0.0, 0.25, 0.5]])
+        T = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
         
-        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+      
+        qq = np.array([[2, 0, 0], \
+                       [0, 2, 0], \
+                       [3, 0, 0], \
+                       [0, 0, 3],  \
+                       [1, 1, 0], \
+                       [0, 1, 1],  \
+                       [2, 1, 0], \
+                       [1, 1,1]])
+        
+        # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
+        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components            
+        Emat = np.ones((3,qq.shape[0]))
         Nd = Q.shape[1]
+            
+        nl_force = GenPolyForce(Q, T, Emat, qq)
         
-        U = np.random.rand(Nd*Nhc, 1)
+        rng = np.random.default_rng()
+        
+        U = rng.random((Nd*Nhc, 1))
         
         w = 1.375 # Test for various w
         
-        nl_force = QuinticForce(Q, T, kalpha)
+        nl_force = GenPolyForce(Q, T, Emat, qq)
         
         
         ######################
@@ -217,8 +350,62 @@ class TestGenPolyAFT(unittest.TestCase):
         
         self.assertFalse(grad_failed, 'Incorrect frequency gradient.')   
         
+
+    def test_zeroU_input(self):        
         
-        
+     #######################
+     # Test System
+     
+     # Simple Mapping to spring displacements
+     Q = np.array([[1, 0,0], \
+                   [0, 1,0], \
+                   [0, 0, 1 ]])
+     
+     # Weighted / integrated mapping back for testing purposes
+     T = np.array([[1, 0,0], \
+                   [0, 1,0], \
+                   [0, 0, 1 ]])
+     
+       
+     qq = np.array([[2, 0, 0], \
+                    [0, 2, 0], \
+                    [3, 0, 0], \
+                    [0, 0, 3],  \
+                    [1, 1, 0], \
+                    [0, 1, 1],  \
+                    [2, 1, 0], \
+                    [1, 1,1]])
+         
+     Emat = np.ones((Q.shape[1],qq.shape[0]))
+         
+    
+     # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
+     h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+     Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+     
+     Nd = Q.shape[1]
+     
+     U = np.zeros((Nd*Nhc, 1))
+     
+     # First DOF, Cosine Term, Fundamental
+     U[Nd+0, 0] = 4
+     
+     # Second DOF, Sine Term, Fundamental
+     U[2*Nd+1, 0] = 3
+     
+     # Third DOF, Sine Term, Fundamental
+     U[2*Nd+2, 0] = 2
+     
+     w = 1 # Test for various w
+     nl_force = GenPolyForce(Q, T, Emat, qq)        
+     # Numerically Verify Gradient 
+     fun = lambda U: nl_force.aft(U, w, h)[0:2]
+     grad_failed = vutils.check_grad(fun, U, verbose=False, 
+                                    rtol=self.rtol_grad)
+    
+     self.assertFalse(grad_failed, 
+                     'Incorrect gradiant w.r.t. displacement.')       
+
 
 if __name__ == '__main__':
     unittest.main()
