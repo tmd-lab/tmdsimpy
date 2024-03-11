@@ -27,6 +27,14 @@ class GenPolyForce(InstantaneousForce):
         self.Emat = Emat
         self.qq = qq
         
+        self.qd = np.zeros((self.Q.shape[0],self.qq.shape[0],self.qq.shape[1]))
+        
+        for i in range(self.Q.shape[0]):
+            self.qd[i,:,:] = self.qq 
+            self.qd[i,:,i] -= self.qq[:,i] != 0
+        
+        
+        
     
     def force(self, X):
         
@@ -36,9 +44,7 @@ class GenPolyForce(InstantaneousForce):
         
         F = self.T @ fnl
         
-        dFdX =  self.T @ self.Emat @ ((np.prod(unl.T ** self.qq, axis=1).reshape(-1, 1) \
-                           / (unl.T ** self.qq + np.finfo(float).eps)) \
-                   * (self.qq * (unl.T ** np.maximum(self.qq - 1, 0)))) @ self.Q
+        dFdX =  self.T @ self.Emat @ (self.qq*np.prod(unl ** self.qd, axis=2).T) @ self.Q
         
         return F, dFdX
     
@@ -55,9 +61,7 @@ class GenPolyForce(InstantaneousForce):
         for k_row in range(unlt.shape[0]):
              u1=unlt[k_row,:]
              
-             dfdu[k_row,:,:]= (self.Emat @ ((np.prod(u1 ** self.qq, axis=1).reshape(-1, 1) \
-                  / (u1.T ** self.qq + np.finfo(float).eps)) \
-                    * (self.qq * (u1.T ** np.maximum(self.qq - 1, 0)))))
+             dfdu[k_row,:,:]= self.Emat @ (self.qq*np.prod(u1 ** self.qd, axis=2).T)
              # Size of dffu(Nt,Nd*Nd) where Jacobian is stacked [row1 row2 row2 ...rowNd]  
                
         dfdud = np.zeros_like(dfdu)
