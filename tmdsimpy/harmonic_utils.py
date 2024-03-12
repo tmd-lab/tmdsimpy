@@ -270,27 +270,46 @@ def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
 
     Parameters
     ----------
-    X : 1D numpy.ndarray
-        Baseline harmonics values of size at least (Ndof*Nhc+m,). 
+    X : (Ndof*Nhc+m,) numpy.ndarray
+        Baseline harmonics values, consecutive sets of Ndof correspond to 
+        harmonic components as listed in h (sine and cosine for h[i] != 0).
+        Here Nhc = harmonic_utils.Nhc(h).
         The m extra components will be individually assigned delta or their 
-        absolute value
+        absolute value.
     Ndof : int
-        Number of degrees of freedom associated with the model
-    h : 1D numpy.ndarray
+        Number of degrees of freedom associated with the model.
+    h : 1D numpy.ndarray, sorted
         List of harmonics
-    delta : scalar
+    delta : scalar or 1D array like
         Small value to prevent divide by zero (minimum value that will be 
-        returned in CtoP)
-
+        returned in CtoP).
+        When delta is array like, the array entries correspond to minimum 
+        values for each harmonic in h, and then a single minimum value for
+        all terms after the harmonic unknowns.
+        
     Returns
     -------
-    CtoP : numpy.ndarray
+    CtoP : (Ndof*Nhc+m,) numpy.ndarray
         Vector of same size as X to convert Xphysical=CtoP*Xconditioned
 
     """
     
-    CtoP = delta*np.ones_like(X) # Default Conditioning level when some components are small
-
+    m = X.shape[0] - Nhc(h)*Ndof
+    extras = m > 0
+    
+    # Default Conditioning level when some components are small
+    if type(delta) == float:
+        CtoP = delta*np.ones_like(X) 
+    else: 
+        h0 = h[0] == 0
+        
+        CtoP = np.ones((Ndof*2, h.shape[0]+extras))*np.atleast_2d(delta)
+        CtoP = CtoP.reshape(-1, order='F')[Ndof*h0:]
+        
+        if extras:
+            # Trim off extra at end
+            CtoP = CtoP[:(m-2*Ndof)]
+        
     # Loop over Harmonics and Potentially increase each harmonic
     haszero = 0
     for hindex in range(len(h)):
@@ -305,9 +324,8 @@ def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
             
         CtoP[inds] = np.maximum(CtoP[inds], np.mean(np.abs(X[inds])))
         
-    m = X.shape[0] - Nhc(h)*Ndof
-    
-    CtoP[-m:] = np.maximum(CtoP[-m:], np.abs(X[-m:]))
+    if extras:
+        CtoP[-m:] = np.maximum(CtoP[-m:], np.abs(X[-m:]))
         
     return CtoP
 

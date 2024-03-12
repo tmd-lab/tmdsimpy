@@ -663,6 +663,60 @@ class TestVPRNM(unittest.TestCase):
         self.assertFalse(grad_failed, 
              'Incorrect Gradient w.r.t. force magnitude for skipped harmonics')
         
+    def test_calc_grad(self):
+        """
+        Test the calc_grad flag for the VPRNM
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 2, 3, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UwF = rng.random(Ndof*Nhc+2) - 0.5
+        UwF[-2] = 1.9 # Fix positive freq
+        UwF[-1] = 1.453 # Fix positive force
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        rhi = 3
+        
+        # Baseline solution
+        Rdefault = vib_sys.vprnm_res(UwF, h, rhi, Fl)
+        
+        # With calc_grad
+        Rtrue = vib_sys.vprnm_res(UwF, h, rhi, Fl, calc_grad=True)
+        
+        # Without calc_grad
+        Rfalse = vib_sys.vprnm_res(UwF, h, rhi, Fl, calc_grad=False)
+        
+        # Check correct number of outputs
+        self.assertEqual(len(Rdefault), 3, 
+                         'Default calc_grad should have 3 ouputs')
+        
+        self.assertEqual(len(Rtrue), 3, 
+                         'calc_grad=True should have 3 ouputs')
+        
+        self.assertEqual(len(Rfalse), 1, 
+                         'calc_grad=False should have 3 ouputs')
+        
+        # Check outputs are the same for all three
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rtrue[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rfalse[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[1] - Rtrue[1]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
+                         'calc_grad changed gradient value.')
+        
                 
 if __name__ == '__main__':
     unittest.main()

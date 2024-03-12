@@ -318,9 +318,17 @@ class VibrationSystem:
         See Also
         --------
         hbm_res_dFl : 
-            Harmonic balance residual with a different input/third output
+            HBM residual with a different input/third output
             that allows for continuation with respect to scaling of external 
             force.
+        hbm_base_res : 
+            HBM for base excited systems (prescribed displacement at DOFs)
+        hbm_amp_control_res : 
+            HBM with one extra unknown / equation that constrains solution
+            to constant amplitude, variable response phase, fixed forcing phase
+        hbm_amp_phase_control_res : 
+            HBM with two extra equations and unknowns that allows for solutions
+            along a constant response amplitude and phase.
         
         """
         
@@ -330,27 +338,10 @@ class VibrationSystem:
         E_dEdw = hutils.harmonic_stiffness(self.M, self.C, self.K, w, h, 
                                            calc_grad=calc_grad)
         
-        #### OLD AFT:
-        # # Counting:
-        # Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
-        # Ndof = self.M.shape[0]
-        
-        # Fnl = np.zeros((Nhc*Ndof,), np.double)
-        # dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
-        
-        # # AFT for every set of nonlinear forces
-        # for nlforce in self.nonlinear_forces:
-        #     Fnl_curr, dFnldU_curr = nlforce.aft(Uw[:-1], w, h, Nt, aft_tol)
-            
-        #     Fnl += Fnl_curr
-        #     dFnldU += dFnldU_curr
-        
         # Alternating Frequency Time Call
         Fnl_dFnldU_dFnldw = self.total_aft(Uw[:-1], w, h, Nt=Nt, 
                                            aft_tol=aft_tol, 
                                            calc_grad=calc_grad)
-        
-        # Conditioning applied here in previous MATLAB version
         
         R = E_dEdw[0] @ Uw[:-1] + Fnl_dFnldU_dFnldw[0] - Fl
         
@@ -405,7 +396,8 @@ class VibrationSystem:
         --------
         hbm_res : 
             Harmonic balance residual with a different input/output
-            that allows for continuation with respect to frequency
+            that allows for continuation with respect to frequency. 
+            See documentation of this function for a full list of HBM variants.
     
         """
         
@@ -672,6 +664,13 @@ class VibrationSystem:
         R : Residual (n * Nhc)
         dRdU : Jacobian of residual w.r.t. Harmonic DOFs (n * Nhc x n * Nhc)
         dRdw : Derivative of residual w.r.t. frequency (n * Nhc)
+        
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual for constant force input to the system.
+            See documentation of this function for a full list of HBM variants
+        
         """
         
         # Mask of which DOFs are base excitation
@@ -880,8 +879,116 @@ class VibrationSystem:
         else:
             return R, dRdU, dRdw
     
+    def vprnm_single_eqn(self, UwF, h, rhi, Nt=128, aft_tol=1e-7, 
+                         calc_grad=True):
+        """
+        Function implements a single residual equation for Variable Phase 
+        Resonance Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems
+        
+        This equation in general needs to be added to a set of HBM equations
+        to find HBM solutions along the superharmonic resonance.
+        
+        Parameters
+        ----------
+        UwF : (Nhc*Ndof+2,) numpy.ndarray
+            Vector of Displacements (all of the first harmonic component, 
+            then all of second harmonic component etc), Frequency, 
+            Force Magnitude scaling of Fl (scales harmonics h not equal 0)
+            Here, Nhc = harmonic_utilities.Nhc(h).
+            Only the first (Nhc*Ndof+1) are indexed with positive numbers, 
+            so it is allowable to have extra values at the end of the array
+            UwF.
+        h : sorted numpy.ndarray 
+            Vector of harmonics to include.
+            Should only contain positive or zero values without repeats.
+        rhi : int
+            index in h of higher harmonic in the superharmonic resonance 
+        Nt : int, power of 2
+            Number of AFT Time steps
+            DESCRIPTION. The default is 128.
+        aft_tol : float
+            AFT Tolerance for HBM
+            The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True.
+
+        Returns
+        -------
+        R : float
+            Residual equation of VPRNM. This is always returned as the first
+            entry of a tuple.
+        dRdUw : (Nhc*Ndof+1,Nhc*Ndof+1) numpy.ndarray
+            Derivative of R w.r.t. Uw = UwF[:Ndof*Nhc+1]
+            Only returned if calc_grad=True (default behavior).
+        
+        See Also
+        --------
+        vprnm_res : 
+            Full implementation of VPRNM including the HBM residual equations.
+        """
+        
+        # Harmonic indices
+        Nhc = hutils.Nhc(h)
+        Ndof = self.M.shape[0]
+        
+        # the index of the first rhi harmonic component
+        rhi_index = hutils.Nhc(h[h < rhi]) 
+        
+        
+        # Eliminate higher harmonics to determine Fbroad
+        Uw_fundamental = np.copy(UwF[:Ndof*Nhc+1])
+        Uw_fundamental[Ndof*rhi_index:-1] = 0.0 # remove higher harmonics
+        
+        # Evaluate the special case of the nonlinear forces here
+        Fint_dFintdU_dFintdw = self.total_aft(Uw_fundamental[:-1], 
+                                                Uw_fundamental[-1], 
+                                                h, Nt=Nt, aft_tol=aft_tol,
+                                                calc_grad=calc_grad)
+        
+        # Excitation of rhi acting as an external force
+        Frhi = -Fint_dFintdU_dFintdw[0][Ndof*rhi_index:Ndof*(rhi_index+2)]
     
+        # Normalize the force vector to be of unit length
+        Fnorm = np.sqrt(np.sum(Frhi**2))
+        
+        # Normalize Xrhi as well as F
+        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
+
+        Xrhi_norm = np.sqrt(np.sum(Xrhi**2))
+        
+        R = (Frhi @ Xrhi)/(Xrhi_norm*Fnorm)
+        
+        if calc_grad:
+            
+            dFintdU = Fint_dFintdU_dFintdw[1]
+            dFintdw = Fint_dFintdU_dFintdw[2]
+            
+            # Preserve derivative info w.r.t. harmonics up to rhi - 1
+            dFrhidU01 = -dFintdU[Ndof*rhi_index:Ndof*(rhi_index+2), 0:Ndof*rhi_index] 
+            
+            dFrhidw = -dFintdw[Ndof*rhi_index:Ndof*(rhi_index+2)]
+        
+            # Organize into final gradient form
+            dRdUw = np.zeros(Ndof*Nhc+1)
+            
+            dRdUw[:Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / (Xrhi_norm*Fnorm) \
+                   -(Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidU01.T @ Frhi)
+
+            dRdUw[Ndof*rhi_index:Ndof*(rhi_index+2)] = Frhi / (Xrhi_norm*Fnorm)\
+                                - (Frhi @ Xrhi)/(Xrhi_norm**3*Fnorm) * Xrhi
+        
+            dRdUw[-1] = (dFrhidw @ Xrhi) / (Xrhi_norm*Fnorm) \
+                    - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
+                    
+            return R, dRdUw
+        else:
+            return (R,)
+        
+        
     def vprnm_res(self, UwF, h, rhi, Fl, Nt=128, aft_tol=1e-7, 
+                  calc_grad=True,
                   constraint_scale=1.0):
         """
         Function implements a residual option for Variable Phase Resonance 
@@ -896,19 +1003,24 @@ class VibrationSystem:
             then all of second harmonic component etc), Frequency, 
             Force Magnitude scaling of Fl (scales harmonics h not equal 0)
             Here, Nhc = harmonic_utilities.Nhc(h)
-        h : sorted numpy.ndarray of positive or zero intergers without repeats
-            Vector of harmonics to include
+        h : sorted numpy.ndarray 
+            Vector of harmonics to include.
+            Should only contain positive or zero values without repeats.
         rhi : int
             index in h of higher harmonic in the superharmonic resonance 
         Fl :  (Nhc*Ndof,) numpy.ndarray
             external force direction experienced by system 
-            harmonics other than h=0 are scaled by UwF[-1]
+            harmonics other than h[i]==0 are scaled by UwF[-1]
         Nt : int, power of 2
             Number of AFT Time steps
             DESCRIPTION. The default is 128.
         aft_tol : float
             AFT Tolerance for HBM
             The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True.
         constraint_scale : float
             Number to scale the residual of the constraint equation by. 
             This is useful when a solver does not put sufficient weight on
@@ -920,25 +1032,21 @@ class VibrationSystem:
         Returns
         -------
         R : (Nhc*Ndof+1,) numpy.ndarray
-            Residual
+            Residual. This is always returned as the first
+            entry of a tuple.
         dRdUw : (Nhc*Ndof+1,Nhc*Ndof+1) numpy.ndarray
             Derivative of R w.r.t. Uw = UwF[:-1]
+            Only returned if calc_grad=True (default behavior).
         dRdF : (Nhc*Ndof+1,) numpy.ndarray
             Derivative vector of R w.r.t. UwF[-1]
+            Only returned if calc_grad=True (default behavior).
         
         See Also
         --------
         hbm_res : 
             Harmonic balance residual with a different input/output
-            that allows for continuation with respect to frequency
-        hbm_res_dFl : 
-            Harmonic balance residual with a different input/third output
-            that allows for continuation with respect to scaling of external 
-            force.
-        hbm_amp_control_res : 
-            Harmonic balance residual that follows a constant amplitude
-            rather than a constant force.
-            
+            that allows for continuation with respect to frequency.
+            See documentation of this function for a full list of HBM variants.
         """
         
         #############
@@ -946,16 +1054,10 @@ class VibrationSystem:
         
         # Initialize output shapes
         R = np.zeros_like(UwF[:-1])
-        dRdUw = np.zeros((R.shape[0], R.shape[0]))
-        dRdF = np.zeros_like(R)
         
         # Harmonic indices
         Nhc = hutils.Nhc(h)
         Ndof = self.M.shape[0]
-        
-        # the index of the first rhi harmonic component
-        rhi_index = hutils.Nhc(h[h < rhi]) 
-        
         
         #############
         # Baseline HBM for first set of Equations
@@ -964,37 +1066,15 @@ class VibrationSystem:
         Fscale = np.copy(Fl)
         Fscale[(h[0]==0)*Ndof:] *= UwF[-1]
         
-        Rhbm, dRhbmdU, dRhbmdw = self.hbm_res(UwF[:-1], Fscale, h, 
-                                              Nt=Nt, aft_tol=aft_tol)
+        Rhbm_dRhbmdU_dRhbmdw = self.hbm_res(UwF[:-1], Fscale, h, 
+                                              Nt=Nt, aft_tol=aft_tol,
+                                              calc_grad=calc_grad)
         
         #############
         # VPRNM Equation
-        
-        # Eliminate higher harmonics to determine Fbroad
-        Uw_fundamental = np.copy(UwF[:-1])
-        Uw_fundamental[Ndof*rhi_index:-1] = 0.0 # remove higher harmonics
-        
-        # Evaluate the special case of the nonlinear forces here
-        Fint, dFintdU, dFintdw = self.total_aft(Uw_fundamental[:-1], 
-                                                Uw_fundamental[-1], 
-                                                h, Nt=Nt, aft_tol=aft_tol)
-            
-            
-        # Excitation of rhi acting as an external force
-        Frhi = -Fint[Ndof*rhi_index:Ndof*(rhi_index+2)]
-    
-        # Preserve derivative info w.r.t. harmonics up to rhi - 1
-        dFrhidU01 = -dFintdU[Ndof*rhi_index:Ndof*(rhi_index+2), 0:Ndof*rhi_index] 
-        
-        dFrhidw = -dFintdw[Ndof*rhi_index:Ndof*(rhi_index+2)]
-        
-        # Normalize the force vector to be of unit length
-        Fnorm = np.sqrt(np.sum(Frhi**2))
-        
-        # Normalize Xrhi as well as F
-        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
-
-        Xrhi_norm = np.sqrt(np.sum(Xrhi**2))
+        Rvprnm_dRdUw_vprnm = self.vprnm_single_eqn(UwF, h, rhi, Nt=Nt, 
+                                                    aft_tol=aft_tol, 
+                                                    calc_grad=calc_grad)
         
         #############
         # Assemble Full Gradient and Residual
@@ -1002,30 +1082,31 @@ class VibrationSystem:
         # Add Orthogonality constrait using Frhi 
         # (harmonic rhi orthogonal to forcing for resonance)
         # breakpoint()
-        R = np.hstack((Rhbm, constraint_scale*(Frhi @ Xrhi)/(Xrhi_norm*Fnorm)))
-        dRdUw[:Ndof*Nhc, :Ndof*Nhc] = dRhbmdU
-        dRdUw[:Ndof*Nhc, -1]   = dRhbmdw
-                
+        R = np.hstack((Rhbm_dRhbmdU_dRhbmdw[0], 
+                       constraint_scale*Rvprnm_dRdUw_vprnm[0]))
         
-        dRdUw[-1, :Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / (Xrhi_norm*Fnorm) \
-                   -(Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidU01.T @ Frhi)
-
-        dRdUw[-1, Ndof*rhi_index:Ndof*(rhi_index+2)] = Frhi / (Xrhi_norm*Fnorm)\
-                                - (Frhi @ Xrhi)/(Xrhi_norm**3*Fnorm) * Xrhi
+        if calc_grad:
+            
+            # Initialize Memory
+            dRdUw = np.zeros((R.shape[0], R.shape[0]))
+            dRdF = np.zeros_like(R)
         
-        dRdUw[-1, -1] = (dFrhidw @ Xrhi) / (Xrhi_norm*Fnorm) \
-                    - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
-                    
-        # Last line of residual is scaled by this float
-        dRdUw[-1, :] *= constraint_scale
-        
-        # negative since HBM is internal minus external force 
-        # (but not static force)
-        dRdF[:Fl.shape[0]] = -Fl
-        dRdF[:Ndof*(h[0]==0)] = 0.0
-        
-        # Return outputs include those needed for arclength equation        
-        return R, dRdUw, dRdF
+            # HBM Derivatives
+            dRdUw[:Ndof*Nhc, :Ndof*Nhc] = Rhbm_dRhbmdU_dRhbmdw[1]
+            dRdUw[:Ndof*Nhc, -1]   = Rhbm_dRhbmdU_dRhbmdw[2]
+            
+            # Derivatives of VPRNM Equation
+            dRdUw[-1] = constraint_scale*Rvprnm_dRdUw_vprnm[1]
+            
+            # negative since HBM is internal minus external force 
+            # (but not static force)
+            dRdF[:Fl.shape[0]] = -Fl
+            dRdF[:Ndof*(h[0]==0)] = 0.0
+            
+            # Return outputs include those needed for continuation equation        
+            return R, dRdUw, dRdF
+        else:
+            return (R,)
     
     def hbm_amp_control_res(self, UFw, Fl, h, Recov, amp, order, 
                             Nt=128, aft_tol=1e-7, calc_grad=True):
@@ -1082,13 +1163,8 @@ class VibrationSystem:
         See Also
         --------
         hbm_res : 
-            Harmonic balance residual with a different input/output
-            that allows for continuation with respect to frequency
-            at constant external force
-        hbm_res_dFl : 
-            Harmonic balance residual with a different input/third output
-            that allows for continuation with respect to scaling of external 
-            force.
+            Harmonic balance residual for constant force input to the system.
+            See documentation of this function for a full list of HBM variants.
         """
         
         ###### Basic Initialization
@@ -1145,6 +1221,212 @@ class VibrationSystem:
         else:
             return (R,)
     
+    def hbm_amp_phase_control_res(self, UFcFsw, Fl, h, recov, amp, order, 
+                            Nt=128, aft_tol=1e-7, calc_grad=True):
+        """
+        Amplitude Control with Harmonic Balance Method (HBM) rather than fixing
+        force at a constant value and/or phase. 
+        The phase at the response point is controlled to be only cosine by 
+        varying the phase of the forcing.
+        
+        Control is applied exclusively to the 1st harmonic
+        
+        For documentation: Nhc is the number of harmonics
+        and
+        Ndof is the number of Degree of Freedoms
+
+        Parameters
+        ----------
+        UFcFsw : (Nhc*Ndof+3,) numpy.ndarray
+            Harmonic Displacements, Force Scaling Cosine, Force Scaling
+            Sine, Frequency.
+            Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
+        Fl : (Nhc*Ndof,) numpy.ndarray
+            Forcing Vector without scaling for all harmonics 
+            Static force is correctly scaled already (if included).
+            Forcing of the first harmonic is of the form
+            UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)
+            where Fl_cos1 is the first harmonic cosine terms in Fl.
+            Forcing on all other harmonics is ignored. Forcing input for
+            sine terms of the first harmonic is currently ignored. 
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used, must be sorted and include 1st harmonic.
+        recov : (Ndof,) numpy.ndarray
+            Recovery matrix for the DOF that has amplitude and phase control 
+        amp : float
+            Amplitude that the recovered DOF is controlled to 
+        order : int, positive or zero
+            Order of derivative of interest, but this is just used as an 
+            exponent on the frequency 
+            (e.g., negative signs from taking 2 derivatives of cos/sine are 
+            ignored in phase constraint). 
+            Control is always applied to have response amplitude at recovery 
+            DOF that is purely cosine and the same sign as amp.
+        Nt : int, power of 2
+            Number of time steps for AFT. 
+            The default is 128.
+        aft_tol : float
+            Tolerance for AFT evaluations. 
+            The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
+
+        Returns
+        -------
+        R : (Nhc*Ndof+2,) numpy.ndarray
+            Residual vector, always returned as first entry of a tuple.
+            First Nhc*Ndof entries correspond to HBM solution.
+            Second to last is cosine amplitude being equal to desired value.
+            Last is sine amplitude equal to zero.
+        dRdUFcFs : (Nhc*Ndof+2,Nhc*Ndof+2) numpy.ndarray
+            Derivative of the residual w.r.t. UFcFs. 
+            Only returned if calc_grad=True (default behavior).
+        dRdw : (Nhc*Ndof+2,) numpy.ndarray
+            Derivative w.r.t. frequency.
+            Only returned if calc_grad=True (default behavior).
+
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual for constant force input to the system.
+            See documentation of this function for a full list of HBM variants
+        """
+        
+        # Size of Problem
+        Ndof = self.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        h0 = h[0] == 0
+        
+        # Baseline HBM Solution
+        Fl_hbm = np.zeros(Nhc*Ndof)
+        Fl_hbm[:h0*Ndof] = Fl[h0*Ndof]
+        Fl_hbm[h0*Ndof:(h0+1)*Ndof] = UFcFsw[-3] * Fl[h0*Ndof:(h0+1)*Ndof]
+        Fl_hbm[(h0+1)*Ndof:(h0+2)*Ndof] = UFcFsw[-2] * Fl[h0*Ndof:(h0+1)*Ndof]
+        
+        R_dRdU_dRdw_hbm = self.hbm_res(np.hstack((UFcFsw[:-3], UFcFsw[-1])), 
+                     Fl_hbm, h, Nt=Nt, aft_tol=aft_tol, calc_grad=calc_grad)
+        
+        # Recovery Amplitude Constraint
+        amp_cos = (UFcFsw[-1]**order) * (recov @ UFcFsw[h0*Ndof:(h0+1)*Ndof])
+        amp_sin = (UFcFsw[-1]**order) * (recov @ UFcFsw[(h0+1)*Ndof:(h0+2)*Ndof])
+        
+        R = np.hstack((R_dRdU_dRdw_hbm[0], (amp_cos-amp), amp_sin))
+        
+        if calc_grad:
+            dRdUFcFs = np.zeros((Nhc*Ndof+2,Nhc*Ndof+2))
+            dRdw = np.zeros((Nhc*Ndof+2,))
+            
+            # Copy HBM solutions
+            dRdUFcFs[:Ndof*Nhc,:Ndof*Nhc] = R_dRdU_dRdw_hbm[1]
+            dRdw[:Ndof*Nhc] = R_dRdU_dRdw_hbm[2]
+            
+            # Two New Columns / Unknowns
+            dRdUFcFs[h0*Ndof:(h0+1)*Ndof, -2] = -Fl[h0*Ndof:(h0+1)*Ndof]
+            dRdUFcFs[(h0+1)*Ndof:(h0+2)*Ndof, -1] = -Fl[h0*Ndof:(h0+1)*Ndof]
+            
+            # Last 2 equations
+            dRdUFcFs[-2, h0*Ndof:(h0+1)*Ndof] = (UFcFsw[-1]**order) * recov
+            dRdUFcFs[-1, (h0+1)*Ndof:(h0+2)*Ndof] = (UFcFsw[-1]**order) * recov
+            
+            dRdw[-2] = order*amp_cos/UFcFsw[-1]
+            dRdw[-1] = order*amp_sin/UFcFsw[-1]
+            
+            return R, dRdUFcFs, dRdw
+        else:
+            return (R,)
+        
+    def hbm_amp_phase_control_dA_res(self, UFcFsA, Fl, h, recov, w, order, 
+                            Nt=128, aft_tol=1e-7, calc_grad=True):
+        """
+        Amplitude Control with Harmonic Balance Method (HBM) rather than fixing
+        force at a constant value and/or phase. 
+        The phase at the response point is controlled to be only cosine by 
+        varying the phase of the forcing.
+        
+        This version has outputs for continuation w.r.t. amplitude at constant 
+        frequency
+        
+        Control is applied exclusively to the 1st harmonic
+        
+        For documentation: Nhc is the number of harmonics
+        and
+        Ndof is the number of Degree of Freedoms
+
+        Parameters
+        ----------
+        UFcFsA : (Nhc*Ndof+3,) numpy.ndarray
+            Harmonic Displacements, Force Scaling Cosine, Force Scaling
+            Sine, Amplitude Level.
+            Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
+        Fl : (Nhc*Ndof,) numpy.ndarray
+            Forcing Vector without scaling for all harmonics 
+            Static force is correctly scaled already (if included).
+            Forcing of the first harmonic is of the form
+            UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)
+            where Fl_cos1 is the first harmonic cosine terms in Fl.
+            Forcing on all other harmonics is ignored. Forcing input for
+            sine terms of the first harmonic is currently ignored. 
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used, must be sorted and include 1st harmonic.
+        recov : (Ndof,) numpy.ndarray
+            Recovery matrix for the DOF that has amplitude and phase control 
+        w : float
+            Frequency for HBM, rad/s.
+        order : int, positive or zero
+            Order of derivative of interest, but this is just used as an 
+            exponent on the frequency 
+            (e.g., negative signs from taking 2 derivatives of cos/sine are 
+            ignored in phase constraint). 
+            Control is always applied to have response amplitude at recovery 
+            DOF that is purely cosine and the same sign as amp.
+        Nt : int, power of 2
+            Number of time steps for AFT. 
+            The default is 128.
+        aft_tol : float
+            Tolerance for AFT evaluations. 
+            The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True
+
+        Returns
+        -------
+        R : (Nhc*Ndof+2,) numpy.ndarray
+            Residual vector, always returned as first entry of a tuple.
+            First Nhc*Ndof entries correspond to HBM solution.
+            Second to last is cosine amplitude being equal to desired value.
+            Last is sine amplitude equal to zero.
+        dRdUFcFs : (Nhc*Ndof+2,Nhc*Ndof+2) numpy.ndarray
+            Derivative of the residual w.r.t. UFcFs. 
+            Only returned if calc_grad=True (default behavior).
+        dRdA : (Nhc*Ndof+2,) numpy.ndarray
+            Derivative w.r.t. amplitude.
+            Only returned if calc_grad=True (default behavior).
+
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual for constant force input to the system.
+            See documentation of this function for a full list of HBM variants
+        """
+        
+        R_dRdUFcFs_dRdw = self.hbm_amp_phase_control_res(
+                                np.hstack((UFcFsA[:-1], w)), 
+                                Fl, h, recov, UFcFsA[-1], order, 
+                                Nt=Nt, aft_tol=aft_tol, calc_grad=calc_grad)
+        
+        if calc_grad:
+            
+            dRdA = np.zeros_like(R_dRdUFcFs_dRdw[2])
+            dRdA[-2] = -1.0
+            
+            return R_dRdUFcFs_dRdw[0],R_dRdUFcFs_dRdw[1],dRdA
+        else:
+            return (R_dRdUFcFs_dRdw[0],)
+        
 def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
     """
     Returns the state space representation time derivative for shooting
