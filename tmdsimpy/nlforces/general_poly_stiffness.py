@@ -10,7 +10,7 @@ class GenPolyForce(InstantaneousForce):
     ----------
     Q : (Nd,n) numpy.ndarray
         Transformation matrix from system DOFs (n) to nonlinear DOFs (Nd), Nd x n
-    T : (n, Nnl) numpy.ndarray
+    T : (n, Nd) numpy.ndarray
         Transformation matrix from local nonlinear DOFs (Nd) to stsyem dofs
         nonlinear forces, n x Nd
     Emat: (Nd,cnl) numpy.ndarray
@@ -28,9 +28,10 @@ class GenPolyForce(InstantaneousForce):
         self.Emat = Emat
         self.qq = qq
         
-        self.qd = np.zeros((self.Q.shape[0],self.qq.shape[0],self.qq.shape[1]))
+        self.qd = np.zeros((self.qq.shape[1],self.qq.shape[0],self.qq.shape[1]))
         
-        for i in range(self.Q.shape[0]):
+        
+        for i in range(self.qq.shape[1]):
             self.qd[i,:,:] = self.qq 
             self.qd[i,:,i] -= self.qq[:,i] != 0
         
