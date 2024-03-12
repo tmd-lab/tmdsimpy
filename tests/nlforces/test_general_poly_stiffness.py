@@ -40,7 +40,6 @@ class TestGenPolyAFT(unittest.TestCase):
         Test analytical expansion of nonlinear force for first harmonic motion
         against the AFT values.
         
-        Also check gradients for the simple case
 
         Returns
         -------
@@ -123,7 +122,17 @@ class TestGenPolyAFT(unittest.TestCase):
         
         
         
-    def test_force(self):        
+    def test_force(self):   
+        """
+        Test analytical expansion of nonlinear force 
+        
+        Also check gradients for the simple case
+
+        Returns
+        -------
+        None.
+
+        """
 
         # Test System
         
@@ -200,6 +209,14 @@ class TestGenPolyAFT(unittest.TestCase):
             'Incorrect jacobian evaluation from nl_force.force, numerical check')
               
     def test_aftgradient(self):   
+        """
+        Test analytical expansion of nonlinear force gradient for first harmonic motion
+         for the simple case. Also validates numerical gradient for random values of u and Emat
+        
+        Returns
+        -------
+        None.
+        """
         # Test System
         
         # Simple Mapping to spring displacements
@@ -353,58 +370,58 @@ class TestGenPolyAFT(unittest.TestCase):
 
     def test_zeroU_input(self):        
         
-     #######################
-     # Test System
-     
-     # Simple Mapping to spring displacements
-     Q = np.array([[1, 0,0], \
-                   [0, 1,0], \
-                   [0, 0, 1 ]])
-     
-     # Weighted / integrated mapping back for testing purposes
-     T = np.array([[1, 0,0], \
-                   [0, 1,0], \
-                   [0, 0, 1 ]])
-     
-       
-     qq = np.array([[2, 0, 0], \
-                    [0, 2, 0], \
-                    [3, 0, 0], \
-                    [0, 0, 3],  \
-                    [1, 1, 0], \
-                    [0, 1, 1],  \
-                    [2, 1, 0], \
-                    [1, 1,1]])
-         
-     Emat = np.ones((Q.shape[1],qq.shape[0]))
-         
-    
-     # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
-     h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
-     Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
-     
-     Nd = Q.shape[1]
-     
-     U = np.zeros((Nd*Nhc, 1))
-     
-     # First DOF, Cosine Term, Fundamental
-     U[Nd+0, 0] = 4
-     
-     # Second DOF, Sine Term, Fundamental
-     U[2*Nd+1, 0] = 3
-     
-     # Third DOF, Sine Term, Fundamental
-     U[2*Nd+2, 0] = 2
-     
-     w = 1 # Test for various w
-     nl_force = GenPolyForce(Q, T, Emat, qq)        
-     # Numerically Verify Gradient 
-     fun = lambda U: nl_force.aft(U, w, h)[0:2]
-     grad_failed = vutils.check_grad(fun, U, verbose=False, 
-                                    rtol=self.rtol_grad)
-    
-     self.assertFalse(grad_failed, 
-                     'Incorrect gradiant w.r.t. displacement.')       
+        #######################
+        # Test System
+        
+        # Simple Mapping to spring displacements
+        Q = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+        # Weighted / integrated mapping back for testing purposes
+        T = np.array([[1, 0,0], \
+                      [0, 1,0], \
+                      [0, 0, 1 ]])
+        
+          
+        qq = np.array([[2, 0, 0], \
+                       [0, 2, 0], \
+                       [3, 0, 0], \
+                       [0, 0, 3],  \
+                       [1, 1, 0], \
+                       [0, 1, 1],  \
+                       [2, 1, 0], \
+                       [1, 1,1]])
+            
+        Emat = np.ones((Q.shape[1],qq.shape[0]))
+            
+           
+        # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
+        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        
+        Nd = Q.shape[1]
+        
+        U = np.zeros((Nd*Nhc, 1))
+        
+        # First DOF, Cosine Term, Fundamental
+        U[Nd+0, 0] = 4
+        
+        # Second DOF, Sine Term, Fundamental
+        U[2*Nd+1, 0] = 3
+        
+        # Third DOF, Sine Term, Fundamental
+        U[2*Nd+2, 0] = 2
+        
+        w = 1 # Test for various w
+        nl_force = GenPolyForce(Q, T, Emat, qq)        
+        # Numerically Verify Gradient 
+        fun = lambda U: nl_force.aft(U, w, h)[0:2]
+        grad_failed = vutils.check_grad(fun, U, verbose=False, 
+                                       rtol=self.rtol_grad)
+           
+        self.assertFalse(grad_failed, 
+                        'Incorrect gradiant w.r.t. displacement.')       
 
 
 if __name__ == '__main__':

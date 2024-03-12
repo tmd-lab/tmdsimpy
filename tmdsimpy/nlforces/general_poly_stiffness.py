@@ -8,15 +8,16 @@ class GenPolyForce(InstantaneousForce):
 
     Parameters
     ----------
-    Q : (Nnl,n) numpy.ndarray
-        Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl)
-    T : 
-        Transformation matrix from local nonlinear forces to global 
-        nonlinear forces, n x Nnl
-    Emat: () numpy.ndarray
-        Matrix to transform modal coordinates into modal nonlinear force
-    qq : FILL IN THE REST OF THIS
-        Matrix corresponding to exponnent of modal coordinates
+    Q : (Nd,n) numpy.ndarray
+        Transformation matrix from system DOFs (n) to nonlinear DOFs (Nd), Nd x n
+    T : (n, Nnl) numpy.ndarray
+        Transformation matrix from local nonlinear DOFs (Nd) to stsyem dofs
+        nonlinear forces, n x Nd
+    Emat: (Nd,cnl) numpy.ndarray
+        Matrix to transform modal coordinates into modal nonlinear force. 
+        cnl is swum of all cubic and quadratic nonlinear forces associated with Nd
+    qq : (cnl,Nd) numpy.ndarray
+        Matrix corresponding to exponnent of modal coordinates. 
         
 
     """
@@ -33,10 +34,24 @@ class GenPolyForce(InstantaneousForce):
             self.qd[i,:,:] = self.qq 
             self.qd[i,:,i] -= self.qq[:,i] != 0
         
-        
-        
-    
     def force(self, X):
+        """
+        Function evaluating nonlinear force and force gradient wrt displacement)
+        
+        Inputs
+        ----------
+        X : (Nd,) numpy.ndarray
+            displacement vector
+        
+        Outputs
+        -------------
+        F : (Nd,) numpy.ndarray
+            Nonlinear force
+        dFdX: (Nd,Nd) numpy.ndarray  
+            Force gradient with respect to displacement
+
+        """
+        
         
         unl = self.Q @ X
         
@@ -49,6 +64,23 @@ class GenPolyForce(InstantaneousForce):
         return F, dFdX
     
     def local_force_history(self, unlt, unltdot):
+        """
+        Function evaluating nonlinear force and force gradient wrt displacement 
+        from time history)
+        
+        Inputs
+        ----------
+        unlt : (Nt,Nd) numpy.ndarray
+            displacement time history
+        
+        Outputs
+        -------------
+        F : (Nt, Nd, Nd,) numpy.ndarray
+            Nonlinear force history
+        dFdX: (Nd,Nd) numpy.ndarray  
+            Time history of force gradient with respect to displacement
+
+        """
         
         ## This function is modified to take multiple unlt rows from aft
                 
@@ -99,10 +131,10 @@ class GenPolyForce(InstantaneousForce):
         
         Returns
         -------
-        Fnl : TYPE
-            DESCRIPTION.
-        dFnldU : TYPE
-            DESCRIPTION.
+        Fnl : (Nhc,) numpy.ndarray
+            Fourier coefficients of nonlinear force
+        dFnldU : (Nhc,Nhc) numpy.ndarray
+            Fourier coefficients of gradient
         """
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
