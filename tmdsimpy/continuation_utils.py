@@ -162,18 +162,79 @@ def print_hbm_amp_stats(XlamP, dirP_prev, fname, h, order,
         freq = XlamP[-1] / 2 / np.pi # Frequency in Hz
         force =  XlamP[-2] # Scaling factor (generally N)
 
-        Ndof = output_recov.shape[0]
-        Nhc_before = hutils.Nhc(h[h < output_harmonic])
-        
-        amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
-        amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
-        
-        amp = np.sqrt(amp_cos**2 + amp_sin**2) \
-                *((output_harmonic*XlamP[-1])**order)
+        amp = _calc_harmonic_resp(XlamP, XlamP[-1], h, order, 
+                                  output_recov, output_harmonic)
         
         file.write(body_format.format(freq, force, amp))
     
     return
+
+def print_hbm_amp_phase_stats(XlamP, dirP_prev, fname, freq, amp, h, order, 
+                              output_recov, output_harmonic):
+    """
+    Saves HBM key statistics to a text file for easy monitoring
+    This only works correctly for HBM with amplitude and phase controlled.
+    
+    Frequency and amplitude of 1st harmonic are only printed from those 
+    arguments and not based on XlamP. Define your anonymous function 
+    appropriately.
+
+    Parameters
+    ----------
+    XlamP : np.array
+        Solution to HBM amplitude control continuation.
+        Assumes that this is harmonic displacements, then cosine scaling of 
+        force, sine scaling of force, ignored lam variable (but requires 
+        exactly 1 variable after the two force scaling values for indexing)
+    dirP_prev : np.array
+        Prediction direction at previous solution.
+    fname : String
+        Filename to save variables to.
+    freq : float
+        frequency, rad/s.
+    amp : amplitude
+        control amplitude that should be printed.
+    h : numpy.ndarray, sorted
+        List of harmonics included in HBM
+    order : int, zero or positive
+        order of the derivative that is controlled. order=0 means 
+        displacement output, order=2 means acceleration output
+    output_recov: (Ndof,) numpy.ndarray
+        Recovery vector to be used to output response at a specific DOF
+        where Ndof is the number of degrees of freedom of the system. 
+    output_harmonic : int
+        Which harmonic the amplitude at the output_recov dof should be output 
+        for. Behavior is undefined if output_harmonic is not included in h
+
+    Returns
+    -------
+    None.
+    """
+    
+    # If file doesn't exist, write a header
+    write_header = not exists(fname)
+    
+    # Write current stats to file
+    with open(fname, 'a') as file:
+        
+        if write_header:
+            header_format = '{:^18s} & {:^18s} & {:^18s} & {:^18s} & {:^18s} \n'
+            file.write(header_format.format('Frequency [Hz]',
+                                            'Amplitude [m/s^{}]'.format(order),
+                                            'Force Cosine [N]',
+                                            'Force Sine [N]',
+                                            'Recov Amp [m/s^{}]'.format(order)))
+            
+        body_format = '{: ^18.3f} & {: ^18.3f} & {: ^18.3e} '\
+                        + '& {: ^18.3e} & {: ^18.3e} \n'
+        
+        freq_hz = freq / 2 / np.pi # Frequency in Hz
+
+        amp_recov = _calc_harmonic_resp(XlamP, XlamP[-1], h, order, 
+                                  output_recov, output_harmonic)
+        
+        file.write(body_format.format(freq_hz, amp, XlamP[-3], XlamP[-2],
+                                      amp_recov))
 
 
 def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
@@ -242,16 +303,54 @@ def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
             output_recov = rh[0]
             output_harmonic = rh[1]
             
-
-            Ndof = output_recov.shape[0]
-            Nhc_before = hutils.Nhc(h[h < output_harmonic])
-            
-            amp_cos = output_recov @ XlamP[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
-            amp_sin = output_recov @ XlamP[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
-            
-            amp_list[ind] = np.sqrt(amp_cos**2 + amp_sin**2) \
-                                *((output_harmonic*XlamP[-2])**order)
+            amp_list[ind] = _calc_harmonic_resp(XlamP, XlamP[-2], h, order, 
+                                                output_recov, output_harmonic)
             
         amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
         
         file.write(body_format.format(force, freq, amp_string))
+        
+def _calc_harmonic_resp(U, w, h, order, output_recov, output_harmonic):
+    """
+    Function for calculating the harmonic response at a given harmonic, 
+    extraction vector, and power of the frequency
+
+    Parameters
+    ----------
+    U : 1D numpy.ndarray
+        harmonic displacements. This is only indexed from the beginning so 
+        other items may be included at the end.
+    w : float
+        frequency in rad/s.
+    h : numpy.ndarray, sorted
+        List of harmonics included in HBM
+    order : int, zero or positive
+        order of the derivative that is controlled. order=0 means 
+        displacement output, order=2 means acceleration output
+    output_recov : 1D numpy.ndarray
+        vector for extracting the DOF of interest from the displacements.
+    output_harmonic : int
+        harmonic of interest from the list h.
+
+    Returns
+    -------
+    amp : float
+        response amplitude
+        
+    Notes
+    -----
+    This is just intended for use in callback summary functions and is does
+    not have tests written for it.
+
+    """
+    
+    Ndof = output_recov.shape[0]
+    Nhc_before = hutils.Nhc(h[h < output_harmonic])
+    
+    amp_cos = output_recov @ U[Nhc_before*Ndof:(Nhc_before+1)*Ndof]
+    amp_sin = output_recov @ U[(Nhc_before+1)*Ndof:(Nhc_before+2)*Ndof]
+    
+    amp = np.sqrt(amp_cos**2 + amp_sin**2) *((output_harmonic*w)**order)
+                        
+    return amp
+                                

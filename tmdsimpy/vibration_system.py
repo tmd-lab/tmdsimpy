@@ -317,6 +317,8 @@ class VibrationSystem:
         
         See Also
         --------
+        harmonic_utils.predict_harmonic_solution : 
+            Function for generating initial guesses to HBM type problems.
         hbm_res_dFl : 
             HBM residual with a different input/third output
             that allows for continuation with respect to scaling of external 

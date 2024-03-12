@@ -329,6 +329,144 @@ def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
         
     return CtoP
 
+def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
+                         equation, 
+                         Xstat=None,
+                         Fmag=None, amp=None, recov=None, control_order=None,
+                         rhi=None, neigs=3):
+    """
+    Generate an initial guess to an harmonic balance method (HBM) type problem 
+    based on a linear system
+
+    Parameters
+    ----------
+    vib_sys : tmdsimpy.VibrationSystem
+        Vibration system for the initial prediction. The initial prediction is
+        linear, so this should be linear around the state of interest (e.g., 
+        for frictional systems create a new VibrationSystem around the 
+        prestressed state using the linearized stiffness).
+        This must use mass and stiffness proportional damping.
+    w : float
+        frequency in rad/s.
+    h : 1D numpy.ndarray, sorted
+        List of harmonics to include in solution.
+    Fl : 1D numpy.ndarray
+        Forcing corresponding to the harmonics.
+        Only the first harmonic terms of Fl are considered.
+        For equations that do amplitude and phase control, Fl should
+        only include first harmonic cosine forcing terms to get correct results
+    solver : tmdsimpy.NonlinearSolver
+        Solver to be used in calculating an eigenproblem for vib_sys.
+    equation : {'HBM', 'HBM_AMP', 'HBM_AMP_PHASE', 'VPRNM_AMP_PHASE'}
+        Which equation to provide an initial guess for. Note that not all 
+        options may be implemented yet.
+        Options are 
+        HBM=standard HBM,
+        HBM_AMP=Amplitude HBM with constant phase forcing,
+        HBM_AMP_PHASE=Amplitude HBM with constant response phase, variable 
+        force phase,
+        VPRNM_AMP_PHASE=VPRNM with amplitude and phase controlled HBM.
+    Xstat : numpy.ndarray, optional
+        Static displacement vector for the zeroth harmonic solution. 
+        If None, zeros will be returned for the zeroth harmonic.
+        The default is None.
+    Fmag : float, optional
+        Scaling for the Fl vector. 
+        This only matters if the mode is 'HBM'. 
+        The default is None.
+    amp : float, optional
+        Amplitude of response is controlled to. 
+        This does not matter for HBM
+        The default is None.
+    recov : numpy.ndarray, optional
+        recovery vector which extracts the DOF of interest for amplitude 
+        control. 
+        The default is None.
+    control_order : int, optional
+        power of frequency to multiply amplitude control by. 
+        The default is None.
+    rhi : int, optional
+        Higher harmonic of interest to include in initial guess. 
+        This only matters for VPRNM.
+        The default is None.
+    neigs : int, optional
+        The number of modes that should be used in constructing the linear
+        prediction of the response amplitude.
+        The default is 3.
+
+    Returns
+    -------
+    Ulam0 : numpy.ndarray
+        Initial guess for the given set of equations. 
+        This will generally include harmonic displacements as the first entries. 
+        The last few entries vary based on the equation mode.
+
+    """
+    
+    ############################## 
+    # Initial Setup / Problem size etc.
+    
+    Ndof = vib_sys.M.shape[0]
+    Nhc2 = Nhc(h)
+    h0 = h[0] ==0
+    
+    equation = equation.upper()
+    
+    if equation != 'HBM':
+        Fmag = 1.0
+        
+    if equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
+        assert np.sum(np.abs(Fl[(h0+1)*Ndof:(h0+2)*Ndof])) == 0.0, \
+            'Initial guess for phase control does not support Fl including sine terms.'
+    
+    
+    ############################## 
+    # Linear Initial Response Estimate
+    
+    Xw_lin = vib_sys.linear_frf(w, Fmag*Fl[h0*Ndof:(1+h0)*Ndof], solver,
+                                neigs=neigs, 
+                                Flsin=Fmag*Fl[(h0+1)*Ndof:(2+h0)*Ndof])
+    
+    
+    if equation == 'HBM':
+        # Write the final initial guess here
+        pass
+    
+    
+    ##############################
+    # Scale Amplitude
+    
+    elif equation == 'HBM_AMP' or equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
+    
+        # Calculate Amplitude to get a force scaling for the initial guess
+        lin_amp = np.sqrt((recov_control @ Xw_lin[0, :Ndof])**2 \
+                              + (recov_control @ Xw_lin[0, Ndof:2*Ndof])**2)
+            
+        lin_amp = lin_amp*(lam_start**input_parameters['control_deriv_order'])
+            
+        fmag_initial = input_parameters['control_amp'] / lin_amp
+        
+        
+        Ulam0[:Ndof] = Xpre
+        Ulam0[Ndof:3*Ndof] = Xw_lin[0, :2*Ndof]
+        Ulam0[-2] = fmag_initial # Force scaling
+        Ulam0[-1] = lam_start # Frequency, rad/s
+    
+    ##############################
+    # Rotate Phase 
+    if equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
+        # Scale amplitude and then also rotate
+        pass
+    
+    ##############################
+    # Call again to get higher harmonic
+    
+    if equation == 'VPRNM_AMP_PHASE':
+        # Recall this function as HBM to get the higher harmonic estimate
+        pass
+    
+    return
+
 def zero_crossing(X, zero_tol=np.Inf):
     """
     Finds the locations where the array X crosses values zero. 
@@ -348,23 +486,28 @@ def zero_crossing(X, zero_tol=np.Inf):
         crossings
 
     """
+    
     TF = X[:-1]*X[1:] < 0
     TF = np.concatenate((TF, np.array([False])))
     TF = np.logical_and(np.abs(X) < zero_tol, TF)
+    
     return TF
 
 def shift_pm_pi(phase):
     """
-    Shifts phase to be within (-pi, pi]
+    Intended to shift phase to be within (-pi, pi].
+    This algorithm here is incomplete, so this function does not fully achieve
+    that. Need to clean up or remove / update dependencies.
 
     Parameters
     ----------
-    phase : TYPE
-        DESCRIPTION.
+    phase : numpy.ndarray
+        Phase vector to be shifted.
 
     Returns
     -------
-    phase - shifted phase.
+    phase : numpy.ndarray
+        Shifted phase.
 
     """
     phase = np.copy(phase)
