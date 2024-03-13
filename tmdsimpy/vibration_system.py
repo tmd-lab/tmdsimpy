@@ -1303,7 +1303,7 @@ class VibrationSystem:
         
         # Baseline HBM Solution
         Fl_hbm = np.zeros(Nhc*Ndof)
-        Fl_hbm[:h0*Ndof] = Fl[h0*Ndof]
+        Fl_hbm[:h0*Ndof] = Fl[:h0*Ndof]
         Fl_hbm[h0*Ndof:(h0+1)*Ndof] = UFcFsw[-3] * Fl[h0*Ndof:(h0+1)*Ndof]
         Fl_hbm[(h0+1)*Ndof:(h0+2)*Ndof] = UFcFsw[-2] * Fl[h0*Ndof:(h0+1)*Ndof]
         

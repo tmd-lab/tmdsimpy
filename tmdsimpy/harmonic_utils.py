@@ -18,7 +18,7 @@ def Nhc(h):
     """
     
     h_unique = np.unique(h)
-        
+    
     assert len(h_unique) == len(h), 'Repeated Harmonics in h are not allowed.'
    
     return 2*(h !=0).sum() + (h==0).sum()
@@ -329,11 +329,13 @@ def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
         
     return CtoP
 
-def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
+def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
                          equation, 
                          Xstat=None,
-                         Fmag=None, amp=None, recov=None, control_order=None,
-                         rhi=None, neigs=3):
+                         fmag=None, 
+                         control_amp=None, control_recov=None, 
+                         control_order=None,
+                         rhi=None, neigs=3, vib_sys_nl=None):
     """
     Generate an initial guess to an harmonic balance method (HBM) type problem 
     based on a linear system
@@ -361,7 +363,7 @@ def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
         Which equation to provide an initial guess for. Note that not all 
         options may be implemented yet.
         Options are 
-        HBM=standard HBM,
+        HBM=standard HBM for frequency continuation,
         HBM_AMP=Amplitude HBM with constant phase forcing,
         HBM_AMP_PHASE=Amplitude HBM with constant response phase, variable 
         force phase,
@@ -370,15 +372,15 @@ def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
         Static displacement vector for the zeroth harmonic solution. 
         If None, zeros will be returned for the zeroth harmonic.
         The default is None.
-    Fmag : float, optional
+    fmag : float, optional
         Scaling for the Fl vector. 
         This only matters if the mode is 'HBM'. 
         The default is None.
-    amp : float, optional
+    control_amp : float, optional
         Amplitude of response is controlled to. 
         This does not matter for HBM
         The default is None.
-    recov : numpy.ndarray, optional
+    control_recov : numpy.ndarray, optional
         recovery vector which extracts the DOF of interest for amplitude 
         control. 
         The default is None.
@@ -393,6 +395,10 @@ def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
         The number of modes that should be used in constructing the linear
         prediction of the response amplitude.
         The default is 3.
+    vib_sys_nl : tmdsimpy.VibrationSystem or None
+        Vibration system with nonlinear forces (linear portions do not matter)
+        Used exclusively for predicting nonlinear forces acting on superharmonic
+        for VPRNM.
 
     Returns
     -------
@@ -413,7 +419,7 @@ def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
     equation = equation.upper()
     
     if equation != 'HBM':
-        Fmag = 1.0
+        fmag = 1.0
         
     if equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
         assert np.sum(np.abs(Fl[(h0+1)*Ndof:(h0+2)*Ndof])) == 0.0, \
@@ -423,49 +429,116 @@ def predict_harmonic_solution(vib_sys, w, h, Fl, solver,
     ############################## 
     # Linear Initial Response Estimate
     
-    Xw_lin = vib_sys.linear_frf(w, Fmag*Fl[h0*Ndof:(1+h0)*Ndof], solver,
+    Xw_lin = vib_sys.linear_frf(w, fmag*Fl[h0*Ndof:(1+h0)*Ndof], solver,
                                 neigs=neigs, 
-                                Flsin=Fmag*Fl[(h0+1)*Ndof:(2+h0)*Ndof])
+                                Flsin=fmag*Fl[(h0+1)*Ndof:(2+h0)*Ndof])
     
     
     if equation == 'HBM':
-        # Write the final initial guess here
-        pass
+        # HBM Harmonic 1 Guess
+        Ulam0 = np.zeros(Nhc2*Ndof+1)
+        
+        # Static is set for all models at the end.
+        Ulam0[h0*Ndof:(2+h0)*Ndof] = Xw_lin[0, :2*Ndof]
+        Ulam0[-1] = w
+        
     
     
     ##############################
     # Scale Amplitude
     
-    elif equation == 'HBM_AMP' or equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
+    if equation == 'HBM_AMP' \
+        or equation == 'HBM_AMP_PHASE' \
+        or equation == 'VPRNM_AMP_PHASE':
     
         # Calculate Amplitude to get a force scaling for the initial guess
-        lin_amp = np.sqrt((recov_control @ Xw_lin[0, :Ndof])**2 \
-                              + (recov_control @ Xw_lin[0, Ndof:2*Ndof])**2)
+        amp_cos = control_recov @ Xw_lin[0, :Ndof]
+        amp_sin = control_recov @ Xw_lin[0, Ndof:2*Ndof]
+        
+        lin_amp = np.sqrt(amp_cos**2 + amp_sin**2)
             
-        lin_amp = lin_amp*(lam_start**input_parameters['control_deriv_order'])
+        lin_amp = lin_amp*(w**control_order)
             
-        fmag_initial = input_parameters['control_amp'] / lin_amp
+        fmag_initial = control_amp / lin_amp
+        
+        # Rescale the linear amplitude by the forcing magnitude
+        Xw_lin = Xw_lin * fmag_initial
         
         
-        Ulam0[:Ndof] = Xpre
-        Ulam0[Ndof:3*Ndof] = Xw_lin[0, :2*Ndof]
+        
+    ##############################
+    # Construct HBM_AMP Guess
+    
+    if equation == 'HBM_AMP':
+        
+        Ulam0 = np.zeros(Nhc2*Ndof+2)
+        
+        # Static set at end
+        Ulam0[h0*Ndof:(2+h0)*Ndof] = Xw_lin[0, :2*Ndof]
         Ulam0[-2] = fmag_initial # Force scaling
-        Ulam0[-1] = lam_start # Frequency, rad/s
+        Ulam0[-1] = w # Frequency, rad/s
     
     ##############################
     # Rotate Phase 
     if equation == 'HBM_AMP_PHASE' or equation == 'VPRNM_AMP_PHASE':
         # Scale amplitude and then also rotate
-        pass
-    
-    ##############################
-    # Call again to get higher harmonic
+        phase = np.arctan2(amp_sin, amp_cos)
+        
+        rot_max = np.array([[ np.cos(phase), np.sin(phase)],
+                            [-np.sin(phase), np.cos(phase)]])
+        
+        X_rot = rot_max @ Xw_lin[0, :-1].reshape(2, -1)
+        
+        FcFs = rot_max[:, 0] * fmag_initial
+        
+    # Construct Initial Guesses for phase rotated
+    if equation == 'HBM_AMP_PHASE':
+        Ulam0 = np.zeros(Nhc2*Ndof+3)
+        
+        # Static set at end for all
+        Ulam0[h0*Ndof:(2+h0)*Ndof] = X_rot.reshape(-1)
+        Ulam0[-3:-1] = FcFs
+        Ulam0[-1] = w
     
     if equation == 'VPRNM_AMP_PHASE':
-        # Recall this function as HBM to get the higher harmonic estimate
-        pass
+        Ulam0 = np.zeros(Nhc2*Ndof+4)
+            
+        # Static set at end for all
+        Ulam0[h0*Ndof:(2+h0)*Ndof] = X_rot.reshape(-1)
+        Ulam0[-4:-2] = FcFs
+        Ulam0[-2] = w
+        Ulam0[-1] = control_amp
+            
     
-    return
+    ##############################
+    # Set static for all models
+    
+    if Xstat is not None and h0:
+        Ulam0[:Ndof] = Xstat
+        
+    ##############################
+    # Call again to get higher harmonic for VPRNM
+    if equation == 'VPRNM_AMP_PHASE':
+        # Recall this function as HBM to get the higher harmonic estimate
+        # Use 'vib_sys_nl' to get the forces on the higher harmonic.
+        
+        Fnl_int = vib_sys_nl.total_aft(Ulam0[:Ndof*Nhc2], w, h, 
+                                       calc_grad=False)[0]
+        
+        # Index the harmonic of interest 
+        rhi_index = Nhc(h[h < rhi]) 
+        
+        # Flip the sign to negative to for internal -> external
+        Fl_rhi = -Fnl_int[Ndof*rhi_index:Ndof*(rhi_index+2)]
+        
+        Ulam_rhi = predict_harmonic_solution(vib_sys, rhi*w, Fl_rhi,
+                                             np.array([1]), 
+                                             solver, 'HBM', 
+                                             fmag=1.0, neigs=neigs)
+        
+        Ulam0[Ndof*rhi_index:Ndof*(rhi_index+2)] = Ulam_rhi[:2*Ndof]
+    
+    return Ulam0
 
 def zero_crossing(X, zero_tol=np.Inf):
     """
