@@ -364,10 +364,14 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
         options may be implemented yet.
         Options are 
         HBM=standard HBM for frequency continuation,
-        HBM_AMP=Amplitude HBM with constant phase forcing,
+        HBM_AMP=Amplitude HBM with constant phase forcing ,
         HBM_AMP_PHASE=Amplitude HBM with constant response phase, variable 
-        force phase,
+        force phase
+        (for frequency continuation),
         VPRNM_AMP_PHASE=VPRNM with amplitude and phase controlled HBM.
+        If you need HBM_AMP_PHASE for amplitude continuation, just change the 
+        last entry of the returned array to be the desired prediction amplitude
+        instead of frequency.
     Xstat : numpy.ndarray, optional
         Static displacement vector for the zeroth harmonic solution. 
         If None, zeros will be returned for the zeroth harmonic.

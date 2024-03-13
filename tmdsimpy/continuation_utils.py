@@ -230,7 +230,7 @@ def print_hbm_amp_phase_stats(XlamP, dirP_prev, fname, freq, amp, h, order,
         
         freq_hz = freq / 2 / np.pi # Frequency in Hz
 
-        amp_recov = _calc_harmonic_resp(XlamP, XlamP[-1], h, order, 
+        amp_recov = _calc_harmonic_resp(XlamP, freq, h, order, 
                                   output_recov, output_harmonic)
         
         file.write(body_format.format(freq_hz, amp, XlamP[-3], XlamP[-2],
