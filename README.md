@@ -35,41 +35,48 @@ This code is provided under the MIT License to aid in research, no guarantee is 
 ## Setup 
 
 For research analyses, it is recommended to clone this as a dependency of a different repository containing scripts that define the analyses. 
-The following instructions all utilize a command line (Linux or macOS). 
-On Windows, you can use the Windows Subsystem for Linux (WSL), though you may have to repeat the installation of dependencies separately on the Windows side to run scripts natively on Windows.
-See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
+The following instructions all utilize a command line (Linux, macOS, WSL on Windows). 
 
+This example will clone the repo and then setup a conda environment named `tmdsimpy` for the installation. 
+Instructions for installing anaconda can be found [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+ 
 To clone and install requirements:
 ```
-git clone git@github.com:tmd-lab/tmdsimpy.git
+git clone git@github.com:tmd-lab/tmdsimpy.git # clone with whatever method desired.
 cd tmdsimpy
+conda create --name tmdsimpy python=3.10.13 pip # create 'tmdsimpy' conda environment.
+conda activate tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
-Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
-This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
 
-After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working:
+After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working.
+These have been combined in a bash script, so execute:
 ```
-cd tests
-python3 -m unittest discover
-
-cd nlforces
-python3 -m unittest discover
-
-cd ../postprocess/
-python3 -m unittest discover
-
-# If jax is installed, also check those tests
-cd ../jax
-python3 -m unittest discover
-
-# These also require jax
-cd ../roughcontact/
-python3 -m unittest discover
-
-# Return to top level
-cd ../..
+source run_tests.sh
 ```
+
+Note, that there is no particular reason for this specific version of python, and an attempt will be made
+to keep the code compatible with current packages. 
+Specific package versions are included in `specific_reqs.txt`, but may capture some unneccessary packages.
+To use that list, replace the final install line from above with
+```
+python3 -m pip install -r specific_reqs.txt
+```
+You can verify the installed versions with `python3 -m pip list`.
+If you would like to exactly match the spyder IDE installation used in development on Linux, you can instead use
+```
+python3 -m pip install -r spyder_reqs.txt
+```
+
+
+### Setup Notes
+
+1. This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
+2. Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
+2. See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
+3. Installing packages directly through conda may be a more reliable way to get a fully reproducible environment, but can be challenging. 
+   The use of conda environments to isolate code while exclusively installing via pip appears to be a 
+   reasonable approach based on [this](https://www.anaconda.com/blog/using-pip-in-a-conda-environment).
 
 
 ## Examples

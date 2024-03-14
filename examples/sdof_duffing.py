@@ -1,10 +1,19 @@
-# Simulation of a Single Degree of Freedom Duffing Oscillator
-#
-# References for FRC's with identical parameters:
-#   M. Volvert and G. Kerschen, 2021, Phase resonance nonlinear modes of 
-#   mechanical systems. 
-# Comments note the values that match PRNM paper for parameters that are 
-# frequently changed.
+"""
+Simulations of a single degree of freedom (SDOF) Duffing oscillator
+
+For verification, you can compare plots from this script to those published
+in the paper: 
+    M. Volvert and F. Kerschen, 2021. Phase resonance nonlinear modes of 
+    mechanical systems. Journal of Sound and Vibration 511, 116355. 
+    https://doi.org/10.1016/j.jsv.2021.116355
+    
+Comments note some parameters that may require changes to exactly match 
+the cases shown in that paper.
+
+The variable 'run_shooting' can be set to False to run faster without running 
+shooting. Shooting is used for stability assessment. 
+
+"""
 
 import sys
 import numpy as np

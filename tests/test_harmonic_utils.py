@@ -194,7 +194,67 @@ class TestHarmonicUtils(unittest.TestCase):
                 self.assertLess(np.linalg.norm(only_c[0] - ref_c[0]) \
                                 / np.linalg.norm(ref_c[0]), 
                                 dEdw_rtol)
-                
+                    
+    def test_harmonic_conditioning(self):
+        """
+        Verify that harmonic conditioning function behaves as expected.
+        """
+        
+        h = np.array([0, 1, 3])
+        
+        Ndof = 4
+        
+        # Make something that looks like EPMC Solution
+        Uwxa = np.array([0.01, 0.02, 0.1,   0.0001, # harmonic 0
+                         1.0,   5.0, 3.0,   2.0, # harmonic 1 cos
+                         0.02,  0.05, 0.03, 0.02, # Harmonic 1 sine
+                         0.1,   0.2,  0.3,  0.2, # harmonic 3 cos
+                         0.0001, 0.0002, 0.00003, 0.00001, # harmonic 3 sine
+                         1000.0, 1e-6, -4]) # w, x, a
+        
+        
+        scalar_delta = 1e-4
+        CtoP_expected_scalar_delta = \
+            np.array([3.252500e-02, 3.252500e-02, 3.252500e-02, 3.252500e-02,
+                   1.390000e+00, 1.390000e+00, 1.390000e+00, 1.390000e+00,
+                   1.390000e+00, 1.390000e+00, 1.390000e+00, 1.390000e+00,
+                   1.000425e-01, 1.000425e-01, 1.000425e-01, 1.000425e-01,
+                   1.000425e-01, 1.000425e-01, 1.000425e-01, 1.000425e-01,
+                   1.000000e+03, 1.000000e-04, 4.000000e+00])
+            
+        vec_delta = [1e-3, 2.0, 0.5, 0.0]
+        
+        CtoP_expected_vec_delta = \
+            np.array([3.2525e-02, 3.2525e-02, 3.2525e-02, 3.2525e-02, 2.0000e+00,
+                   2.0000e+00, 2.0000e+00, 2.0000e+00, 2.0000e+00, 2.0000e+00,
+                   2.0000e+00, 2.0000e+00, 5.0000e-01, 5.0000e-01, 5.0000e-01,
+                   5.0000e-01, 5.0000e-01, 5.0000e-01, 5.0000e-01, 5.0000e-01,
+                   1.0000e+03, 1.0000e-06, 4.0000e+00])
+        
+        ##############
+        # Baseline case where delta is constant
+        CtoP = hutils.harmonic_wise_conditioning(Uwxa, Ndof, h, delta=scalar_delta)
+        
+        self.assertLess(np.max(np.abs(CtoP_expected_scalar_delta - CtoP) \
+                               / CtoP_expected_scalar_delta), 
+                        1e-8)
+        
+        ##############
+        # Second Case where delta is a vector
+        CtoP = hutils.harmonic_wise_conditioning(Uwxa, Ndof, h, delta=vec_delta)
+        
+        self.assertLess(np.max(np.abs(CtoP_expected_vec_delta - CtoP) \
+                               / CtoP_expected_vec_delta), 
+                        1e-8)
+            
+        ##############
+        # Verify No Error for No Extra Terms
+        CtoP = hutils.harmonic_wise_conditioning(Uwxa[:-3], Ndof, h, delta=vec_delta[:-1])
+        
+        self.assertLess(np.max(np.abs(CtoP_expected_vec_delta[:-3] - CtoP) \
+                               / CtoP_expected_vec_delta[:-3]), 
+                        1e-8)
+        
 
 if __name__ == '__main__':
     unittest.main()

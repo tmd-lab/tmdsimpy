@@ -5,6 +5,7 @@ nonlinearity and a single degree of freedom (SDOF) system.
 Parameters are taken from: 
     J. H. Porter and M. R. W. Brake, in preparation, tracking superharmonic 
     resonances for nonlinear vibration.
+    [See updated and final citation on README.md]
 
 """
 
