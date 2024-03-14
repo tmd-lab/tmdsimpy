@@ -588,7 +588,7 @@ def shift_pm_pi(phase):
 
     """
     phase = np.copy(phase)
-    phase[phase > np.pi] -= 2*np.pi
-    phase[phase <= -np.pi] += 2*np.pi
+    
+    phase = ((phase + np.pi) % 2*np.pi) - np.pi
     
     return phase
