@@ -70,6 +70,19 @@ class ElasticDryFriction2D(NonlinearForce):
             warnings.warn('Matrix T argument is not a numpy array. Conversion '
                           'to numpy array was attempted, but not '
                           'guaranteed to work.')
+
+
+        assert self.Q.shape[0] == 2, \
+            'Only supports single local frictional element with normal and tangential DOFs.'
+        
+        assert type(kt) == float, \
+            'Only supports single kt to be float '
+
+        assert type(kn) == float, \
+            'Only supports single kn to be float '   
+        
+        assert type(mu) == float, \
+            'Only supports single mu to be float '         
         
         self.kt = kt
         self.kn = kn
@@ -144,6 +157,7 @@ class ElasticDryFriction2D(NonlinearForce):
         dFdX : Global nonlinear force gradient
 
         """
+
         
         # Get local displacements
         unl = self.Q @ X
@@ -195,6 +209,7 @@ class ElasticDryFriction2D(NonlinearForce):
         None.
 
         """
+
         
         #########################
         # Memory Initialization 
