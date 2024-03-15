@@ -717,6 +717,211 @@ class TestVPRNM(unittest.TestCase):
         self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
                          'calc_grad changed gradient value.')
         
+    def test_vprnm_amp_phase_with_h0(self):
+        """
+        Test VPRNM with amplitude and phase constraints for correctness of
+        equations and gradients - include harmonic 0
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 2, 3])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        recov = np.array([1.0, 0.0])
+        rhi = 3
+        order = 2
+        
+        constraint_scale = 1.753
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        ############### Test Correctness of R
+        
+        Rvprnm = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[0]
+        
+        Rhbm = vib_sys.hbm_amp_phase_control_res(UFcFswA[:-1], Fl, h, 
+                                                 recov, UFcFswA[-1], order)[0]
+        
+        Rvprnm_eqn = vib_sys.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
+                                              h, rhi)[0]
+        
+        self.assertEqual(np.max(np.abs(Rvprnm[:-1]-Rhbm)), 0.0,
+                         'VPRNM should not modify HBM equations.')
+        
+        self.assertEqual(Rvprnm[-1], constraint_scale*Rvprnm_eqn,
+                         'VPRNM last equation should match function call.')
+        
+        ############### Test Gradients
+
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFsw, UFcFswA[-1])),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], verbose=False, 
+                                        rtol=1e-11)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. UFcFsw.')
+        
+        fun = lambda A : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFswA[:-1], A)),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[::2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(UFcFswA[-1]), 
+                                        verbose=False, 
+                                        rtol=1e-11, atol=1e-11)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. A.')
+        
+    def test_vprnm_amp_phase_without_h0(self):
+        """
+        Test VPRNM with amplitude and phase constraints for correctness of
+        equations and gradients - exclude harmonic 0 and some other harmonics
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([1, 3, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        recov = np.array([1.0, 0.0])
+        rhi = 3
+        order = 0
+        constraint_scale = 1e4
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        ############### Test Correctness of R
+        
+        Rvprnm = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[0]
+        
+        Rhbm = vib_sys.hbm_amp_phase_control_res(UFcFswA[:-1], Fl, h, 
+                                                 recov, UFcFswA[-1], order)[0]
+        
+        Rvprnm_eqn = vib_sys.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
+                                              h, rhi)[0]
+        
+        self.assertEqual(np.max(np.abs(Rvprnm[:-1]-Rhbm)), 0.0,
+                         'VPRNM should not modify HBM equations.')
+        
+        self.assertEqual(Rvprnm[-1], constraint_scale*Rvprnm_eqn,
+                         'VPRNM last equation should match function call.')
+        
+        ############### Test Gradients
+
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFsw, UFcFswA[-1])),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], verbose=False, 
+                                        rtol=1e-9)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. UFcFsw.')
+        
+        fun = lambda A : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFswA[:-1], A)),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[::2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(UFcFswA[-1]), 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. A.')
+        
+        
+    def test_vprnm_amp_phase_calc_grad(self):
+        """
+        Test the calc_grad flag for the VPRNM with phase and amplitude 
+        constraint
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 3, 4, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        rhi = 3
+        
+        recov = np.array([1.0, 0.0])
+        order = 2
+        
+        # Baseline solution
+        Rdefault = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                               order)
+        
+        # With calc_grad
+        Rtrue = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                            order, calc_grad=True)
+        
+        # Without calc_grad
+        Rfalse = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                             order, calc_grad=False)
+        
+        # Check correct number of outputs
+        self.assertEqual(len(Rdefault), 3, 
+                         'Default calc_grad should have 3 ouputs')
+        
+        self.assertEqual(len(Rtrue), 3, 
+                         'calc_grad=True should have 3 ouputs')
+        
+        self.assertEqual(len(Rfalse), 1, 
+                         'calc_grad=False should have 3 ouputs')
+        
+        # Check outputs are the same for all three
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rtrue[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rfalse[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[1] - Rtrue[1]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
+                         'calc_grad changed gradient value.')
+        
                 
 if __name__ == '__main__':
     unittest.main()

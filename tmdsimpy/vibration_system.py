@@ -881,7 +881,7 @@ class VibrationSystem:
         else:
             return R, dRdU, dRdw
     
-    def vprnm_single_eqn(self, UwF, h, rhi, Nt=128, aft_tol=1e-7, 
+    def vprnm_single_eqn(self, U, w, h, rhi, Nt=128, aft_tol=1e-7, 
                          calc_grad=True):
         """
         Function implements a single residual equation for Variable Phase 
@@ -892,19 +892,20 @@ class VibrationSystem:
         
         Parameters
         ----------
-        UwF : (Nhc*Ndof+2,) numpy.ndarray
+        U : (Nhc*Ndof,) numpy.ndarray
             Vector of Displacements (all of the first harmonic component, 
-            then all of second harmonic component etc), Frequency, 
-            Force Magnitude scaling of Fl (scales harmonics h not equal 0)
-            Here, Nhc = harmonic_utilities.Nhc(h).
-            Only the first (Nhc*Ndof+1) are indexed with positive numbers, 
-            so it is allowable to have extra values at the end of the array
-            UwF.
+            then all of second harmonic component etc).
+            Only the first (Nhc*Ndof) are directly indexed with positive 
+            numbers, so it is allowable to have extra values at the end of the 
+            array.
+        w : float
+            Frequency in rad/s
         h : sorted numpy.ndarray 
             Vector of harmonics to include.
             Should only contain positive or zero values without repeats.
         rhi : int
-            index in h of higher harmonic in the superharmonic resonance 
+            harmonic that is included in h that is the superharmonic resonance
+            of interest
         Nt : int, power of 2
             Number of AFT Time steps
             DESCRIPTION. The default is 128.
@@ -938,14 +939,13 @@ class VibrationSystem:
         # the index of the first rhi harmonic component
         rhi_index = hutils.Nhc(h[h < rhi]) 
         
-        
         # Eliminate higher harmonics to determine Fbroad
-        Uw_fundamental = np.copy(UwF[:Ndof*Nhc+1])
-        Uw_fundamental[Ndof*rhi_index:-1] = 0.0 # remove higher harmonics
+        U_fundamental = np.copy(U[:Ndof*Nhc])
+        U_fundamental[Ndof*rhi_index:] = 0.0 # remove higher harmonics
         
         # Evaluate the special case of the nonlinear forces here
-        Fint_dFintdU_dFintdw = self.total_aft(Uw_fundamental[:-1], 
-                                                Uw_fundamental[-1], 
+        Fint_dFintdU_dFintdw = self.total_aft(U_fundamental, 
+                                                w, 
                                                 h, Nt=Nt, aft_tol=aft_tol,
                                                 calc_grad=calc_grad)
         
@@ -956,7 +956,7 @@ class VibrationSystem:
         Fnorm = np.sqrt(np.sum(Frhi**2))
         
         # Normalize Xrhi as well as F
-        Xrhi = UwF[Ndof*rhi_index:Ndof*(rhi_index+2)]
+        Xrhi = U[Ndof*rhi_index:Ndof*(rhi_index+2)]
 
         Xrhi_norm = np.sqrt(np.sum(Xrhi**2))
         
@@ -1009,7 +1009,8 @@ class VibrationSystem:
             Vector of harmonics to include.
             Should only contain positive or zero values without repeats.
         rhi : int
-            index in h of higher harmonic in the superharmonic resonance 
+            harmonic that is included in h that is the superharmonic resonance
+            of interest
         Fl :  (Nhc*Ndof,) numpy.ndarray
             external force direction experienced by system 
             harmonics other than h[i]==0 are scaled by UwF[-1]
@@ -1074,9 +1075,10 @@ class VibrationSystem:
         
         #############
         # VPRNM Equation
-        Rvprnm_dRdUw_vprnm = self.vprnm_single_eqn(UwF, h, rhi, Nt=Nt, 
-                                                    aft_tol=aft_tol, 
-                                                    calc_grad=calc_grad)
+        Rvprnm_dRdUw_vprnm = self.vprnm_single_eqn(UwF[:-2], UwF[-2], h, rhi, 
+                                                   Nt=Nt, 
+                                                   aft_tol=aft_tol, 
+                                                   calc_grad=calc_grad)
         
         #############
         # Assemble Full Gradient and Residual
@@ -1428,6 +1430,117 @@ class VibrationSystem:
             return R_dRdUFcFs_dRdw[0],R_dRdUFcFs_dRdw[1],dRdA
         else:
             return (R_dRdUFcFs_dRdw[0],)
+        
+        
+    def vprnm_amp_phase_res(self, UFcFswA, Fl, h, rhi, recov, order, 
+                            Nt=128, aft_tol=1e-7, 
+                            calc_grad=True, constraint_scale=1.0):
+        """
+        Function implements a residual option for Variable Phase Resonance 
+        Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems.
+        
+        Method adds a constraint to HBM to follow a superharmonic resonance.
+        
+        Parameters
+        ----------
+        UFcFswA : (Nhc*Ndof+4,) numpy.ndarray
+            Harmonic Displacements, Force Scaling Cosine, Force Scaling
+            Sine, frequency (rad/s), Amplitude Level.
+            Harmonic Displacements are all of zeroth, then 1c, 1s, 2c, 2s etc.
+        Fl : (Nhc*Ndof,) numpy.ndarray
+            Forcing Vector without scaling for all harmonics 
+            Static force is correctly scaled already (if included).
+            See 'hbm_amp_phase_control_res' for details.
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used, must be sorted and include 1st harmonic.
+        rhi : int
+            harmonic that is included in h that is the superharmonic resonance
+            of interest
+        recov : (Ndof,) numpy.ndarray
+            Recovery matrix for the DOF that has amplitude and phase control 
+        order : int, positive or zero
+            Order of derivative of interest, but this is just used as an 
+            exponent on the frequency 
+            (e.g., negative signs from taking 2 derivatives of cos/sine are 
+            ignored in phase constraint). 
+            Control is always applied to have response amplitude at recovery 
+            DOF that is purely cosine and the same sign as amp.
+            VPRNM is expected to converge most easily when amplitude control
+            results in constant excitation of higher harmonic. Therefore, for 
+            displacement based nonlinearities, order=0 is expected to converge
+            most easily. Other orders may be convenient for matching HBM
+            results calculated for different control orders.
+        Nt : int, power of 2
+            Number of AFT Time steps
+            DESCRIPTION. The default is 128.
+        aft_tol : float
+            AFT Tolerance for HBM
+            The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (R,) as a tuple. 
+            The default is True.
+        constraint_scale : float
+            Number to scale the residual of the constraint equation by. 
+            This is useful when a solver does not put sufficient weight on
+            the constraint equation and just solves the HBM equations ignoring
+            the constraint. It may need to be dynamically updated between 
+            solutions along continuation to avoid problems.
+            The default is 1.0
+
+        Returns
+        -------
+        R : (Nhc*Ndof+3,) numpy.ndarray
+            Residual. This is always returned as the first
+            entry of a tuple.
+        dRdUFcFsw : (Nhc*Ndof+3,Nhc*Ndof+3) numpy.ndarray
+            Derivative of R w.r.t. UFcFsw = UFcFswA[:-1]
+            Only returned if calc_grad=True (default behavior).
+        dRdA : (Nhc*Ndof+3,) numpy.ndarray
+            Derivative vector of R w.r.t. UFcFswA[-1]
+            Only returned if calc_grad=True (default behavior).
+        
+        See Also
+        --------
+        hbm_res : 
+            Harmonic balance residual with a different input/output
+            that allows for continuation with respect to frequency.
+            See documentation of this function for a full list of HBM variants.
+        vprnm_res : 
+            VPRNM implementation without additional amplitude and phase 
+            constraints (constant force excitation)
+        """
+                
+        hbm_R_dRdUFcFs_dRdw = self.hbm_amp_phase_control_res(UFcFswA[:-1], 
+                                                        Fl, h, 
+                                                        recov, UFcFswA[-1], 
+                                                        order, 
+                                                        Nt=Nt, 
+                                                        aft_tol=aft_tol, 
+                                                        calc_grad=calc_grad)
+        
+        vprnm_R_dRdUw = self.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
+                                             h, rhi, 
+                                             Nt=Nt, 
+                                             aft_tol=aft_tol, 
+                                             calc_grad=calc_grad)
+        
+        R = np.hstack((hbm_R_dRdUFcFs_dRdw[0], 
+                       constraint_scale*vprnm_R_dRdUw[0]))
+        
+        if calc_grad:
+            dRdUFcFsw = np.block([[hbm_R_dRdUFcFs_dRdw[1], 
+                                   hbm_R_dRdUFcFs_dRdw[2].reshape(-1,1)],
+                                  [constraint_scale*vprnm_R_dRdUw[1][:-1], 0, 
+                                   0, constraint_scale*vprnm_R_dRdUw[1][-1]]])
+            
+            dRdA = np.zeros_like(R)
+            dRdA[-3] = -1.0
+            
+            return R, dRdUFcFsw, dRdA
+        else:
+            return (R,)
+        
         
 def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
     """

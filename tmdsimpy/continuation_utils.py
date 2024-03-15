@@ -240,13 +240,13 @@ def print_hbm_amp_phase_stats(XlamP, dirP_prev, fname, freq, amp, h, order,
 def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
                         output_recov_harmonic_list):
     """
-    Saves HBM key statistics to a text file for easy monitoring
-    This only works correctly for HBM with amplitude controlled.
+    Saves VPRNM key statistics to a text file for easy monitoring
+    This only works correctly for VPRNM with amplitude controlled.
 
     Parameters
     ----------
     XlamP : np.array
-        Solution to EPMC continuation.
+        Solution to VPRNM continuation.
     dirP_prev : np.array
         Prediction direction at previous solution.
     fname : String
@@ -309,6 +309,95 @@ def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
         amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
         
         file.write(body_format.format(force, freq, amp_string))
+   
+def print_vprnm_amp_phase_stats(XlamP, dirP_prev, fname, h, control_order,
+                                output_order, output_recov_harmonic_list):
+    """
+    Saves VPRNM Amplitude and Phase Control key statistics to a text file for 
+    easy monitoring. 
+    This is only written to work correctly with 
+    VibrationSystem.vprnm_amp_phase_res
+
+    Parameters
+    ----------
+    XlamP : np.array
+        Solution to VPRNM amplitude and phase control continuation.
+    dirP_prev : np.array
+        Prediction direction at previous solution.
+    fname : String
+        Filename to save variables to.
+    h : numpy.ndarray, sorted
+        List of harmonics included in HBM
+    control_order : int, zero or positive
+        order of the derivative that is controlled. order=0 means 
+        displacement output, order=2 means acceleration output
+        Solely determines the header for the column, but does not
+        effect any of the values since VPRNM directly controls the derivative
+        order of the amplitude
+    output_order : int, zero or positive
+        Order of the derivative for the output recovery vectors.
+        Note that this need not be the same as the order of the control for 
+        VPRNM
+    output_recov_harmonic_list : list of tuples
+        each tuple contains 1. a (Ndof,) numpy.ndarray describing the output
+        DOF and 2. an int describing which harmonic should be output.
+
+    Returns
+    -------
+    None.
+
+    """
+    
+    # If file doesn't exist, write a header
+    write_header = not exists(fname)
+    
+    # Write current stats to file
+    with open(fname, 'a') as file:
+        
+        if write_header:
+            output_dofs = '& {:^22s} '.format('Recov Amp [m/s^{}]'.format(output_order))
+            
+            header_format = '{:^18s} & {:^18s} & {:^18s} & {:^18s} ' + \
+                        len(output_recov_harmonic_list)*output_dofs \
+                        + '\n'
+            
+            file.write(header_format.format('Amp Control [m/s^{}]'.format(control_order),
+                                            'Force Cosine [N]',
+                                            'Force Sine [N]',
+                                            'Frequency [Hz]'))
+            
+            harmonic_line = ('{:^18s} & {:^18s} '.format('','')) \
+                + ''.join(['& {:^22s}'.format('dof={}, h={}'.format(ind, rh[1])) \
+                           for ind,rh in enumerate(output_recov_harmonic_list)]) \
+                + '\n'
+            
+            file.write(harmonic_line)
+            
+        body_format = '{: ^18.3f} & {: ^18.3f} & {: ^18.3f} & {: ^18.3f} {} \n'
+        
+        amp_control = XlamP[-1] # Amplitude control
+        force_cos =  XlamP[-4] # Scaling factor (generally N)
+        force_sin =  XlamP[-3] # Scaling factor (generally N)
+        freq = XlamP[-2] / 2 / np.pi # Frequency in Hz
+        
+        amp_subcomponent = '& {: ^22.3e}'
+        
+        amp_list = [None] * len(output_recov_harmonic_list)
+        
+        for ind, rh in enumerate(output_recov_harmonic_list):
+            
+            output_recov = rh[0]
+            output_harmonic = rh[1]
+            
+            amp_list[ind] = _calc_harmonic_resp(XlamP, XlamP[-2], h, 
+                                                output_order, 
+                                                output_recov, 
+                                                output_harmonic)
+            
+        amp_string = ''.join([amp_subcomponent.format(ampi) for ampi in amp_list])
+        
+        file.write(body_format.format(amp_control, force_cos, force_sin, 
+                                      freq, amp_string))
         
 def _calc_harmonic_resp(U, w, h, order, output_recov, output_harmonic):
     """

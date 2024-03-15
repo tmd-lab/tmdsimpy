@@ -11,6 +11,7 @@ import unittest
 sys.path.append('..')
 import tmdsimpy.harmonic_utils as hutils
 from tmdsimpy.nlforces.cubic_stiffness import CubicForce # Just for VPRNM
+from tmdsimpy.nlforces.vector_jenkins import VectorJenkins # Just for VPRNM
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 
@@ -60,6 +61,18 @@ class TestHarmonicGuess(unittest.TestCase):
         
         vib_sys_nl.add_nl_force(nl_force)
         
+        # Need a Jenkins element system to have a weaker nonlinearity for 
+        # VPRNM test
+        kt = 0.2 
+        Fs = 10*kt # Fs = 6*Kt for w=1.0
+        
+        jenk_force = VectorJenkins(Q, T, kt, Fs)
+        
+        Klin_jenkins = K - kt*(T @ Q)
+        
+        vib_sys_jenkins = VibrationSystem(M, Klin_jenkins, ab=[0.01, 0.01])
+        vib_sys_jenkins.add_nl_force(jenk_force)
+        
         ############################################
         # Generate some harmonic information
         
@@ -87,7 +100,8 @@ class TestHarmonicGuess(unittest.TestCase):
         ############################################
         # Store Data for all Tests
         self.data = (vib_sys, vib_sys_nl, h_set1, h_set2,
-                     Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full)
+                     Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full,
+                     vib_sys_jenkins)
         
     def test_hbm_predict(self):
         """
@@ -96,7 +110,8 @@ class TestHarmonicGuess(unittest.TestCase):
         
         ###### Extract Data
         vib_sys, vib_sys_nl, h_set1, h_set2, \
-            Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full = self.data
+            Fl_set1_cos, Fl_set1_full, \
+            Fl_set2_cos, Fl_set2_full = self.data[:-1]
         
         solver = NonlinearSolver()
         
@@ -150,7 +165,8 @@ class TestHarmonicGuess(unittest.TestCase):
         
         ###### Extract Data
         vib_sys, vib_sys_nl, h_set1, h_set2, \
-            Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full = self.data
+            Fl_set1_cos, Fl_set1_full, \
+            Fl_set2_cos, Fl_set2_full = self.data[:-1]
         
         solver = NonlinearSolver()
         
@@ -217,7 +233,8 @@ class TestHarmonicGuess(unittest.TestCase):
         
         ###### Extract Data
         vib_sys, vib_sys_nl, h_set1, h_set2, \
-            Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full = self.data
+            Fl_set1_cos, Fl_set1_full, \
+            Fl_set2_cos, Fl_set2_full = self.data[:-1]
         
         solver = NonlinearSolver()
         
@@ -283,17 +300,21 @@ class TestHarmonicGuess(unittest.TestCase):
         
         ###### Extract Data
         vib_sys, vib_sys_nl, h_set1, h_set2, \
-            Fl_set1_cos, Fl_set1_full, Fl_set2_cos, Fl_set2_full = self.data
+            Fl_set1_cos, Fl_set1_full, \
+            Fl_set2_cos, Fl_set2_full, \
+            vib_sys_jenkins = self.data
         
         solver = NonlinearSolver()
         
-        w = 1.00
+        # w = 0.53 is more precisely correct for 3:1 superharmonic, 
+        # but this shows better residuals for test
+        w = 0.52
         order = 2
         recov = np.array([1.0, 0.0, -1.0])
-        amp = 3.4
+        amp = 5.1 # 5.1 works well for w=1
         rhi = 3
         
-        Xstat = np.array([1.0, 5.0, -3.7])
+        Xstat = 1e-3*np.array([1.0, 5.0, -3.7])
         Ndof = Xstat.shape[0]
         
         ###### 1. Full VPRNM Prediction
@@ -303,7 +324,7 @@ class TestHarmonicGuess(unittest.TestCase):
                                             control_amp=amp, 
                                             control_recov=recov, 
                                             control_order=order,
-                                            vib_sys_nl=vib_sys_nl,
+                                            vib_sys_nl=vib_sys_jenkins,
                                             rhi=rhi,
                                             Xstat=Xstat)
         
@@ -311,7 +332,7 @@ class TestHarmonicGuess(unittest.TestCase):
         
         ###### 2. Check What is Possible
         
-        Ulam0_hbm = hutils.predict_harmonic_solution(vib_sys_nl, w, Fl_set2_cos, 
+        Ulam0_hbm = hutils.predict_harmonic_solution(vib_sys, w, Fl_set2_cos, 
                                             h_set2, solver, 'HBM_AMP_PHASE',
                                             control_amp=amp, 
                                             control_recov=recov, 
@@ -337,14 +358,33 @@ class TestHarmonicGuess(unittest.TestCase):
         self.assertEqual(np.linalg.norm(Ulam0[7*Ndof:9*Ndof]), 0, 
                          'VPRNM should have no harmonic 4')
         
-        U_h3_expect = np.array([1.73363747,  3.72074871,  2.08535952, 
-                                -0.92147125, -1.98943523, -1.10384826])
+        U_h3_expect = np.array([3.47699679, 3.25145536, 4.91815756, 
+                                0.96958276, 0.42794179, 1.52881991])
         
         # NOTE: This test does not say this prediction is correct, just that
         # it hasn't changed since it was first written.
         self.assertLess(np.linalg.norm(Ulam0[5*Ndof:7*Ndof] - U_h3_expect), 
                         1e-8, 
                         'VPRNM - superharmonic prediction has changed.')
+        
+        # Checks on Quality of Guess for Residuals better than guessing 0's
+        Rvprnm = vib_sys_jenkins.vprnm_amp_phase_res(Ulam0, Fl_set2_cos, h_set2, 
+                                                rhi, recov, order)[0]
+        
+        Rhbmpred = vib_sys_jenkins.hbm_amp_phase_control_res(Ulam0_hbm, 
+                                                        Fl_set2_cos,
+                                                        h_set2, recov, amp, 
+                                                        order)[0]
+        
+        # Check that the residuals for higher equations of HBM are lower than
+        # if the superharmonic was not included
+        self.assertLess(np.linalg.norm(Rvprnm[5*Ndof:7*Ndof]), 
+                        0.3*np.linalg.norm(Rhbmpred[5*Ndof:7*Ndof]))
+        
+        # Check if the VPRNM phase constraint has a reasonable value
+        # This depends on the test choosing a frequency near a superharmonic
+        # resonance and the correct phase being predicted
+        self.assertLess(np.abs(Rvprnm[-1]), 0.02) 
         
 if __name__ == '__main__':
     unittest.main()

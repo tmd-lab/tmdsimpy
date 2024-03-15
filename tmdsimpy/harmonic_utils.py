@@ -335,7 +335,8 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
                          fmag=None, 
                          control_amp=None, control_recov=None, 
                          control_order=None,
-                         rhi=None, neigs=3, vib_sys_nl=None):
+                         rhi=None, neigs=3, vib_sys_nl=None,
+                         vprnm_calc_grad=True):
     """
     Generate an initial guess to an harmonic balance method (HBM) type problem 
     based on a linear system
@@ -403,6 +404,12 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
         Vibration system with nonlinear forces (linear portions do not matter)
         Used exclusively for predicting nonlinear forces acting on superharmonic
         for VPRNM.
+    vprnm_calc_grad : bool, optional 
+        calc_grad flag to pass to VPRNM. This code does not need the gradient
+        of VPRNM. However, not all nonlinear forces support the calc_grad=False
+        input argument. If the nonlinear forces do support this input argument
+        it is recommended to use False because it will be faster.
+        The default is True.
 
     Returns
     -------
@@ -527,7 +534,7 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
         # Use 'vib_sys_nl' to get the forces on the higher harmonic.
         
         Fnl_int = vib_sys_nl.total_aft(Ulam0[:Ndof*Nhc2], w, h, 
-                                       calc_grad=False)[0]
+                                       calc_grad=vprnm_calc_grad)[0]
         
         # Index the harmonic of interest 
         rhi_index = Nhc(h[h < rhi]) 
