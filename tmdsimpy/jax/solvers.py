@@ -160,6 +160,26 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         return x
     
+    def line_search(self):
+        """
+        
+        Notes
+        -----
+        The line search algorithm here is based on [1]_. In the finite element
+        context, the objective is to find the zero of an 'energy' norm of 
+        R^T deltaX. The bisection algorithm is used to find a solution for
+        R(X + alpha*deltaX) with alpha in [0, 1]. A very loose tolerance
+        is generally desired to minimize additional computational cost of this 
+        function before returing to nsolve.
+        
+        .. [1] Matthies, H., Strang, G., 1979. The solution of nonlinear finite
+        element equations. International Journal for Numerical Methods in 
+        Engineering 14, 1613–1626. https://doi.org/10.1002/nme.1620141104
+
+        """
+        
+        pass
+    
     def nsolve(self, fun, X0, verbose=True, xtol=None, Dscale=1.0):
         """
         Numerical nonlinear root finding solution to the problem of R = fun(X)
@@ -167,9 +187,10 @@ class NonlinearSolverOMP(NonlinearSolver):
         This function uses either a full Newton-Raphson (NR) solver approach or
         Broyden-Fletcher-Goldfarb-Shanno (BFGS), which uses fewer NR iterations
         with some approximations of Jacobian between NR iterations.
-        For BFGS see Algorithm 7.4 in [1].
+        For BFGS see Algorithm 7.4 in [1]_.
         
-        Solver settings are set at initialization of NonlinearSolverOMP.
+        Solver settings are set at initialization of NonlinearSolverOMP 
+        (see that documentation).
 
         Parameters
         ----------
@@ -212,6 +233,15 @@ class NonlinearSolverOMP(NonlinearSolver):
             'message' is either 'Converged' or 'failed'. Use the bool from 
             'success' rather than the message for decisions. 
             
+        See Also
+        --------
+        NonlinearSolverOMP : 
+            Documentation for the solver class describes configurations 
+            and settings of the numerical solver that are configured at 
+            creation rather than at solution time. 
+        line_search : 
+            Class method that may be used to improve convergence of nsolve
+            if the appropriate solver settings are used.
             
         Other Parameters
         ----------------
@@ -224,8 +254,8 @@ class NonlinearSolverOMP(NonlinearSolver):
             The default is 1.0.
             
         References
-        ----------------
-        [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed. ed, 
+        ----------
+        .. [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed. ed, 
         Springer series in operations research. Springer, New York.
 
 
