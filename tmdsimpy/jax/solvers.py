@@ -38,6 +38,8 @@ class NonlinearSolverOMP(NonlinearSolver):
         matrix should be calculated. If calc_grad=True, then returned tuple
         should be (R, dRdX) if False, returned tuple should start with (R,), 
         but may return other values past the 0th index of tuple.
+        Function may be a lambda function that completely ignores calc_grad, 
+        for instance: `fun = lambda X, calc_grad=True : fun0(X)`
     verbose : Boolean, default true
         Flag for if output should be printed. 
     xtol : double, default None
@@ -70,8 +72,25 @@ class NonlinearSolverOMP(NonlinearSolver):
         is considered converged. This allows for looser tolerances to be
         accepted instead of non-convergence, while still using max 
         iterations to try to achieve the tighter tolerances.
-    
-        """
+    line_search_iters : int, optional
+        Number of iterations used in line search (self.line_search). 
+        If 0, line search is not used.
+        If line search is desired, a recommended value is less than 10, perhaps
+        about 2 to 5.
+        If it is greater than 0, then function being solved must accept 
+        calc_grad=True or calc_grad=False as inputs.
+        The default is 0.
+    line_search_tol : float, optional
+        If the line search function decreases to be less than the initial value
+        times this tolerance, than it is accepted as converged.
+        This is not intended to be a tight tolerance, line search is just 
+        intended to quickly reduce the step in case of poor problem behavior.
+        The default is 0.5.
+    line_search_same_sign : bool, optional
+        If true, line search tries to only a return a step that does not change
+        the sign of the quantity deltaX @ R(X + alpha*deltaX).
+        The default is True.
+    """
     
     def __init__(self, config={}):
         
@@ -85,7 +104,10 @@ class NonlinearSolverOMP(NonlinearSolver):
                         'rtol_rel' : None,
                         'etol_rel' : None,
                         'stopping_tol' : ['xtol'],
-                        'accepting_tol' : []
+                        'accepting_tol' : [],
+                        'line_search_iters' : 0,
+                        'line_search_tol' : 0.5,
+                        'line_search_same_sign' : True
                         }
         
         
@@ -160,8 +182,43 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         return x
     
-    def line_search(self):
+    def line_search(self, fun, X, Rx, deltaX):
         """
+        Line search algorithm to help in the numerical solution to a set of 
+        nonlinear equations. This is used by nsolve.
+
+        Parameters
+        ----------
+        fun : function handle
+            Function to be solved, returns 
+            R=fun(X, calc_grad={True or False})[0].
+            Must accept the input argument calc_grad=True and calc_grad=False.
+            Function may be a lambda function that completely ignores calc_grad
+        X : (N,) numpy.ndarray
+            Values of unknowns at initial point.
+        Rx : (N,) numpy.ndarray
+            Residual at X, equal to fun(X)[0].
+        deltaX : (N,) numpy.ndarray
+            Step direction of interest, generally calculated based on gradient
+            solution step.
+
+        Returns
+        -------
+        alpha : float
+            Fraction of deltaX step that should be taken. Recommended update
+            is X = X + alpha*deltaX
+        
+        See Also
+        --------
+        NonlinearSolverOMP : 
+            Documentation for the solver class describes configurations 
+            and settings of the numerical solver that are configured at 
+            creation rather than at solution time. 
+            Relevant settings are 'line_search_iters', 'line_search_tol',
+            'line_search_same_sign'.
+        nsolve :
+            Nonlinear solver routine that calls this function (Newton-Raphson 
+            + BFGS Solver)
         
         Notes
         -----
@@ -172,13 +229,75 @@ class NonlinearSolverOMP(NonlinearSolver):
         is generally desired to minimize additional computational cost of this 
         function before returing to nsolve.
         
+        References
+        ----------
         .. [1] Matthies, H., Strang, G., 1979. The solution of nonlinear finite
         element equations. International Journal for Numerical Methods in 
         Engineering 14, 1613–1626. https://doi.org/10.1002/nme.1620141104
 
         """
         
-        pass
+        Galpha0 = deltaX @ Rx
+        
+        alpha_bracket = [0, 1]
+        
+        # Verify that the sign of G(alpha) changes if a step of size deltaX
+        # is taken
+        Galpha1 = deltaX @ fun(X + deltaX, calc_grad=False)[0]
+        
+        if Galpha1 * Galpha0 > 0:
+            # No line search is needed since there is expected to not a zero in
+            # the segment based on the sign of G(alpha) being the same
+            return 1.0
+        
+        Galpha_bracket = [Galpha0, Galpha1]
+        
+        for ind in range(self.config['line_search_iters']):
+            
+            alpha = 0.5*(alpha_bracket[0]+alpha_bracket[1])
+            
+            Rmid = fun(X + 0.5*(alpha_bracket[0]+alpha_bracket[1])*deltaX, 
+                       calc_grad=False)[0]
+            
+            Gmid = deltaX @ Rmid
+            
+            if Gmid * Galpha_bracket[0] < 0:
+                alpha_bracket[1] = alpha
+                Galpha_bracket[1] = Gmid
+            else:
+                alpha_bracket[0] = alpha
+                Galpha_bracket[0] = Gmid
+                
+            if self.config['line_search_same_sign'] and \
+                np.abs(alpha_bracket[0]) \
+                < self.config['line_search_tol']*np.abs(Galpha0):
+                
+                # Convergence criteria only on the same sign bound if that
+                # is a requirement of the output
+                break 
+            elif np.abs(Gmid) < self.config['line_search_tol']*np.abs(Galpha0):
+                # General convergence on either bound if do not need same sign
+                break
+            
+        if self.config['line_search_same_sign']:
+            # Avoid overshooting zero
+            alpha = alpha_bracket[0]
+            
+        elif np.abs(Galpha_bracket[0]) < np.abs(Galpha_bracket[1]):
+            # Lower bound is closer to solution
+            alpha = alpha_bracket[0]
+        else:
+            alpha = alpha_bracket[1]
+            
+        if alpha == 0.0:
+            # Must make some step even if it is worse on line search
+            alpha = alpha_bracket[1]
+            
+        if self.config['verbose']:
+            print('Line search finished with '\
+                  + '{} iterations, alpha={:.4f}.'.format(ind+1, alpha))
+            
+        return alpha
     
     def nsolve(self, fun, X0, verbose=True, xtol=None, Dscale=1.0):
         """
@@ -246,16 +365,13 @@ class NonlinearSolverOMP(NonlinearSolver):
         Other Parameters
         ----------------
         Dscale : float or numpy.ndarray, optional
-            Not currently supported, this argument does nothing.
-            TODO: implement:
-            Value to scale X by during iteration to improve conditioning. 
-            This argument is not fully tested, and is recommended to not use 
-            this argument.
-            The default is 1.0.
+            This argument does nothing. Conditioning of the numerical problem
+            should be achieved by wrapping the problem of interest rather than
+            here.
             
         References
         ----------
-        .. [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed. ed, 
+        .. [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed, 
         Springer series in operations research. Springer, New York.
 
 
