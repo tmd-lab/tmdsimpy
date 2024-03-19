@@ -673,7 +673,6 @@ class Continuation:
             print('Continuation complete, at lam=', XlamP_full[step-1, -1])
             
             if step == self.config['MaxSteps']:
-                pass
                 print('Continuation completed due to maximum number of steps'\
                       + ' (MaxSteps={}).'.format(self.config['MaxSteps']))
         

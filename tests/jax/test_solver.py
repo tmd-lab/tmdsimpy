@@ -448,12 +448,23 @@ class TestSolverOMP(unittest.TestCase):
         solver_linesearch = NonlinearSolverOMP(config=config_ls)
         
         
+        config_ls_bfgs = {'reform_freq' : 2,
+                          'line_search_iters' : 5,
+                          'line_search_tol' : 0.25,
+                          'line_search_same_sign' : False,
+                          'verbose' : True,
+                          'xtol' : 1e-7}
+        
+        solver_ls_bfgs = NonlinearSolverOMP(config=config_ls_bfgs)
+        
         ###############
         # Try Solutions with both
         
         X_base,_,_,sol_base = solver_baseline.nsolve(fun, X0)
         
         X_ls,_,_,sol_ls = solver_linesearch.nsolve(fun, X0)
+        
+        X_ls_bfgs,_,_,sol_ls_bfgs = solver_ls_bfgs.nsolve(fun, X0)
         
         self.assertFalse(sol_base['success'], 
                          'Baseline solution converged, so test does not check'\
@@ -465,6 +476,11 @@ class TestSolverOMP(unittest.TestCase):
         self.assertLess(np.linalg.norm(X_ls - offset/coef), 1e-6,
                     'Line search solution does not meet expected tolerance.')
 
+        self.assertTrue(sol_ls['success'], 
+                    'Line search + BFGS did not find the solution.')
+        
+        self.assertLess(np.linalg.norm(X_ls - offset/coef), 1e-6,
+                    'Line search + BFGS solution does not meet expected tolerance.')
         
 if __name__ == '__main__':
     unittest.main()
