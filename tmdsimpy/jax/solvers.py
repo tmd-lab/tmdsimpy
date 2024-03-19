@@ -207,6 +207,11 @@ class NonlinearSolverOMP(NonlinearSolver):
         alpha : float
             Fraction of deltaX step that should be taken. Recommended update
             is X = X + alpha*deltaX
+        sol : dict
+            Description of final solution state. Has keys of 
+            ['message', 'nfev']. 
+            'nfev' is the number of function evaluations completed. 
+            'message' describes how line search exited.
         
         See Also
         --------
@@ -237,20 +242,57 @@ class NonlinearSolverOMP(NonlinearSolver):
 
         """
         
+        nfev = 0 # Count number of function evals
+        message = 'Line search exited at max iterations.'
+        
         Galpha0 = deltaX @ Rx
         
         alpha_bracket = [0, 1]
         
         # Verify that the sign of G(alpha) changes if a step of size deltaX
         # is taken
-        Galpha1 = deltaX @ fun(X + deltaX, calc_grad=False)[0]
+        R1 = fun(X + deltaX, calc_grad=False)[0]
+        nfev += 1
+        
+        Galpha1 = deltaX @ R1
+        
+        # Initial Brackets of data
+        Galpha_bracket = [Galpha0, Galpha1]
+        R_bracket = [Rx, R1]
+        
+        # Start is converged? 
+        converged = False
         
         if Galpha1 * Galpha0 > 0:
             # No line search is needed since there is expected to not a zero in
             # the segment based on the sign of G(alpha) being the same
-            return 1.0
+            message = 'Line search is not needed, step is considered safe.'
+            converged = True
+            
+        elif not self.config['line_search_same_sign'] and \
+            np.abs(Galpha1) < self.config['line_search_tol']*np.abs(Galpha0):
+            
+            # alpha = 1.0 satisfies the tolerance, but changes the sign on 
+            # line search
+            message = 'Line search alpha=1 satisfies tolerance.'
+            converged = True
+            
+            if self.config['verbose']:
+                print(message)
+            
+        if converged:
+            
+            sol = {'nfev' : nfev,
+                   'message' : message,
+                   'R(alpha)' : R1,
+                   'G(alpha)_bracket' : Galpha_bracket,
+                   'R_bracket' : R_bracket,
+                   'alpha_bracket' : [0, 1],
+                   'Galpha0' : Galpha0}
+            
+            return 1.0, sol
         
-        Galpha_bracket = [Galpha0, Galpha1]
+        # Do a loop to get the solution to better converge
         
         for ind in range(self.config['line_search_iters']):
             
@@ -258,55 +300,76 @@ class NonlinearSolverOMP(NonlinearSolver):
             
             Rmid = fun(X + 0.5*(alpha_bracket[0]+alpha_bracket[1])*deltaX, 
                        calc_grad=False)[0]
+            nfev += 1
             
             Gmid = deltaX @ Rmid
             
             if Gmid * Galpha_bracket[0] < 0:
                 alpha_bracket[1] = alpha
                 Galpha_bracket[1] = Gmid
+                R_bracket[1] = Rmid
             else:
                 alpha_bracket[0] = alpha
                 Galpha_bracket[0] = Gmid
-                
+                R_bracket[0] = Rmid
+            
             if self.config['line_search_same_sign'] and \
-                np.abs(alpha_bracket[0]) \
+                np.abs(Galpha_bracket[0]) \
                 < self.config['line_search_tol']*np.abs(Galpha0):
                 
+                message = 'Line search converged to tolerance with same sign '\
+                    + 'as start.'
                 # Convergence criteria only on the same sign bound if that
                 # is a requirement of the output
                 break 
-            elif np.abs(Gmid) < self.config['line_search_tol']*np.abs(Galpha0):
+            
+            elif not self.config['line_search_same_sign'] and \
+                np.abs(Gmid) < self.config['line_search_tol']*np.abs(Galpha0):
+                
+                message = 'Line search converged to tolerance.'
+                
                 # General convergence on either bound if do not need same sign
                 break
             
         if self.config['line_search_same_sign']:
             # Avoid overshooting zero
             alpha = alpha_bracket[0]
+            Ralpha = R_bracket[0]
             
         elif np.abs(Galpha_bracket[0]) < np.abs(Galpha_bracket[1]):
             # Lower bound is closer to solution
             alpha = alpha_bracket[0]
+            Ralpha = R_bracket[0]
         else:
             alpha = alpha_bracket[1]
+            Ralpha = R_bracket[1]
             
         if alpha == 0.0:
             # Must make some step even if it is worse on line search
             alpha = alpha_bracket[1]
+            Ralpha = R_bracket[1]
+            
+            message += ' Line search changed from final solution to upper'\
+                + ' bracket to prevent an alpha=0 step (no change in X).'
             
         if self.config['verbose']:
             print('Line search finished with '\
                   + '{} iterations, alpha={:.4f}.'.format(ind+1, alpha))
+            print(message)
             
-        return alpha
+        sol = {'nfev' : nfev,
+               'message' : message,
+               'R(alpha)' : Ralpha,
+               'G(alpha)_bracket' : Galpha_bracket,
+               'R_bracket' : R_bracket,
+               'alpha_bracket' : alpha_bracket,
+               'Galpha0' : Galpha0}
+                
+        return alpha, sol
     
-    def nsolve(self, fun, X0, verbose=True, xtol=None, Dscale=1.0):
+    def nsolve(self, fun, X0, verbose=None, xtol=None, Dscale=1.0):
         """
         Numerical nonlinear root finding solution to the problem of R = fun(X)
-        
-        This function uses either a full Newton-Raphson (NR) solver approach or
-        Broyden-Fletcher-Goldfarb-Shanno (BFGS), which uses fewer NR iterations
-        with some approximations of Jacobian between NR iterations.
-        For BFGS see Algorithm 7.4 in [1]_.
         
         Solver settings are set at initialization of NonlinearSolverOMP 
         (see that documentation).
@@ -324,8 +387,11 @@ class NonlinearSolverOMP(NonlinearSolver):
             additional values will be ignored here.
         X0 : (N,) numpy.ndarray
             Initial guess of the solution to the nonlinear problem.
-        verbose : bool, optional
-            Flag to print convergence information if True. The default is True.
+        verbose : bool or None, optional
+            Flag to print convergence information if True.
+            If None, then the configuration setting for 'verbose' from 
+            initialization will be used (default True)
+            The default is None.
         xtol : float, optional
             Tolerance to check for convergence on the step size. 
             If None, then self.config['xtol'] is used. If that is also None, 
@@ -351,6 +417,8 @@ class NonlinearSolverOMP(NonlinearSolver):
             evaluations completed. 'njev' is the number of jacobian evaluations.
             'message' is either 'Converged' or 'failed'. Use the bool from 
             'success' rather than the message for decisions. 
+            'nfev' does not include any function evaluations done as part 
+            of the line search routine. 
             
         See Also
         --------
@@ -361,6 +429,18 @@ class NonlinearSolverOMP(NonlinearSolver):
         line_search : 
             Class method that may be used to improve convergence of nsolve
             if the appropriate solver settings are used.
+            
+        Notes
+        -----
+        This function uses either a full Newton-Raphson (NR) solver approach or
+        Broyden-Fletcher-Goldfarb-Shanno (BFGS), which uses fewer NR iterations
+        with some approximations of Jacobian between NR iterations.
+        For BFGS see Algorithm 7.4 in [1]_.
+        
+        The output status of current errors / norms of residual etc. are 
+        intended to provide easy checks to see what is going on during 
+        solutions. These outputs are slightly convoluted in that some outputs
+        are for the previous iteration, check code for exact details.
             
         Other Parameters
         ----------------
@@ -385,6 +465,9 @@ class NonlinearSolverOMP(NonlinearSolver):
             xtol = self.config['xtol']
             if xtol is None: 
                 xtol = 1e-6*X0.shape[0]
+            
+        if verbose is None:
+            verbose = self.config['verbose']
             
         # Save out the setting from xtol in config, then will overwrite
         # here to update to be used for this call. 
@@ -490,18 +573,28 @@ class NonlinearSolverOMP(NonlinearSolver):
                     beta = bfgs_p[kk] * (bfgs_y[:, kk] @ deltaX)
                     deltaX = deltaX + bfgs_s[:, kk]*(alpha[kk] - beta)
                
-            ###### # Update Solution
+            ###### # Check Solution Step
             if np.isnan(np.sum(deltaX)):
                 no_nan_vals = False
                 if verbose: print('Stopping with NaN Step Direction')
                 break
             
-            X = X + deltaX
-            
-            ###### # Tolerance Checking
+            ###### # Tolerance Calculations
+            # Tolerances should not include line search scaling of deltaX
             u_curr = np.sqrt(deltaX @ deltaX)
             e_curr = R @ deltaXminus1
             r_curr = np.sqrt(R @ R)
+            
+            ###### # Line search Solution
+            if self.config['line_search_iters'] > 0:
+                alpha_ls,sol_ls = self.line_search(fun, X, R, deltaX)
+                
+                deltaX = alpha_ls * deltaX
+            
+            ###### # Update Solution
+            X = X + deltaX
+            
+            ###### # Tolerance Checking
             
             if i == 0: # Store initial tolerances
                 r0 = r_curr
@@ -565,7 +658,6 @@ class NonlinearSolverOMP(NonlinearSolver):
             # (if energy norm goes negative, line search is useful)
             deltaXminus1 = deltaX
             
-
         ##########################################################
         # Final Clean Up and Return
         

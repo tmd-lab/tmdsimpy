@@ -418,10 +418,12 @@ class Continuation:
         Initial Point Fails to Converge : 
             You will need to provide a better guess or better solver settings
             to fix this. This is not an issue with continuation. 
-            Continuation does not apply conditioning for the initial solution, 
-            so you may manually try applying conditioning outside of 
-            continuation and use your solver to find the solution to your 
-            function at lam0. Pass that new solution in as the initial guess.
+            If using the `jax.solvers.NonlinearSolverOMP` solver, you can 
+            try to use reform_freq=1 and line search settings.
+            Conditioning may not be the best for the initial solution point, 
+            you can try to update your initial guess for the CtoP vector
+            or solve the problem outside of continuation and pass that solution
+            as the initial guess here.
             For vibration problems, starting in a linear regime (e.g., low
             amplitude for modal analysis or far from resonance for HBM) is more
             likely to succeed here.
@@ -669,6 +671,11 @@ class Continuation:
         
         if not silent:
             print('Continuation complete, at lam=', XlamP_full[step-1, -1])
+            
+            if step == self.config['MaxSteps']:
+                pass
+                print('Continuation completed due to maximum number of steps'\
+                      + ' (MaxSteps={}).'.format(self.config['MaxSteps']))
         
         return XlamP_full
     
