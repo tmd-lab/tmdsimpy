@@ -237,7 +237,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (Fnl,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -304,7 +306,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -379,7 +383,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -509,7 +515,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -912,6 +920,8 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
             The default is True.
 
         Returns
@@ -1020,6 +1030,8 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
             The default is True.
         constraint_scale : float
             Number to scale the residual of the constraint equation by. 
@@ -1147,7 +1159,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -1271,7 +1285,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
@@ -1390,7 +1406,9 @@ class VibrationSystem:
         calc_grad : boolean
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
-            The default is True
+            False should only be passed if all nonlinear forces have aft 
+            methods that accept the calc_grad keyword.
+            The default is True.
 
         Returns
         -------
