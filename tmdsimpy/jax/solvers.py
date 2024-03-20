@@ -117,7 +117,27 @@ class NonlinearSolverOMP(NonlinearSolver):
         self.config = default_config
         
         return
-        
+
+    def edit_config(self, new_config):
+        """
+        Edit the solver configuration settings after initialization.
+
+        Parameters
+        ----------
+        new_config : dict
+            Dictionary of key value pairs for the new settings. The settings
+            that can be changed are the same as those when creating a new
+            object
+
+        Returns
+        -------
+        None.
+
+        """
+
+        for key in new_config.keys():
+            self.config[key] = new_config[key]
+
     def lin_solve(self, A, b):
         """
         Solve the linear system A * x = b 
