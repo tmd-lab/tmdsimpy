@@ -71,9 +71,6 @@ class ElasticDryFriction2D(NonlinearForce):
                           'to numpy array was attempted, but not '
                           'guaranteed to work.')
 
-
-        assert self.Q.shape[0] == 2, \
-            'Only supports single local frictional element with normal and tangential DOFs.'
         
         assert type(kt) == float, \
             'Only supports single kt to be float '
@@ -122,6 +119,27 @@ class ElasticDryFriction2D(NonlinearForce):
         """
         self.up = np.zeros(self.Q.shape[0]//2)
         self.fp = np.zeros(self.Q.shape[0]//2)
+
+
+    def set_aft_initialize(self, X):
+        """
+        Set a center for frictional sliders to be initialized at zero force
+        for AFT routines. 
+
+        Parameters
+        ----------
+        X : np.array, size (Ndof,)
+            Solution to a static solution or other desired set of displacements
+            that will be used as the baseline position of frictional sliders.
+
+        Returns
+        -------
+        None.
+
+        """
+        self.u0 = self.Q @ X
+        
+        return
         
         
     def update_history(self, unl, fnl):
@@ -177,7 +195,7 @@ class ElasticDryFriction2D(NonlinearForce):
         dFdX = self.T @ dfnldunl @ self.Q
         
         if update_hist: 
-            self.update_history(unl, fnl)
+            self.update_history(unl[0::2], fnl[0::2])
         
         return F, dFdX
         
@@ -246,7 +264,7 @@ class ElasticDryFriction2D(NonlinearForce):
         Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
         
         pars = np.array([self.kt, self.kn, self.mu])
-        
+
         # # If no Grad is needed use:
         # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
         
@@ -310,7 +328,7 @@ def _local_eldy_force(unl, up, fp, pars):
 
     return fnl,fnl
 
-# @partial(jax.jit) 
+@partial(jax.jit) 
 def _local_eldy_force_grad(unl, up, fp, pars):
     """
     Function that computes the gradient of local force. Using Aux data allows for 
@@ -451,13 +469,13 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
     # gradients are concerned.
-    u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0)
+    u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0[0::2])
     
     # The first evaluation is based on the last entry of ft and therefore 
     # initialize the last entry of ft based on a linear spring
     # slip limit does not need to be applied since this just needs to get stuck
     # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0[0::2]))
+    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0))
         
     # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
     # steady-state
@@ -503,5 +521,3 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
     J,F = jax.jacfwd(_local_aft_eldry, has_aux=True)(Uwlocal, pars, u0, 
                                                        htuple, Nt, u0h0)    
     return J,F
-
-
