@@ -452,7 +452,7 @@ class TestSolverOMP(unittest.TestCase):
                           'line_search_iters' : 5,
                           'line_search_tol' : 0.25,
                           'line_search_same_sign' : False,
-                          'verbose' : True,
+                          'verbose' : False,
                           'xtol' : 1e-7}
         
         solver_ls_bfgs = NonlinearSolverOMP(config=config_ls_bfgs)

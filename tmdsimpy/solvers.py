@@ -211,7 +211,7 @@ def _conditioned_fun(Xc, CtoP, RPtoC, calc_grad, fun):
     
     Xp = Xc*CtoP
     if calc_grad:
-        R, dRdXp = fun(Xp)
+        R, dRdXp = fun(Xp)[:2]
         
         Rc = RPtoC * R
         dRcdXc = RPtoC*dRdXp*CtoP
@@ -221,6 +221,6 @@ def _conditioned_fun(Xc, CtoP, RPtoC, calc_grad, fun):
     else:
         R = fun(Xp, calc_grad=False)[0]
     
-        Rc = RPtoC * R[0]
+        Rc = RPtoC * R
         
         return (Rc,)
