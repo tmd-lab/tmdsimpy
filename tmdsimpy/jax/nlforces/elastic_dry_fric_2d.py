@@ -72,14 +72,14 @@ class ElasticDryFriction2D(NonlinearForce):
                           'guaranteed to work.')
 
         
-        assert type(kt) == float, \
-            'Only supports single kt to be float '
+        # assert type(kt) == float, \
+        #     'Only supports single kt to be float '
 
-        assert type(kn) == float, \
-            'Only supports single kn to be float '   
+        # assert type(kn) == float, \
+        #     'Only supports single kn to be float '   
         
-        assert type(mu) == float, \
-            'Only supports single mu to be float '         
+        # assert type(mu) == float, \
+        #     'Only supports single mu to be float '         
         
         self.kt = kt
         self.kn = kn
@@ -403,7 +403,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
                 then the next harmonic ect. Size (Nhc*Ndnl + 1,)
     pars : jax.numpy array with parameters [kt, Fs]. Bundled this way in case
             future work is interested in applying autodiff w.r.t. parameters
-    u0 : scalar value for the displacement to initialize the slider to
+    u0 : scalar/vector value for the displacement to initialize the slider to
     htuple : tuple containing the list of harmonics. Tuple is used so the 
             argument can be made static. 
     Nt : Number of AFT time steps to be used. 
@@ -465,6 +465,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     
     ########################################
     #### Start slider in desired position
+    u0 = u0*jnp.ones_like(Ulocal[0])
     
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
