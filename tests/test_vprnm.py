@@ -922,6 +922,216 @@ class TestVPRNM(unittest.TestCase):
         self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
                          'calc_grad changed gradient value.')
         
-                
+    def test_vprnm_grad_filter(self):
+        """
+        Test VPRNM equation for modal filtering
+        
+        Cubic damping is considered to check frequency gradient, but it appears
+        that all of the frequency gradient terms cancel out in this case so 
+        that gradient is zero. This may not be generally true for other
+        velocity dependent nonlinearities.
+        """
+        
+        M = np.array([[1.0, 2.0], [3.0, 4.0]])
+        
+        K = np.array([[5.0, 6.0], [7.0, 8.0]])
+        
+        Q = np.array([[1.0, -1.0]])
+        T = Q.T
+        
+        calpha = 3.145 # N/(m/s)^3
+        kalpha = 3.145 # N/m^3
+        
+        ab_damp = [0.01, 0]
+        
+        h = np.array(range(6))
+        
+        rhi = 3
+        
+        Ndof = M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        ###########
+        # Random Quantities
+        
+        rng = np.random.default_rng(seed=1023)
+        
+        superharmonic_filter = rng.random(Ndof)
+        U = rng.random(Ndof*Nhc)
+        w = 3.7
+        F = 2.5
+        Fl = rng.random(Nhc*Ndof)
+        
+        Uw0 = np.hstack((U, w))
+        
+        ###########
+        # Setup Vibration System
+        nl_damping = CubicDamping(Q, T, calpha)
+        
+        vib_sys_cubic_damp = VibrationSystem(M, K, ab=ab_damp)
+        
+        vib_sys_cubic_damp.add_nl_force(nl_damping)
+        
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        vib_sys_duffing = VibrationSystem(M, K, ab=ab_damp)
+        
+        vib_sys_duffing.add_nl_force(duff_force)
+        
+        
+        ###########
+        # Check Gradients 
+        
+        fun = lambda Uw : vib_sys_cubic_damp.vprnm_res(np.hstack((Uw, F)), 
+                                    h, rhi, Fl,
+                                    superharmonic_filter=superharmonic_filter)[:2]
+
+
+        grad_failed = vutils.check_grad(fun, Uw0, 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+        
+        
+        fun = lambda Uw : vib_sys_duffing.vprnm_res(np.hstack((Uw, F)), 
+                                    h, rhi, Fl,
+                                    superharmonic_filter=superharmonic_filter)[:2]
+
+
+        grad_failed = vutils.check_grad(fun, Uw0, 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+    
+    def test_vprnm_residual_filter(self):
+        """
+        Construct a system with the specific goal of producing cases with the 
+        modal filter that give clearly different values of residual for VPRNM
+        """
+
+        ###########
+        # Construct System
+        
+        M = np.diag([1.0, 2.0])
+        K = np.diag([3.0, 4.0])
+        ab_damp = [0.01, 0]
+        
+        Q = np.array([[1.0, -1.0]])
+        T = Q.T
+        kalpha = 3.68
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        vib_sys = VibrationSystem(M, K, ab=ab_damp)
+        vib_sys.add_nl_force(duff_force)
+        
+        # Specific case 
+        h = np.array([1, 3])
+        
+        super_filter = np.array([1.0, 0.0])
+        
+        U1 = np.array([1.0, -1.0, 0.0, 0.0])
+        
+        Ndof = M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        Fl = np.zeros(Nhc * Ndof)
+        Fl[:Ndof] = 1.0
+        
+        rhi = 3
+        
+        recov = np.array([1.0, -1.0])
+        order = 0
+        
+        # Make up some numbers for other parts of the solution at random
+        w = 6.1
+        A = 2.0
+        Fc = 2.7
+        Fs = 3.5
+        
+        UFcFswA_base = np.hstack((U1, 0*U1, Fc, Fs, w, A))
+        
+        ###########
+        # In Phase Motion - positive 1 residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([-1.0, -51.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1] - 1.0), 1e-12, 
+                        'Wrong modally filtered residual for in phase motion')
+        
+        ###########
+        # Out of Phase Motion - negative 1 residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([1.0, 2*1.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1] - (-1.0)), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        ###########
+        # Resonance Motion - zero residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[3*Ndof:4*Ndof] = np.array([1.0, 5.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1]), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        ###########
+        # Resonance Motion - hidden by other DOF for basic VPRNM, 
+        # shown with modal filter
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([0.0, -50.0])
+        UFcFswA[3*Ndof:4*Ndof] = np.array([1.0, 5.0])
+        
+        R_filt = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        R_nofilt = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, 
+                                               order)[0]
+        
+        self.assertLess(np.abs(R_filt[-1]), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        # test that the test tests the correct thing.
+        self.assertGreater(np.abs(R_nofilt[-1]), 0.5, 
+                    'Test should hide the VPRNM resonance when modal filter '\
+                    + 'is not used. This has not been accomplished')
+        
+        # check gradient here as well
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(\
+                                        np.hstack((UFcFsw, UFcFswA[-1])), 
+                                        Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], 
+                                        verbose=False, 
+                                        rtol=1e-9, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+        
 if __name__ == '__main__':
     unittest.main()

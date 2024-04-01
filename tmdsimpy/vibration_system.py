@@ -890,7 +890,7 @@ class VibrationSystem:
             return R, dRdU, dRdw
     
     def vprnm_single_eqn(self, U, w, h, rhi, Nt=128, aft_tol=1e-7, 
-                         calc_grad=True):
+                         calc_grad=True, superharmonic_filter=None):
         """
         Function implements a single residual equation for Variable Phase 
         Resonance Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems
@@ -920,12 +920,19 @@ class VibrationSystem:
         aft_tol : float
             AFT Tolerance for HBM
             The default is 1e-7.
-        calc_grad : boolean
+        calc_grad : boolean, optional
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
             False should only be passed if all nonlinear forces have aft 
             methods that accept the calc_grad keyword.
             The default is True.
+        superharmonic_filter : None or (Ndof,) numpy.ndarray, optional
+            If None, VPRNM is calculated without modal filter. 
+            If a numpy.ndarray, then VPRNM is modally filtered with the array.
+            The modal filter is applied to the superharmonic resonance to 
+            extract a specific mode.
+            The default is None.
+            
 
         Returns
         -------
@@ -961,18 +968,29 @@ class VibrationSystem:
         
         # Excitation of rhi acting as an external force
         Frhi = -Fint_dFintdU_dFintdw[0][Ndof*rhi_index:Ndof*(rhi_index+2)]
-    
+
+        Xrhi = U[Ndof*rhi_index:Ndof*(rhi_index+2)]
+
+        # Modal filter of the superharmonic resonance
+        if superharmonic_filter is not None:
+            Frhi = np.hstack((superharmonic_filter @ Frhi[:Ndof],
+                              superharmonic_filter @ Frhi[Ndof:]))
+            
+            modeT_M = superharmonic_filter @ self.M
+            
+            Xrhi = np.hstack((modeT_M @ Xrhi[:Ndof],
+                              modeT_M @ Xrhi[Ndof:]))
+
         # Normalize the force vector to be of unit length
         Fnorm = np.sqrt(np.sum(Frhi**2))
         
         # Normalize Xrhi as well as F
-        Xrhi = U[Ndof*rhi_index:Ndof*(rhi_index+2)]
-
         Xrhi_norm = np.sqrt(np.sum(Xrhi**2))
         
         R = (Frhi @ Xrhi)/(Xrhi_norm*Fnorm)
         
-        if calc_grad:
+        if calc_grad and superharmonic_filter is None:
+            # Gradients without modal filter
             
             dFintdU = Fint_dFintdU_dFintdw[1]
             dFintdw = Fint_dFintdU_dFintdw[2]
@@ -995,12 +1013,53 @@ class VibrationSystem:
                     - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
                     
             return R, dRdUw
+        
+        if calc_grad and superharmonic_filter is not None:
+            # Gradients with modal filter
+            
+            dFintdU = Fint_dFintdU_dFintdw[1]
+            dFintdw = Fint_dFintdU_dFintdw[2]
+            
+            # Preserve derivative info w.r.t. harmonics up to rhi - 1
+            dFrhidU01 = -dFintdU[Ndof*rhi_index:Ndof*(rhi_index+2), 0:Ndof*rhi_index] 
+            
+            dFrhidw = -dFintdw[Ndof*rhi_index:Ndof*(rhi_index+2)]
+            
+            # Modal filter derivative component parts
+            
+            # derivative of what is now called Xrhi (modal coordinates)
+            # with respect to the original coordinates
+            # eye(2) because there are cosine/sine components = 2 components
+            dXrhi_dXrhiorig = np.kron(np.eye(2), modeT_M)
+            
+            # Derivative of modal force w.r.t. lower harmonics
+            dFrhidU01 = np.kron(np.eye(2), superharmonic_filter) @ dFrhidU01
+            
+            dFrhidw = np.hstack((superharmonic_filter @ dFrhidw[:Ndof],
+                                 superharmonic_filter @ dFrhidw[Ndof:]))
+        
+        
+            # Organize into final gradient form
+            dRdUw = np.zeros(Ndof*Nhc+1)
+            
+            dRdUw[:Ndof*rhi_index] = (dFrhidU01.T @ Xrhi) / (Xrhi_norm*Fnorm) \
+                   -(Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidU01.T @ Frhi)
+            
+            dRdUw[Ndof*rhi_index:Ndof*(rhi_index+2)] \
+                = Frhi @ dXrhi_dXrhiorig / (Xrhi_norm*Fnorm) \
+                - (Frhi @ Xrhi)/(Xrhi_norm**3*Fnorm) * (Xrhi @ dXrhi_dXrhiorig)
+        
+            dRdUw[-1] = (dFrhidw @ Xrhi) / (Xrhi_norm*Fnorm) \
+                    - (Frhi @ Xrhi) / (Xrhi_norm*Fnorm**3) * (dFrhidw @ Frhi)
+
+            return R, dRdUw
+        
         else:
             return (R,)
         
         
     def vprnm_res(self, UwF, h, rhi, Fl, Nt=128, aft_tol=1e-7, 
-                  calc_grad=True,
+                  calc_grad=True, superharmonic_filter=None,
                   constraint_scale=1.0):
         """
         Function implements a residual option for Variable Phase Resonance 
@@ -1036,6 +1095,12 @@ class VibrationSystem:
             False should only be passed if all nonlinear forces have aft 
             methods that accept the calc_grad keyword.
             The default is True.
+        superharmonic_filter : None or (Ndof,) numpy.ndarray, optional
+            If None, VPRNM is calculated without modal filter. 
+            If a numpy.ndarray, then VPRNM is modally filtered with the array.
+            The modal filter is applied to the superharmonic resonance to 
+            extract a specific mode.
+            The default is None.
         constraint_scale : float
             Number to scale the residual of the constraint equation by. 
             This is useful when a solver does not put sufficient weight on
@@ -1088,9 +1153,10 @@ class VibrationSystem:
         #############
         # VPRNM Equation
         Rvprnm_dRdUw_vprnm = self.vprnm_single_eqn(UwF[:-2], UwF[-2], h, rhi, 
-                                                   Nt=Nt, 
-                                                   aft_tol=aft_tol, 
-                                                   calc_grad=calc_grad)
+                                    Nt=Nt, 
+                                    aft_tol=aft_tol, 
+                                    calc_grad=calc_grad,
+                                    superharmonic_filter=superharmonic_filter)
         
         #############
         # Assemble Full Gradient and Residual
@@ -1452,7 +1518,8 @@ class VibrationSystem:
         
     def vprnm_amp_phase_res(self, UFcFswA, Fl, h, rhi, recov, order, 
                             Nt=128, aft_tol=1e-7, 
-                            calc_grad=True, constraint_scale=1.0):
+                            calc_grad=True, superharmonic_filter=None,
+                            constraint_scale=1.0):
         """
         Function implements a residual option for Variable Phase Resonance 
         Nonlinear Modes for Multiple Degree of Freedom (MDOF) systems.
@@ -1498,6 +1565,12 @@ class VibrationSystem:
             Flag where True indicates that the gradients should be calculated 
             and returned. If False, then returns only (R,) as a tuple. 
             The default is True.
+        superharmonic_filter : None or (Ndof,) numpy.ndarray, optional
+            If None, VPRNM is calculated without modal filter. 
+            If a numpy.ndarray, then VPRNM is modally filtered with the array.
+            The modal filter is applied to the superharmonic resonance to 
+            extract a specific mode.
+            The default is None.
         constraint_scale : float
             Number to scale the residual of the constraint equation by. 
             This is useful when a solver does not put sufficient weight on
@@ -1538,10 +1611,11 @@ class VibrationSystem:
                                                         calc_grad=calc_grad)
         
         vprnm_R_dRdUw = self.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
-                                             h, rhi, 
-                                             Nt=Nt, 
-                                             aft_tol=aft_tol, 
-                                             calc_grad=calc_grad)
+                                    h, rhi, 
+                                    Nt=Nt, 
+                                    aft_tol=aft_tol, 
+                                    calc_grad=calc_grad,
+                                    superharmonic_filter=superharmonic_filter)
         
         R = np.hstack((hbm_R_dRdUFcFs_dRdw[0], 
                        constraint_scale*vprnm_R_dRdUw[0]))
