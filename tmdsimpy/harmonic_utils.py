@@ -580,8 +580,6 @@ def zero_crossing(X, zero_tol=np.Inf):
 def shift_pm_pi(phase):
     """
     Intended to shift phase to be within (-pi, pi].
-    This algorithm here is incomplete, so this function does not fully achieve
-    that. Need to clean up or remove / update dependencies.
 
     Parameters
     ----------
@@ -599,3 +597,80 @@ def shift_pm_pi(phase):
     phase = ((phase + np.pi) % 2*np.pi) - np.pi
     
     return phase
+
+def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
+    """
+    Rotates a set of harmonic solutions through `phase_angle` by subtracting
+    the phase angle. 
+    
+    For documentation, `Nhc=harmonic_utils.Nhc(h)`.
+
+    Parameters
+    ----------
+    U_orig : (M, Nhc*Ndof+a) numpy.ndarray
+        This is a set of harmonic solutions where rows are independent 
+        solutions and each row contains Nhc sets of Ndof coordinates 
+        corresponding to solution displacements. The rows contain all of the 
+        first harmonic, then all of the second harmonic etc. as given by 
+        the harmonics in h. Each harmonic greater than 0 has all cosine terms
+        then all sine terms. 
+        The last `a` columns of U_orig can be anything, are ignored and 
+        returned as provided.
+    Ndof : int
+        Number of degrees of freedom defining the size of `U_orig` as above.
+    h : numpy.ndarray, sorted
+        Array of the harmonics used in U_orig
+    phase_rotate : float or (M,) numpy.ndarray
+        Phase to rotate the solution U_orig through. See Notes for description
+        of sign. 
+        This rotation is applied to the harmonic `h_rotate` which other 
+        harmonics shifted by a consistent amount of time. 
+        If this is an array, then each row of U_orig is shifted by a different
+        phase as given by the equivalent entry in this array.
+    h_rotate : int
+        The harmonic that should be rotated by `phase_angle`.
+
+    Returns
+    -------
+    U_rot : (M, Nhc*Ndof+a) numpy.ndarray
+        `U_orig` with the applied phase rotation. 
+        The last `a` columns are directly copied from U_orig.
+
+    Notes
+    -----
+    
+    The phase angle is subtracted so if the input is
+    `Uc * cos(Omega * t)`
+    the output is `Uc*cos(Omega * t - phase_angle)` for h_rotate==1.
+    
+    The harmonic `h_rotate` is rotated by the phase angle and ther harmonics 
+    are consistently rotated based on some time shift t0 so that 
+    `Uc*cos(h_rotate*Omega*(t-t0)) = Uc*cos(h_rotate*Omega - phase_angle)`.
+    """
+    
+    U_rot = np.copy(U_orig)
+    
+    h0 = h[0] == 0 # flag for 0th harmonic
+    
+    phase_h1 = (phase_angle / h_rotate) * np.ones((U_rot.shape[0]))
+    phase_h1 = phase_h1.reshape(-1, 1)
+    
+    for hi in range(h.shape[0]-h0):
+        
+        h_curr = h[hi+h0]
+        
+        # cosine
+        U_rot[:, (h0+2*hi)*Ndof:(h0+2*hi+1)*Ndof]  = \
+            U_orig[:, (h0+2*hi)*Ndof:(h0+2*hi+1)*Ndof]\
+                *np.cos(h_curr*phase_h1) \
+            - U_orig[:, (h0+2*hi+1)*Ndof:(h0+2*hi+2)*Ndof]\
+                *np.sin(h_curr*phase_h1)
+               
+        # sine
+        U_rot[:, (h0+2*hi+1)*Ndof:(h0+2*hi+2)*Ndof] = \
+            U_orig[:, (h0+2*hi)*Ndof:(h0+2*hi+1)*Ndof]\
+                *np.sin(h_curr*phase_h1) \
+            + U_orig[:, (h0+2*hi+1)*Ndof:(h0+2*hi+2)*Ndof]\
+                *np.cos(h_curr*phase_h1)
+                
+    return U_rot

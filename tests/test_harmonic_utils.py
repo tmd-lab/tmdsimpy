@@ -254,6 +254,136 @@ class TestHarmonicUtils(unittest.TestCase):
         self.assertLess(np.max(np.abs(CtoP_expected_vec_delta[:-3] - CtoP) \
                                / CtoP_expected_vec_delta[:-3]), 
                         1e-8)
+            
+    def test_rotate_subtract_phase(self):
+        """
+        Tests the 'harmonic_utils.rotate_subtract_phase' function
+        for some simple examples. Function is further tested by ROM tests
+        """
+        
+        equal_tol = 1e-12
+        
+        # With zeroth harmonic, and applied to first harmonic
+        h = np.arange(0, 3)
+        h_rotate = 1
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+        
+        U_orig = np.array([[0.68, 0.93, 0.29, 0.27, 0.8 , 0.67, 0.69, 0.86, 
+                       0.22, 0.99, 0.8 , 0.85, 0.71, 0.17, 0.61, 0.95],
+                      [0.35, 0.43, 0.27, 0.8 , 0.1 , 0.98, 0.34, 0.62, 
+                       0.94, 0.28, 0.75, 0.54, 0.64, 0.74, 0.45, 0.1 ]])
+        
+        phase = np.pi
+        U_rot = hutils.rotate_subtract_phase(U_orig, Ndof, h, phase, h_rotate)
+        
+        self.assertLess(np.linalg.norm(U_orig[:, :Ndof] - U_rot[:, :Ndof]), 
+                        equal_tol,
+                        'Zeroth harmonic should not change.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, Ndof*Nhc:] \
+                                       - U_rot[:, Ndof*Nhc:]), 
+                        equal_tol,
+                        'Extra columns should not change.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, Ndof:3*Ndof] \
+                                       + U_rot[:, Ndof:3*Ndof]), 
+                        equal_tol,
+                        'First harmonic should change signs.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, 3*Ndof:5*Ndof] \
+                                       - U_rot[:, 3*Ndof:5*Ndof]), 
+                        equal_tol,
+                        'Second Harmonic should not change.')
+        
+        
+        phase = np.pi/2
+        U_rot = hutils.rotate_subtract_phase(U_orig, Ndof, h, phase, h_rotate)
+        
+        self.assertLess(np.linalg.norm(U_orig[:, :Ndof] - U_rot[:, :Ndof]), 
+                        equal_tol,
+                        'Zeroth harmonic should not change.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, Ndof*Nhc:] \
+                                       - U_rot[:, Ndof*Nhc:]), 
+                        equal_tol,
+                        'Extra columns should not change.')
+        
+        self.assertLess(np.linalg.norm(U_rot[:, Ndof:2*Ndof] \
+                                       + U_orig[:, 2*Ndof:3*Ndof]), 
+                        equal_tol,
+                        'First harmonic should swap sine/cosine.')
+        
+        self.assertLess(np.linalg.norm(U_rot[:, 2*Ndof:3*Ndof] \
+                                       - U_orig[:, Ndof:2*Ndof]), 
+                        equal_tol,
+                        'First harmonic should swap sine/cosine.')
+            
+        self.assertLess(np.linalg.norm(U_orig[:, 3*Ndof:5*Ndof] \
+                                       + U_rot[:, 3*Ndof:5*Ndof]), 
+                        equal_tol,
+                        'Second Harmonic should change sign.')
+        
+        # Without zeroth harmonic, and applied to second harmonic
+        h = np.arange(1, 3)
+        h_rotate = 2
+        
+        Ndof = 2
+        Nhc = hutils.Nhc(h)
+        
+        U_orig = np.array([[0.72, 0.95, 0.99, 0.54, 0.67, 0.95, 0.15, 
+                            0.58, 0.43, 0.78, 0.94, 0.27, 0.77],
+                           [0.03, 0.22, 0.68, 0.63, 0.04, 0.08, 0.47, 
+                            0.61, 0.21, 0.02, 0.38, 0.59, 0.44],
+                           [0.17, 0.21, 0.93, 0.92, 0.78, 0.08, 0.26, 
+                            0.86, 0.57, 0.61, 0.71, 0.77, 0.74],
+                           [0.47, 0.67, 0.45, 0.41, 0.6 , 0.53, 0.72, 
+                            0.11, 0.51, 0.13, 0.21, 0.02, 0.15]])
+        
+        
+        # result should act the same as phase=np.pi/2 from above with h_rotate=1
+        phase = np.pi
+        U_rot = hutils.rotate_subtract_phase(U_orig, Ndof, h, phase, h_rotate)
+        
+        self.assertLess(np.linalg.norm(U_orig[:, Ndof*Nhc:] \
+                                       - U_rot[:, Ndof*Nhc:]), 
+                        equal_tol,
+                        'Extra columns should not change.')
+        
+        self.assertLess(np.linalg.norm(U_rot[:, :Ndof] \
+                                       + U_orig[:, 1*Ndof:2*Ndof]), 
+                        equal_tol,
+                        'First harmonic should swap sine/cosine.')
+        
+        self.assertLess(np.linalg.norm(U_rot[:, 1*Ndof:2*Ndof] \
+                                       - U_orig[:, :1*Ndof]), 
+                        equal_tol,
+                        'First harmonic should swap sine/cosine.')
+            
+        self.assertLess(np.linalg.norm(U_orig[:, 2*Ndof:4*Ndof] \
+                                       + U_rot[:, 2*Ndof:4*Ndof]), 
+                        equal_tol,
+                        'Second Harmonic should change sign.')
+        
+        # result should act the same as phase=np.pi from above with h_rotate=1
+        phase = 2*np.pi
+        U_rot = hutils.rotate_subtract_phase(U_orig, Ndof, h, phase, h_rotate)
+        
+        self.assertLess(np.linalg.norm(U_orig[:, Ndof*Nhc:] \
+                                       - U_rot[:, Ndof*Nhc:]), 
+                        equal_tol,
+                        'Extra columns should not change.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, :2*Ndof] \
+                                       + U_rot[:, :2*Ndof]), 
+                        equal_tol,
+                        'First harmonic should change signs.')
+        
+        self.assertLess(np.linalg.norm(U_orig[:, 2*Ndof:4*Ndof] \
+                                       - U_rot[:, 2*Ndof:4*Ndof]), 
+                        equal_tol,
+                        'Second Harmonic should not change.')
         
 
 if __name__ == '__main__':
