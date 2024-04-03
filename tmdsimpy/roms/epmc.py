@@ -1,7 +1,8 @@
 """
 This module contains a number of reduced order models based on 
 the Extended Periodic Motion Concept (EPMC) to capture primary resonance
-behavior of a nonlinear vibration system.
+behavior of a nonlinear vibration system. 
+The module utilizes EPMC solutions that have already been calculated.
 
 See Also
 --------
@@ -130,6 +131,11 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     increasing the resolution of `epmc_bb` either by finding more points or
     by linearly interpolating to upsample. 
     
+    If providing `phiH_Fl_real` and `phiH_Fl_imag`, to get the correct phase 
+    information, the mode shape and force must be represented in the complex 
+    form as 
+    `phi = phi_cos - 1j*phi_sin` and `Fl  = Fl_cos - 1j*Fl_sin`.
+    
     References
     ----------
     .. [1] Krack, Malte. "Nonlinear Modal Analysis of Nonconservative Systems: 
@@ -170,11 +176,19 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     
     if Fl is not None:
         
-        phiH_Fl_real = (Fl[h0*Ndof:(1+h0)*Ndof] @ epmc_bb[:, h0*Ndof:(1+h0)*Ndof].T \
-                        + Fl[(1+h0)*Ndof:(2+h0)*Ndof] @ epmc_bb[:, (1+h0)*Ndof:(2+h0)*Ndof].T)
+        Fl_cos = Fl[h0*Ndof:(1+h0)*Ndof]
+        Fl_sin = Fl[(1+h0)*Ndof:(2+h0)*Ndof]
         
-        phiH_Fl_imag = (Fl[(1+h0)*Ndof:(2+h0)*Ndof] @ epmc_bb[:, h0*Ndof:(1+h0)*Ndof].T \
-                            - Fl[h0*Ndof:(1+h0)*Ndof] @ epmc_bb[:, (1+h0)*Ndof:(2+h0)*Ndof].T)
+        phi_cos = epmc_bb[:, h0*Ndof:(1+h0)*Ndof].T
+        phi_sin = epmc_bb[:, (1+h0)*Ndof:(2+h0)*Ndof].T
+        
+        # Note that complex forms are:
+        #   phi = phi_cos - 1j*phi_sin
+        #   Fl  = Fl_cos - 1j*Fl_sin
+        
+        phiH_Fl_real = Fl_cos @ phi_cos + Fl_sin @ phi_sin
+        
+        phiH_Fl_imag = Fl_cos @ phi_sin - Fl_sin @ phi_cos
         
     else:
         phiH_Fl_real = phiH_Fl_real * np.ones(M)
@@ -197,11 +211,18 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     
     pm = np.array([[1], [-1]])
     
-    Omega_sq = p2 + pm * np.sqrt(p2**2 - w**4 + phi_Fl**2 / q**2)
+    # mask out negatives before square root to avoid warning
+    root_arg = p2**2 - w**4 + phi_Fl**2 / q**2
+    root_pos = root_arg >= 0
+    root_arg[np.logical_not(root_pos)] = 0.0
+    
+    Omega_sq = p2 + pm * np.sqrt(root_arg)
+    
     
     Omega_sq = np.hstack((Omega_sq[0, :], np.flipud(Omega_sq[1, :])))
+    root_pos = np.hstack((root_pos, np.flipud(root_pos)))
     
-    mask = np.logical_and(Omega_sq > 0, ~np.isnan(Omega_sq))
+    mask = np.logical_and(Omega_sq > 0, root_pos)
     
     Omega = np.sqrt(Omega_sq[mask])
     
@@ -211,9 +232,9 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     phiH_Fl_real_frc = np.hstack((phiH_Fl_real, np.flipud(phiH_Fl_real)))[mask]
     phiH_Fl_imag_frc = np.hstack((phiH_Fl_imag, np.flipud(phiH_Fl_imag)))[mask]
     
-    import warnings
-    warnings.warn('Incorrectly flipping sines on phi_H_Fl_imag')
-    phiH_Fl_imag_frc = -1*phiH_Fl_imag_frc
+    # import warnings
+    # warnings.warn('Incorrectly flipping sines on phi_H_Fl_imag')
+    # phiH_Fl_imag_frc = -1*phiH_Fl_imag_frc
     
     wn_frc = np.hstack((w, np.flipud(w)))[mask]
     zeta_frc = np.hstack((zeta, np.flipud(zeta)))[mask]

@@ -29,6 +29,7 @@ class TestEpmcRoms(unittest.TestCase):
         
         M = Phi_inv.T @ Phi_inv
         K = Phi_inv.T @ np.diag(wn)**2 @ Phi_inv
+        Ndof = M.shape[0]
         
         ab_damp = [0.2, 0.0]
         
@@ -38,7 +39,13 @@ class TestEpmcRoms(unittest.TestCase):
         # harmonic contribution that can be checked at the end
         h = np.array([0, 1])
         
-        U_point = np.array([0.1, 6.2, 1, 2, 0, 0, wn[0], ab_damp[0], 0.0])
+        # Mode shape has a bit on sine and a bit on cosine
+        U_point = np.array([0.1, 6.2, 1, 2, 0.1, 0.2, wn[0], ab_damp[0], 0.0])
+        
+        norm = np.sqrt(U_point[Ndof:2*Ndof] @ M @ U_point[Ndof:2*Ndof] \
+                       + U_point[2*Ndof:3*Ndof] @ M @ U_point[2*Ndof:3*Ndof])
+        
+        U_point[Ndof:3*Ndof] = (1/norm) * U_point[Ndof:3*Ndof]
         
         epmc_bb = np.ones((50, 1)) @ np.atleast_2d(U_point)
         epmc_bb[:, -1] = np.linspace(-3, 3, epmc_bb.shape[0])
@@ -48,11 +55,12 @@ class TestEpmcRoms(unittest.TestCase):
         # EPMC and therefore the test should be valid
         
         Nhc = hutils.Nhc(h)
-        Ndof = M.shape[0]
         Fl_epmc = np.zeros(Nhc*Ndof)
         
         Fl_epmc[:Ndof] = K @ U_point[:Ndof]
-        Fl_epmc[2*Ndof:3*Ndof] = np.ones(Ndof)
+        
+        # ignore EPMC phase constraint on artificial solution
+        Fl_epmc[2*Ndof:3*Ndof] = 0*np.ones(Ndof) 
         
         R = vib_sys.epmc_res(epmc_bb[0], Fl_epmc, h)[0]
         
@@ -63,12 +71,10 @@ class TestEpmcRoms(unittest.TestCase):
         # Test the ROM FRC reconstructions
         Fl = np.zeros(Nhc*Ndof)
         Fl[:Ndof] = K @ U_point[:Ndof]
-        Fl[Ndof] = 0*3.0 # mostly cosine forcing
-        Fl[2*Ndof] = 3.0 # a bit of sine forcing
+        Fl[Ndof] = 3.0 # mostly cosine forcing
+        Fl[2*Ndof] = 1.0 # a bit of sine forcing
         
-        # 3.0, 0.0 passes right now for forcing cos/sine
-        
-        FRC_reconstruct,modal_amp,modal_phase = epmc.constant_force(epmc_bb, 
+        FRC_reconstruct, modal_amp, modal_phase = epmc.constant_force(epmc_bb, 
                                                                     Ndof, h, 
                                                                     Fl=Fl)
         
@@ -87,22 +93,16 @@ class TestEpmcRoms(unittest.TestCase):
         # Only check points that are far away from the second resonance
         mask = Omega < wn[1] / 10
         
-        mask = np.logical_and(Omega < 2.15, Omega > 1.90)
-        
-        # Quantities just to print to debug
-        FRC_reconstruct[mask, Ndof:3*Ndof]
-        Uw_linear[mask, :2*Ndof]
-        
         error = np.abs(FRC_reconstruct[mask, Ndof:3*Ndof] 
                        - Uw_linear[mask, :2*Ndof]) \
                 / Uw_linear[mask, :2*Ndof].max()
                 
         error = error.max(axis=0)
-        breakpoint()
+        
         self.assertLess(error[0], 1e-3, 'High EPMC reconstruction errors.')
-        self.assertLess(error[1], 1e-4, 'High EPMC reconstruction errors.')
-        self.assertLess(error[2], 1e-7, 'High EPMC reconstruction errors.')
-        self.assertLess(error[3], 1e-7, 'High EPMC reconstruction errors.')
+        
+        self.assertLess(error[1:].max(), 1e-4, 
+                        'High EPMC reconstruction errors.')
 
 if __name__ == '__main__':
     unittest.main()
