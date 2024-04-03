@@ -25,6 +25,7 @@ References
 import numpy as np
 
 from .. import harmonic_utils as hutils
+from ..postprocess import continuation_post as cpost
 
 
 def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None, 
@@ -101,6 +102,8 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
         
     See Also
     --------
+    constant_displacement :
+        EPMC ROM for constant displacement rather than constant force
     vibration_system.VibrationSystem.epmc_res : 
         EPMC residual method that each line of epmc_bb solves as the Uwxa 
         input
@@ -146,7 +149,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
        contacts by phase-locked-loop and force-controlled measurements”. In:
        Journal of Engineering for Gas Turbines and Power 142.5 (2020). 
        issn: 0742-4795. https://doi.org/10.1115/1.4044772.
-    .. [3] Justin H. Porter, PhD Thesis, 2024.
+    .. [3] Justin H. Porter, PhD Thesis, Rice University, 2024.
     """
     
     # Sizes of the problem
@@ -277,3 +280,137 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     modal_phase = np.flipud(modal_phase)
     
     return FRC_reconstruct, modal_amplitude, modal_phase
+
+
+def constant_displacement(epmc_bb, h, Flcos, Omega, control_point, 
+                          control_amplitude, w=None, zeta=None):
+    """
+    Extended Periodic Motion Concept (EPMC) based reduced order model (ROM)
+    for control to constant response amplitude by varying the external force 
+    scaling.
+
+    Parameters
+    ----------
+    epmc_bb : (M, Nhc*Ndof+3) numpy.ndarray
+        Each row corresponds to an EPMC solution at a given amplitude level. 
+        The first Nhc*Ndof entries of each row are the displacements of the 
+        harmonics in h (e.g., [U0, U1c, U1s] where U0 is static, U1c is the 
+        Ndof displacements corresponding to h=1 and cosine, U1c is for sine). 
+        The last three entries of each row are frequency (rad/s), 
+        xi in EPMC formulation (coefficient in front of mass matrix to create
+        a damping matrix), and log10(modal amplitude).
+        Harmonic displacements must be multiplied by the modal amplitude to 
+        get the physical displacements except for displacements corresponding
+        to the zeroth harmonic.
+        Nhc is the number of harmonic components in h and can be caculated 
+        as `Nhc = harmonic_utils.Nhc(h)`.
+    h : numpy.ndarray
+        Array of the harmonics used to calculate `epmc_bb`, must be sorted.
+    Flcos : (Ndof,) numpy.ndarray
+        External constant excitation to be considered. Excitation is just
+        applied to the first harmonic (at undetermined phase)
+    Omega : (Mout,) numpy.ndarray
+        External forcing frequencies to calculate the force scaling at to 
+        achieve constant amplitude.
+    control_point : (Ndof,) numpy.ndarray
+        Vector for extracting the degree of freedom that should be controlled
+        to constant amplitude as `control_point @ U(t)` where `U(t)` is the 
+        Ndof displacement vector.
+    control_amplitude : float
+        Desired amplitude that the control point should be controlled to.
+        This is displacement amplitude (0th derivative of motion)
+    w : None, float, or (M,) numpy.ndarray, optional
+        Alternative natural frequencies to use instead of those provided in 
+        `epmc_bb`. If provided, it is also used in calculating the fraction of 
+        critical damping (if `zeta` is not provided).
+        Units should be rad/s.
+        The default is None.
+    zeta : None, float, or (M,) numpy.ndarray, optional
+        Alternative modal damping (fraction of critical) to use rather
+        than calculating it from the `epmc_bb`. 
+        The default is None.
+
+    Returns
+    -------
+    force_magnitude : (Mout,) numpy.ndarray
+        The magnitude of the force at each frequency in `Omega` that gives
+        the desired response amplitude according to the ROM.
+    epmc_point : (Nhc*Ndof+3) numpy.ndarray
+        The interpolated EPMC solution at the desired control amplitude level.
+        If w and or zeta are included, then the epmc_point is has the modified
+        values of these parameters (interpolated to the control amplitude).
+
+    See Also
+    --------
+    constant_force: 
+        EPMC based ROM for constant external force rather than displacement
+    vibration_system.VibrationSystem.epmc_res : 
+        EPMC residual method that each line of epmc_bb solves as the Uwxa 
+        input
+    vibration_system.VibrationSystem.hbm_amp_control_res : 
+        HBM residual method calculates something similar to a truth solution
+        to compare this ROM to.
+    continuation.Continuation.continuation :
+        Method of obtaining solutions to EPMC at multiple points to create
+        the epmc_bb input to this function
+     
+    Notes
+    -----
+    Theory for this method is derived in [1]_.
+    
+    Interpolation along the EPMC backbone is done using linear coordinates
+    for the modal amplitude (e.g., `10**epmc_bb[:, -1]` rather than 
+    `epmc_bb[:, -1]`).
+    
+    References
+    ----------
+    .. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
+    """
+    
+    # Book keeping variables
+    h0 = h[0] == 0
+    Ndof = control_point.shape[0]
+    
+    # Process optional w and zeta inputs to constant format
+    epmc_bb = np.copy(epmc_bb)
+    
+    epmc_bb[:, -1] = 10**epmc_bb[:, -1] # convert to physical (non-log amp)
+        
+    if w is not None:
+        epmc_bb[:, -3] = w
+        
+    if zeta is not None:
+        epmc_bb[:, -2] = epmc_bb[:, -3] * 2 * zeta
+        
+    
+    # Interpolate the point
+    amp_cos = epmc_bb[:, h0*Ndof:(h0+1)*Ndof] @ control_point
+    amp_sin = epmc_bb[:, (h0+1)*Ndof:(h0+2)*Ndof] @ control_point
+    
+    # already converted last column of epmc_bb to be physical rather than 
+    # log amplitude.
+    epmc_amp = np.sqrt(amp_cos**2 + amp_sin**2)*epmc_bb[:, -1]
+    
+    epmc_point = cpost.linear_interp(epmc_bb, control_amplitude, 
+                                     reference_values=epmc_amp)[0]
+    
+    # Modal properties to be put into equation
+    modal_q = epmc_point[-1]
+    modal_w = epmc_point[-3]
+    modal_z = epmc_point[-2] / (2 * modal_w)
+    
+    phiH_Fl_real = epmc_point[h0*Ndof:(h0+1)*Ndof] @ Flcos
+    phiH_Fl_imag = -epmc_point[(h0+1)*Ndof:(h0+2)*Ndof] @ Flcos
+    
+    phiH_Fl_abs = np.sqrt(phiH_Fl_real**2 + phiH_Fl_imag**2)
+    
+    p2 = modal_w**2 - 2*(modal_w*modal_z)**2
+    
+    # Calculate the force scaling
+    force_magnitude = modal_q*np.sqrt(Omega**4 - 2*Omega**2*p2 + modal_w**4) \
+                        / phiH_Fl_abs
+    
+    # Convert back to log10 amplitude for output
+    epmc_point[-1] = np.log10(epmc_point[-1])
+    
+    return force_magnitude, epmc_point

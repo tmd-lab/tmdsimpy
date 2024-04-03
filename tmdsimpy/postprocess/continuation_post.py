@@ -112,3 +112,57 @@ def hermite_interp(XlamP_full, XlamP_grad_full, lams):
     XlamP_interp = np.hstack((interp_obj(lams), lams.reshape(-1,1)))
     
     return XlamP_interp
+
+def linear_interp(XlamP_full, new_values, reference_values=None):
+    """
+    Interpolates each column of the first argument to a new set of values
+
+    Parameters
+    ----------
+    XlamP_full : (N, K) numpy.ndarray
+        Input set of solutions that are to be interpolated to new values.
+    new_values : (M,)
+        New values that `XlamP_full` should be interpolated to.
+    reference_values : (N,) numpy.ndarray or None, optional
+        Reference values to compare `new_values` to corresponding to each
+        row of `XlamP_full`. If None, then the last column of `XlamP_full` is
+        used instead.
+        The default is None.
+
+    Returns
+    -------
+    XlamP_interp : (M,K) numpy.ndarray
+        Interpolated values. Returns np.nan for rows where `new_values` is 
+        outside of the bounds of `reference_values`.
+
+    """
+    
+    if reference_values is None:
+        reference_values = XlamP_full[:, -1]
+    
+    assert np.all(np.diff(reference_values) > 0), \
+        'Reference values must be monotonically increasing.'
+    
+    N = reference_values.shape[0]
+    
+    frac_ind = np.interp(new_values, reference_values, np.arange(N),
+                         left=np.nan, right=np.nan)
+    
+    frac_ind = np.atleast_1d(frac_ind)
+    
+    nan_mask = np.isnan(frac_ind)
+    frac_ind[nan_mask] = 0
+    
+    whole_ind = np.int64(frac_ind)
+    
+    remainder_ind = frac_ind - whole_ind
+    
+    XlamP_interp = XlamP_full[whole_ind, :]
+    
+    XlamP_interp += remainder_ind.reshape(-1, 1)\
+        *(XlamP_full[whole_ind+1, :] - XlamP_full[whole_ind, :])
+    
+    XlamP_interp[nan_mask, :] = np.nan
+    
+    return XlamP_interp
+
