@@ -289,6 +289,45 @@ class ElasticDryFriction2D(NonlinearForce):
                             (U.shape[0],), 'F')
         
         return Fnl, dFnldU, dFnldw
+    
+    
+    def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
+                            atol=1e-10, rtol=1e-10):
+         """
+         Calculates local force history for a single element of the rough 
+         contact model given the local nonlinear displacements over a cycle.
+    
+         Parameters
+         ----------
+         unlt : Displacement history for a single cycle.
+         unltdot : Velocity history for the cycle (ignored)
+         h : list of harmonics used (ignored)
+         cst : (ignored)
+         unlth0 : Initialization displacements for the sliders 
+         max_repeats : Number of times to repeat the cycle of displacements
+                       to converge the hysteresis loops to steady-state
+         atol : Ignored
+         rtol : Ignored
+    
+         Returns
+         -------
+         fxyn_t : Force history for the element
+    
+         """
+         #########################
+         # Determine Slider Starting Position
+         
+         if self.u0 is None:
+             # Initialize based on the zeroth harmonic.
+             u0 = unlth0
+         else:
+             u0 = self.u0*np.ones_like(unlth0[0])
+         
+         pars = np.array([self.kt, self.kn, self.mu])
+         
+         fxyn_t = _local_force_history(unlt, pars, u0[::2])
+
+         return (fxyn_t,)
         
     
 def _local_eldy_force(unl, up, fp, pars):
@@ -427,12 +466,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # Size Calculation
     Nhc = hutils.Nhc(np.array(htuple))
     Ndnl = int(Uwlocal.shape[0] / Nhc)
-    
-    # Recover pars for convenience / readability
-    kt = pars[0]
-    kn = pars[1]
-    mu = pars[2]
-    
+        
     # Uwlocal is arranged as all of harmonic 0, then all of 1c, etc. 
     # For each harmonic it has the DOFs in order. Finally there is frequency.
     # This is a 1d array. 
@@ -453,16 +487,6 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # # Nt x Ndnl
     # unltdot = Uwlocal[-1]*jhutils.time_series_deriv(Nt, htuple, Ulocal, 1) 
     
-    # Initialize force time memory
-    ft = jnp.zeros_like(unlt)
-    
-    # Normal Force
-    ft = ft.at[:, 1::2].set(jnp.maximum(unlt[:, 1::2]*kn, 0.0))
-    
-    # Do a loop function for each update at index i
-    loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)
-    
-    
     ########################################
     #### Start slider in desired position
     u0 = u0*jnp.ones_like(Ulocal[0])
@@ -472,19 +496,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # gradients are concerned.
     u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0[0::2])
     
-    # The first evaluation is based on the last entry of ft and therefore 
-    # initialize the last entry of ft based on a linear spring
-    # slip limit does not need to be applied since this just needs to get stuck
-    # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0))
-        
-    # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
-    # steady-state
-    for out_ind in range(2):
-        
-        # This construct must be used otherwise compiling tries writing out
-        # all Nt steps of the loop updates and is excessively slow
-        ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
+    ft = _local_force_history(unlt, pars, u0)
     
     # Convert back into frequency domain
     Flocal = jhutils.get_fourier_coeff(htuple, ft)
@@ -522,3 +534,61 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
     J,F = jax.jacfwd(_local_aft_eldry, has_aux=True)(Uwlocal, pars, u0, 
                                                        htuple, Nt, u0h0)    
     return J,F
+
+@partial(jax.jit) 
+def _local_force_history(unlt, pars, u0):
+    """
+    Calculates the steady-state displacement history for a set of displacements
+    
+    NOTES:
+        This function throws an error if not JIT compiled because the loop body
+        would be dependent on a non-static argument in that case.
+
+    Parameters
+    ----------
+    unlt : Time history of displacements to evaluate cycles over - size (Nt, 3)
+    pars : 
+
+
+    Returns
+    -------
+    fxyn_t : History of total forces (Nt, 3)
+    
+    
+    """
+    Nt = unlt.shape[0]
+    
+    # Recover pars for convenience / readability
+    kt = pars[0]
+    kn = pars[1]
+    mu = pars[2]
+    
+    # Initialize force time memory
+    ft = jnp.zeros_like(unlt)
+    
+    # Normal Force
+    ft = ft.at[:, 1::2].set(jnp.maximum(unlt[:, 1::2]*kn, 0.0))
+    
+    # Do a loop function for each update at index i
+    loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)
+    
+    
+    ########################################
+    #### Start slider in desired position
+    
+    # The first evaluation is based on the last entry of ft and therefore 
+    # initialize the last entry of ft based on a linear spring
+    # slip limit does not need to be applied since this just needs to get stuck
+    # regime correct for the first step to be through zero. 
+    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0))
+        
+    # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
+    # steady-state
+    for out_ind in range(2):
+        
+        # This construct must be used otherwise compiling tries writing out
+        # all Nt steps of the loop updates and is excessively slow
+        ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
+    
+
+    return ft

@@ -53,7 +53,6 @@ class GenPolyForce(InstantaneousForce):
 
         """
         
-        
         unl = self.Q @ X
         
         fnl = self.Emat @ np.prod(unl ** self.qq, axis=1)
@@ -90,7 +89,7 @@ class GenPolyForce(InstantaneousForce):
         
         ft= np.prod(unlt.reshape(unlt.shape[0],1,unlt.shape[1]) ** self.qq, axis=2) @ (self.Emat).T 
         # Size of ft (Nt,Nd)
-            
+   
         for k_row in range(unlt.shape[0]):
              u1=unlt[k_row,:]
              
@@ -136,7 +135,8 @@ class GenPolyForce(InstantaneousForce):
             Fourier coefficients of nonlinear force
         dFnldU : (Nhc,Nhc) numpy.ndarray
             Fourier coefficients of gradient
-        """
+        """       
+        
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
         dFnldw = np.zeros_like(U)
@@ -185,7 +185,6 @@ class GenPolyForce(InstantaneousForce):
         
         Fnl = np.reshape(self.T @ F.T, (U.shape[0],), 'F')
         dFnldU = np.kron(np.eye(Nhc), self.T) @ J @ np.kron(np.eye(Nhc), self.Q)
-        
         dFnldw = np.reshape(dFnldw, (U.shape[0],), 'F')
       
         return Fnl, dFnldU, dFnldw
