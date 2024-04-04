@@ -155,12 +155,15 @@ def linear_interp(XlamP_full, new_values, reference_values=None):
     
     whole_ind = np.int64(frac_ind)
     
+    # prevent error if interpolating to exact last point
+    next_ind = np.minimum(whole_ind + 1, N-1) 
+    
     remainder_ind = frac_ind - whole_ind
     
     XlamP_interp = XlamP_full[whole_ind, :]
     
     XlamP_interp += remainder_ind.reshape(-1, 1)\
-        *(XlamP_full[whole_ind+1, :] - XlamP_full[whole_ind, :])
+        *(XlamP_full[next_ind, :] - XlamP_full[whole_ind, :])
     
     XlamP_interp[nan_mask, :] = np.nan
     

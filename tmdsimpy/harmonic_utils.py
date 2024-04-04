@@ -648,7 +648,8 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     `Uc*cos(h_rotate*Omega*(t-t0)) = Uc*cos(h_rotate*Omega - phase_angle)`.
     """
     
-    U_rot = np.atleast_2d(np.copy(U_orig))
+    U_orig = np.atleast_2d(U_orig)
+    U_rot = np.copy(U_orig)
     
     h0 = h[0] == 0 # flag for 0th harmonic
     

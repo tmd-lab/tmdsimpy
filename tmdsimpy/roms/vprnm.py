@@ -36,7 +36,7 @@ from . import epmc # EPMC ROMs
 def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi, 
                              vprnm_bb, h_vprnm, rhi,
                              control_point_h1, control_amp_h1, 
-                             control_point_rhi, Flcos):
+                             control_point_rhi, Flcos, extra_Omega=None):
     """
     Reduced order model (ROM) for a superharmonic resonance based VPRNM, EPMC, 
     and on constant first harmonic amplitude. 
@@ -92,10 +92,17 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     Flcos : (Ndof,) numpy.ndarray
         External constant excitation to be considered. Excitation is just
         applied to the first harmonic (at undetermined phase)
+    extra_Omega : None or 1D numpy.ndarray, optional
+        Extra forcing frequencies (rad/s) to calculate the force scaling 
+        magnitude at. Superharmonic responses are linearly interpolated from
+        calculated points to these points. 
+        Responses at these frequencies are returned as well as directly 
+        calculated frequencies for the superharmonic resonance EPMC ROM.
+        The default is None.
 
     Returns
     -------
-    FRC_reconstruct : (Mout,Nhc_out*Ndof+1) numpy.ndarray
+    Uw_reconstruct : (Mout,Nhc_out*Ndof+1) numpy.ndarray
         Reconstructed Frequency Response Curve (FRC) based on the VPRNM and 
         EPMC solutions.
         Each row corresponds to a different forcing frequency.
@@ -131,6 +138,25 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     In general, `epmc_fund_bb` should be calculated with `h_fund` not including
     `rhi`.
     
+    Static (harmonic 0) displacements in `Uw_reconstruct` are taken solely from
+    the VPRNM solution. If vprnm is calculated without a zeroth harmonic and
+    a zeroth harmonic is included in one or both of the EPMC solutions, then
+    zeros are returned for the static displacements ignoring statit components
+    of the EPMC solutions.
+    
+    In general, specific response frequencies cannot be requested because
+    the resonance of the superharmonic provides the frequency as a direct
+    calculation while requesting a specific frequency may require a nonlinear 
+    solution.
+    The parameter `extra_Omega` allows for requesting higher resolution for the 
+    output force scaling (which can be directly calculated at requested 
+    frequencies). For these requested frequencies, the superharmonic response
+    is simply linearly interpolated to fill in the points.
+    
+    For any frequencies in `extra_Omega` lower than the lowest frequency
+    that this function calculates without extra_Omega, nan values will be
+    returned for parts of the solution.
+    
     References
     ----------
     .. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
@@ -162,7 +188,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
                                                1, control_point_h1)
     
     vprnm_point = cpost.linear_interp(vprnm_bb, control_amp_h1, 
-                                      reference_values=amp_h1_vprnm)
+                                      reference_values=amp_h1_vprnm)[0]
     
     Omega_VPRNM = vprnm_point[-2]
     
@@ -186,7 +212,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     # Interpolate, and interpolate the true modal amplitude
     # so the last entry is linear scale modal amplitude (not log)
     epmc_rhi_point = cpost.linear_interp(epmc_rhi_bb_lin_q, A_rhi_vprnm, 
-                                         reference_values=A_rhi_epmc)
+                                         reference_values=A_rhi_epmc)[0]
     
     ###########################################################################
     # 3. Approximate the modal forcing on the superharmonic resonance
@@ -205,7 +231,11 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     # the interpolated point.
     mask = epmc_rhi_bb_lin_q[:, -1] < q_S_EPMC
     
-    epmc_rhi_bb_abbrev = epmc_rhi_bb_lin_q[mask, :]
+    epmc_rhi_bb_abbrev = np.vstack((epmc_rhi_bb_lin_q[mask, :], 
+                                    epmc_rhi_point))
+    
+    # convert modal amplitude back to log scale to call epmc rom.
+    epmc_rhi_bb_abbrev[:, -1] = np.log10(epmc_rhi_bb_abbrev[:, -1])
     
     w_abbrev = np.hstack((w_modified[mask], rhi*Omega_VPRNM))
     
@@ -217,7 +247,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     ###########################################################################
     # 5. Rotate Superharmonic Response to Match Phase
     
-    super_peak_ind = np.argmax(q_S)
+    super_peak_ind = np.argmin(np.abs(Uw_S[:, -1] - rhi*Omega_VPRNM))
     
     assert q_S[super_peak_ind] == q_S_EPMC, \
         'Superharmonic reconstruction did not recover VPRNM peak.'
@@ -241,6 +271,19 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     Uw_S = hutils.rotate_subtract_phase(Uw_S, Ndof, h_rhi, phi_rot_S, 1)
     
     ###########################################################################
+    # Extra Step: Add some extra frequency points to get higher resolution of 
+    # the force scaling around the primary resonance
+    
+    if extra_Omega is not None:
+        new_w = np.hstack((rhi*extra_Omega, Uw_S[:, -1]))
+        new_w = np.sort(new_w)
+        
+        # q_S is used in the correction of the force.
+        q_S = np.interp(new_w, Uw_S[:, -1], q_S)
+        
+        Uw_S = cpost.linear_interp(Uw_S, new_w)
+    
+    ###########################################################################
     # 6 and 9. Interpolate EPMC for the Fundamental to the correct amplitude
     
     Omega = Uw_S[:, -1] / rhi
@@ -250,11 +293,15 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
                                                 control_point_h1, 
                                                 control_amp_h1)
     
+    Nhc_fund = hutils.Nhc(h_fund)
+    
+    h0_fund = h_fund[0] == 0
+    epmc_point_fund[h0_fund*Ndof:Ndof*Nhc_fund] *= (10**epmc_point_fund[-1])
+    
     ###########################################################################
     # 7. Rotate Primary Response to Match Phase
     
     h0_v = h_vprnm[0] == 0
-    h0_fund = h_fund[0] == 0
     
     vprnm_h1 = vprnm_point[h0_v*Ndof:(h0_v+2)*Ndof]
     epmc_fund_h1 = epmc_point_fund[h0_fund*Ndof:(h0_fund+2)*Ndof]
@@ -267,9 +314,6 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     # the superharmonic is still the 1st harmonic of this reconstruction
     epmc_point_fund = hutils.rotate_subtract_phase(epmc_point_fund, 
                                                Ndof, h_fund, phi_rot_F, 1)[0]
-    
-    assert epmc_point_fund.shape != 1, \
-        'Check that did not accidently pull out a scalar while building function.'
     
     ###########################################################################
     # 8. Combine FRC components from the different parts of the solution
@@ -314,6 +358,9 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     # Error between VPRNM and EPMC reconstruction
     Delta_force = f_mag_VPRNM - force_magnitude[super_peak_ind]
+    if extra_Omega is not None:
+        assert False, 'Error is in previous line since force_magnitude index'\
+            + ' is different with the shifted/extra Omega vector.'
     
     force_out = force_magnitude + Delta_force * q_S / q_S.max()
     
