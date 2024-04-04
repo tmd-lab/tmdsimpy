@@ -607,7 +607,7 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
 
     Parameters
     ----------
-    U_orig : (M, Nhc*Ndof+a) numpy.ndarray
+    U_orig : (M, Nhc*Ndof+a) or (Nhc*Ndof+a,) numpy.ndarray
         This is a set of harmonic solutions where rows are independent 
         solutions and each row contains Nhc sets of Ndof coordinates 
         corresponding to solution displacements. The rows contain all of the 
@@ -632,7 +632,7 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
 
     Returns
     -------
-    U_rot : (M, Nhc*Ndof+a) numpy.ndarray
+    U_rot : (M, Nhc*Ndof+a) or (1, Nhc*Ndof+a) numpy.ndarray
         `U_orig` with the applied phase rotation. 
         The last `a` columns are directly copied from U_orig.
 
@@ -648,7 +648,7 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     `Uc*cos(h_rotate*Omega*(t-t0)) = Uc*cos(h_rotate*Omega - phase_angle)`.
     """
     
-    U_rot = np.copy(U_orig)
+    U_rot = np.atleast_2d(np.copy(U_orig))
     
     h0 = h[0] == 0 # flag for 0th harmonic
     

@@ -23,14 +23,15 @@ The formulation of VPRNM and VPRNM based ROMs are described in [1]_.
 
 References
 ----------
-.. [3] Justin H. Porter, PhD Thesis, Rice University, 2024.
+.. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
 
 """
 
 import numpy as np
 
 from .. import harmonic_utils as hutils
-from ..postprocess import continuation_post as cpost
+from ..postprocess import continuation_post as cpost # Interpolation
+from . import epmc # EPMC ROMs
 
 def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi, 
                              vprnm_bb, h_vprnm, rhi,
@@ -102,6 +103,9 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         coordinates corresponding to the harmonics in `h_reconstruct`.
         The last column is the forcing frequency in rad/s.
         `Nhc_out = harmonic_utils.Nhc(h_reconstruct)`.
+    force_reconstruct : (Mout,) numpy.ndarray
+        External excitation force magnitude (scaling for Flcos) to create
+        the response. Phase information of this force is not calculated.
     h_reconstruct : numpy.ndarray
         List of sorted harmonics for the output.
         This list includes harmonics in `h_fund` and `rhi*h_rhi`.
@@ -199,15 +203,128 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     # Create a new EPMC backbone to pass to FRC reconstruction that includes 
     # the interpolated point.
+    mask = epmc_rhi_bb_lin_q[:, -1] < q_S_EPMC
     
+    epmc_rhi_bb_abbrev = epmc_rhi_bb_lin_q[mask, :]
+    
+    w_abbrev = np.hstack((w_modified[mask], rhi*Omega_VPRNM))
+    
+    Uw_S,q_S,_ = epmc.constant_force(epmc_rhi_bb_abbrev, Ndof, 
+                                          h_rhi, w=w_abbrev, 
+                                          phiH_Fl_real=phiSH_FS_mag, 
+                                          phiH_Fl_imag=0.0)
     
     ###########################################################################
-    FRC_reconstruct = 0
-    h_reconstruct = 0
+    # 5. Rotate Superharmonic Response to Match Phase
     
-    return FRC_reconstruct, h_reconstruct
+    super_peak_ind = np.argmax(q_S)
+    
+    assert q_S[super_peak_ind] == q_S_EPMC, \
+        'Superharmonic reconstruction did not recover VPRNM peak.'
+    
+    h0_rhi = h_rhi[0] == 0
+    
+    # superharmonic only from the FRC reconstruction of the superharmonic
+    Uw_S_point = Uw_S[super_peak_ind, h0_rhi*Ndof:(2+h0_rhi)*Ndof]
+    
+    # superharmonic only from the VPRNM point
+    rhi_index_v = hutils.Nhc(h_vprnm[h_vprnm < rhi]) 
+    vprnm_point_super = vprnm_point[rhi_index_v*Ndof:(rhi_index_v+2)*Ndof]
+    
+    # Phase that the superharmonic needs to be rotated through
+    phi_rot_S = np.arctan2(control_point_rhi @ vprnm_point_super[Ndof:2*Ndof],
+                           control_point_rhi  @ vprnm_point_super[:Ndof]) \
+                - np.arctan2(control_point_rhi @ Uw_S_point[Ndof:2*Ndof],
+                             control_point_rhi  @ Uw_S_point[:Ndof])
+    
+    # the superharmonic is still the 1st harmonic of this reconstruction
+    Uw_S = hutils.rotate_subtract_phase(Uw_S, Ndof, h_rhi, phi_rot_S, 1)
+    
+    ###########################################################################
+    # 6 and 9. Interpolate EPMC for the Fundamental to the correct amplitude
+    
+    Omega = Uw_S[:, -1] / rhi
+    
+    force_magnitude, epmc_point_fund = epmc.constant_displacement(epmc_fund_bb, 
+                                                h_fund, Flcos, Omega, 
+                                                control_point_h1, 
+                                                control_amp_h1)
+    
+    ###########################################################################
+    # 7. Rotate Primary Response to Match Phase
+    
+    h0_v = h_vprnm[0] == 0
+    h0_fund = h_fund[0] == 0
+    
+    vprnm_h1 = vprnm_point[h0_v*Ndof:(h0_v+2)*Ndof]
+    epmc_fund_h1 = epmc_point_fund[h0_fund*Ndof:(h0_fund+2)*Ndof]
+    
+    phi_rot_F = np.arctan2(control_point_h1 @ vprnm_h1[Ndof:2*Ndof],
+                           control_point_h1  @ vprnm_h1[:Ndof]) \
+                - np.arctan2(control_point_h1 @ epmc_fund_h1[Ndof:2*Ndof],
+                             control_point_h1  @ epmc_fund_h1[:Ndof])
+    
+    # the superharmonic is still the 1st harmonic of this reconstruction
+    epmc_point_fund = hutils.rotate_subtract_phase(epmc_point_fund, 
+                                               Ndof, h_fund, phi_rot_F, 1)[0]
+    
+    assert epmc_point_fund.shape != 1, \
+        'Check that did not accidently pull out a scalar while building function.'
+    
+    ###########################################################################
+    # 8. Combine FRC components from the different parts of the solution
+    
+    # Include the first harmonic from the VPRNM list to ensure that the zeroth
+    # harmonic is included if needed.
+    h_out = np.hstack((h_vprnm[0], h_fund, rhi*h_rhi))
+    h_out = np.unique(h_out)
+    
+    Nhc_out = hutils.Nhc(h_out)
+    
+    Uw_out = np.zeros((Omega.shape[0], Ndof*Nhc_out+1))
+    
+    if h0_v:
+        Uw_out[:, :Ndof] = vprnm_point[:Ndof]
+        
+    # Add motion from fundamental EPMC
+    for hind in range(h0_fund, h_fund.shape[0]):
+        h_curr = h_fund[hind]
+        
+        Nhc_ind_fund = hutils.Nhc(h_fund[h_fund < h_curr]) 
+        Nhc_ind_out = hutils.Nhc(h_out[h_out < h_curr]) 
 
+        Uw_out[:, Nhc_ind_out*Ndof:(Nhc_ind_out+2)*Ndof] \
+            = epmc_point_fund[Nhc_ind_fund*Ndof:(Nhc_ind_fund+2)*Ndof]
+        
+    # Add motion from superharmonic EPMC
+    for hind in range(h0_rhi, h_rhi.shape[0]):
+        h_curr = h_rhi[hind]
+        h_curr_out = h_curr*rhi
+        
+        Nhc_ind_rhi = hutils.Nhc(h_rhi[h_rhi < h_curr]) 
+        Nhc_ind_out = hutils.Nhc(h_out[h_out < h_curr_out]) 
 
+        Uw_out[:, Nhc_ind_out*Ndof:(Nhc_ind_out+2)*Ndof] \
+            += Uw_S[:, Nhc_ind_rhi*Ndof:(Nhc_ind_rhi+2)*Ndof]
+    
+    Uw_out[:, -1] = Omega
+    
+    ###########################################################################
+    # 10. Correction to the Force Magnitude (9. was done with 6.)
+    
+    # Error between VPRNM and EPMC reconstruction
+    Delta_force = f_mag_VPRNM - force_magnitude[super_peak_ind]
+    
+    force_out = force_magnitude + Delta_force * q_S / q_S.max()
+    
+    ###########################################################################
+    # Rename outputs
+    
+    Uw_reconstruct = Uw_out
+    force_reconstruct = force_out
+    h_reconstruct = h_out
+    
+    return Uw_reconstruct, force_reconstruct, h_reconstruct
 
 
 def _extract_harmonic_amplitude(U, h, hi, recov, is_epmc=False):
