@@ -231,7 +231,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     q_S_EPMC = epmc_rhi_point[-1]
     zeta_S_EPMC = epmc_rhi_point[-2] / (2*epmc_rhi_point[-3])
     
-    phiSH_FS_mag = np.sqrt(4*q_S_EPMC**2*(rhi*Omega_VPRNM)**4*zeta_S_EPMC**2)
+    phiSH_FS_mag = 2*q_S_EPMC*(rhi*Omega_VPRNM)**2*zeta_S_EPMC
     
     ###########################################################################
     # 4. Superharmonic Resonance Response
@@ -245,13 +245,17 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     epmc_rhi_bb_abbrev = np.vstack((epmc_rhi_bb_lin_q[mask, :], 
                                     epmc_rhi_point))
     
+    # want to preserve the modal damping factor, but the frequency has changed
+    # therefore, need to update the epmc xi parameter
+    z_abbrev = epmc_rhi_bb_abbrev[:, -2] / (2*epmc_rhi_bb_abbrev[:, -3])
+    
     # convert modal amplitude back to log scale to call epmc rom.
     epmc_rhi_bb_abbrev[:, -1] = np.log10(epmc_rhi_bb_abbrev[:, -1])
     
     w_abbrev = np.hstack((w_modified[mask], rhi*Omega_VPRNM))
     
     Uw_S,q_S,_ = epmc.constant_force(epmc_rhi_bb_abbrev, Ndof, 
-                                          h_rhi, w=w_abbrev, 
+                                          h_rhi, w=w_abbrev, zeta=z_abbrev,
                                           phiH_Fl_real=phiSH_FS_mag, 
                                           phiH_Fl_imag=0.0)
     
@@ -260,7 +264,10 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     super_peak_ind = np.argmin(np.abs(Uw_S[:, -1] - rhi*Omega_VPRNM))
     
-    assert q_S[super_peak_ind] == q_S_EPMC, \
+    # this is a check everytime since it is very difficult to write a test
+    # for it. This check failed due to bugs with frequency scaling to match
+    # the VPRNM frequency.
+    assert np.abs(q_S[super_peak_ind] - q_S_EPMC) <= 1e-12, \
         'Superharmonic reconstruction did not recover VPRNM peak.'
     
     h0_rhi = h_rhi[0] == 0

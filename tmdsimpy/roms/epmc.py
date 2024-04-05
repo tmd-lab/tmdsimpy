@@ -96,7 +96,9 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
         order as `epmc_bb`, but in physical displacement coordinates.
         The last column is the forcing frequency in rad/s.
     modal_amplitude : (Mout,) numpy.ndarray
-        Modal amplitude at output FRC points.
+        Modal amplitude at output FRC points. This is linear scale modal 
+        amplitude not the log10 scale that modal amplitude is taken as input
+        in `epmc_bb`.
     modal_phase : (Mout,) numpy.ndarray
         Modal phase at the output FRC points.
         
@@ -220,7 +222,6 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     root_arg[np.logical_not(root_pos)] = 0.0
     
     Omega_sq = p2 + pm * np.sqrt(root_arg)
-    
     
     Omega_sq = np.hstack((Omega_sq[0, :], np.flipud(Omega_sq[1, :])))
     root_pos = np.hstack((root_pos, np.flipud(root_pos)))
