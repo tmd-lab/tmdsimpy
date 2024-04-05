@@ -157,6 +157,17 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     that this function calculates without extra_Omega, nan values will be
     returned for parts of the solution.
     
+    The superharmonic EPMC backbone is abbreviated to include the highest 
+    amplitude equal to the VPRNM amplitude of the superharmonic resonance. 
+    However, for a linear system, the peak amplitude is slightly more than the 
+    amplitude at phase resonance. This slightly higher amplitude is not 
+    currently captured, but could be implemented in the future (at least for
+    the linear case). For the nonlinear case, it may be nontrivial to 
+    interpolate the exact resonance amplitude, but extra EPMC points could be
+    allowed in the superharmonic part of the ROM to try to improve resolution
+    rather than the current approach that eliminates any points greater than
+    the VPRNM amplitude.
+    
     References
     ----------
     .. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
@@ -278,7 +289,8 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         new_w = np.hstack((rhi*extra_Omega, Uw_S[:, -1]))
         new_w = np.sort(new_w)
         
-        # q_S is used in the correction of the force.
+        # super_peak_ind and q_S are used in the correction of the force.
+        super_peak_ind += np.sum(rhi*extra_Omega < Uw_S[super_peak_ind, -1])
         q_S = np.interp(new_w, Uw_S[:, -1], q_S)
         
         Uw_S = cpost.linear_interp(Uw_S, new_w)
@@ -331,7 +343,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         Uw_out[:, :Ndof] = vprnm_point[:Ndof]
         
     # Add motion from fundamental EPMC
-    for hind in range(h0_fund, h_fund.shape[0]):
+    for hind in range(h0_fund*1, h_fund.shape[0]):
         h_curr = h_fund[hind]
         
         Nhc_ind_fund = hutils.Nhc(h_fund[h_fund < h_curr]) 
@@ -341,7 +353,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
             = epmc_point_fund[Nhc_ind_fund*Ndof:(Nhc_ind_fund+2)*Ndof]
         
     # Add motion from superharmonic EPMC
-    for hind in range(h0_rhi, h_rhi.shape[0]):
+    for hind in range(h0_rhi*1, h_rhi.shape[0]):
         h_curr = h_rhi[hind]
         h_curr_out = h_curr*rhi
         
@@ -358,9 +370,6 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     # Error between VPRNM and EPMC reconstruction
     Delta_force = f_mag_VPRNM - force_magnitude[super_peak_ind]
-    if extra_Omega is not None:
-        assert False, 'Error is in previous line since force_magnitude index'\
-            + ' is different with the shifted/extra Omega vector.'
     
     force_out = force_magnitude + Delta_force * q_S / q_S.max()
     

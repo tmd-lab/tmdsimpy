@@ -422,8 +422,6 @@ class TestVprnmRoms(unittest.TestCase):
         
         lin_force = control_amp_h1 / h1_amp
         
-        breakpoint()
-        
         self.assertLess(np.abs(lin_force - force_rom_ex).max(), 1e-10,
                 'extra_Omega option does not match linear force calculation.')
         
