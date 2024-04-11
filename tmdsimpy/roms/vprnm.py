@@ -36,7 +36,8 @@ from . import epmc # EPMC ROMs
 def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi, 
                              vprnm_bb, h_vprnm, rhi,
                              control_point_h1, control_amp_h1, 
-                             control_point_rhi, Flcos, extra_Omega=None):
+                             control_point_rhi, Flcos, extra_Omega=None,
+                             correct_force=True):
     """
     Reduced order model (ROM) for a superharmonic resonance based VPRNM, EPMC, 
     and on constant first harmonic amplitude. 
@@ -99,6 +100,16 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         Responses at these frequencies are returned as well as directly 
         calculated frequencies for the superharmonic resonance EPMC ROM.
         The default is None.
+    correct_force : bool, optional
+        Flag to calculate force correction for VPRNM compared to the EPMC ROM
+        for the first harmonic force.
+        This correction is required to give good normalized responses for some
+        cases. 
+        However, if extra_Omega includes values outside of what the 
+        superharmonic EPMC ROM identifies, settings this to False will allow
+        for getting the EPMC ROM for the 1st mode at those points (and nan for 
+        the superharmonic)
+        The default is True.
 
     Returns
     -------
@@ -301,6 +312,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         q_S = np.interp(new_w, Uw_S[:, -1], q_S)
         
         Uw_S = cpost.linear_interp(Uw_S, new_w)
+        Uw_S[:, -1] = new_w
     
     ###########################################################################
     # 6 and 9. Interpolate EPMC for the Fundamental to the correct amplitude
@@ -375,10 +387,13 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     ###########################################################################
     # 10. Correction to the Force Magnitude (9. was done with 6.)
     
-    # Error between VPRNM and EPMC reconstruction
-    Delta_force = f_mag_VPRNM - force_magnitude[super_peak_ind]
-    
-    force_out = force_magnitude + Delta_force * q_S / q_S.max()
+    if correct_force:
+        # Error between VPRNM and EPMC reconstruction
+        Delta_force = f_mag_VPRNM - force_magnitude[super_peak_ind]
+        
+        force_out = force_magnitude + Delta_force * q_S / q_S.max()
+    else:
+        force_out = force_magnitude
     
     ###########################################################################
     # Rename outputs
