@@ -315,7 +315,7 @@ class TestGenPolyAFT(unittest.TestCase):
         fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
         grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False,
                                         rtol=self.rtol_grad)
-        
+    
         self.assertFalse(grad_failed, 'Incorrect displacement frequency.')   
                
         ######################
@@ -330,10 +330,9 @@ class TestGenPolyAFT(unittest.TestCase):
         fun = lambda U: nl_force.aft(U, w, h)[0:2]
         grad_failed = vutils.check_grad(fun, U, verbose=False, 
                                         rtol=self.rtol_grad)
-        
+  
         self.assertFalse(grad_failed, 'Incorrect displacement gradient.')   
-        
-        
+               
         # Numerically Verify Frequency Gradient
         fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
         grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, 
