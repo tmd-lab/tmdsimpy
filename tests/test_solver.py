@@ -128,7 +128,8 @@ class TestSolver(unittest.TestCase):
         ###########
         # Function and Input to test
         
-        fun = lambda X : (np.array([(X[0]-1)**3, 1e6*(X[1] - 0.01)**3]),
+        fun = lambda X, calc_grad=True : \
+                        (np.array([(X[0]-1)**3, 1e6*(X[1] - 0.01)**3]),
                           np.diag([3*(X[0]-1)**2, 3e6*(X[1] - 0.01)**2]))
                           
         X = np.array([1.1, 0.02])
@@ -161,6 +162,12 @@ class TestSolver(unittest.TestCase):
         
         self.assertFalse(grad_failed, 
                      'Numerical dRdX of conditioned function does not match')
+        
+        # Check calc_grad options
+        Rc_grad_False = fun_cond(X/CtoP, calc_grad=False)[0]
+        
+        self.assertLess(np.linalg.norm(Rc_grad_False - Rc_ref), 1e-10, 
+                        'Conditioned residual, calc_grad=False, is wrong.')
 
         
 if __name__ == '__main__':
