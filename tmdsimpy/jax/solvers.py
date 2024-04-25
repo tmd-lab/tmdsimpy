@@ -593,7 +593,8 @@ class NonlinearSolverOMP(NonlinearSolver):
             
             ###### # Update Solution
             X = X + deltaX
-            
+            # np.savez("/mnt/d/Spring2024/TRC_NonlinearModel-py/results_set/pre10_mu0_01_h3_block/results/NLsolcheck.npz", X=X, R=R,deltaX=deltaX)
+            # breakpoint()
             ###### # Tolerance Checking
             
             if i == 0: # Store initial tolerances

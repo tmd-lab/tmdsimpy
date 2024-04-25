@@ -15,7 +15,7 @@ class GenPolyForce(InstantaneousForce):
         nonlinear forces, n x Nd
     Emat: (Nd,cnl) numpy.ndarray
         Matrix to transform modal coordinates into modal nonlinear force. 
-        cnl is swum of all cubic and quadratic nonlinear forces associated with Nd
+        cnl is sum of all cubic and quadratic nonlinear forces associated with Nd
     qq : (cnl,Nd) numpy.ndarray
         Matrix corresponding to exponnent of modal coordinates. 
         
@@ -29,7 +29,6 @@ class GenPolyForce(InstantaneousForce):
         self.qq = qq
         
         self.qd = np.zeros((self.qq.shape[1],self.qq.shape[0],self.qq.shape[1]))
-        
         
         for i in range(self.qq.shape[1]):
             self.qd[i,:,:] = self.qq 
@@ -87,7 +86,7 @@ class GenPolyForce(InstantaneousForce):
 
         dfdu = np.zeros((unlt.shape[0],unlt.shape[1],unlt.shape[1]))
         
-        ft= np.prod(unlt.reshape(unlt.shape[0],1,unlt.shape[1]) ** self.qq, axis=2) @ (self.Emat).T 
+        ft = np.prod(unlt.reshape(unlt.shape[0],1,unlt.shape[1]) ** self.qq, axis=2) @ (self.Emat).T 
         # Size of ft (Nt,Nd)
    
         for k_row in range(unlt.shape[0]):
@@ -100,8 +99,6 @@ class GenPolyForce(InstantaneousForce):
 
         return ft, dfdu, dfdud
     
-
-
     def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
         Alternating Frequency Time Domain Method for calculating the Fourier
@@ -109,9 +106,6 @@ class GenPolyForce(InstantaneousForce):
         Notation: The variable names should be cleaned up. Currently U and Fnl
         correspond to global DOFs while Unl and F correspond to reduced DOFs 
         that the nonlinear force is evaluated at. 
-         
-        WARNING: Needs further verification for cases using multiple nonlinear 
-        displacements and or nonlinear output forces.
          
         Parameters
         ----------
@@ -169,7 +163,6 @@ class GenPolyForce(InstantaneousForce):
         # dfduh = dfduh + np.reshape(( np.reshape(dfdud,(Nt,Ndnl,Ndnl,1)))*np.reshape(sct, (Nt,1,1,Nhc), 'F'),\
         #  (Nt,Ndnl*Ndnl,Nhc), 'F') #dfdud is zero (No chnage in dfduh) 
         # #for nonzero dfduh terms we might have to take another derivatives also
-        
         
         # Derivative of the time series of forces w.r.t harmonic coefficients
         dfduh = np.reshape( dfduh, (Nt,Ndnl*Ndnl*Nhc), 'F')

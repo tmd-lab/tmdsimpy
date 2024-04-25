@@ -1,5 +1,6 @@
 """
-Test AFT Implementation of stiffness of the form X^5
+Test AFT Implementation of Cubic and Quadratic Polynomial Nonlinearity 
+(Used for geometric nonlinearity)
 """
 
 
@@ -33,8 +34,6 @@ class TestGenPolyAFT(unittest.TestCase):
         
         self.rtol_grad = 1e-11 # Relative gradient tolerance
         
-
-
     def test_analytical_aft(self):
         """
         Test analytical expansion of nonlinear force for first harmonic motion
@@ -60,7 +59,6 @@ class TestGenPolyAFT(unittest.TestCase):
                       [0, 1,0], \
                       [0, 0, 1 ]])
         
-      
         qq = np.array([[2, 0, 0], \
                        [0, 2, 0], \
                        [3, 0, 0], \
@@ -73,11 +71,7 @@ class TestGenPolyAFT(unittest.TestCase):
         Emat = np.ones((Q.shape[1],qq.shape[0]))
             
         nl_force = GenPolyForce(Q, T, Emat, qq)
-        
-        """
-        Case 1: 
-            -Compare to analytical expansion
-        """
+
         # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
         h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
         Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
@@ -108,19 +102,13 @@ class TestGenPolyAFT(unittest.TestCase):
         #coefficients [ 0c 1c 1s 2c 2s 3c 3s 4c 4s 5c 6c 7c 7s ]
         #[15.5  54 18 0.5 6 10 10]
         
-        
         temp = np.array ([15.5, 54, 18, 0.5, 6, 10, 10,0, 0, 0, 0, 0, 0, 0, 0])
-        Fnl_analytical=np.repeat(temp, 3)
+        Fnl_analytical = np.repeat(temp, 3)
      
-
-        
-        
         error = np.linalg.norm(Fnl - Fnl_analytical)
         
         self.assertLess(error, self.analytical_tol, 
                         'Quintic stiffness does not match analytical AFT.')
-        
-        
         
     def test_force(self):   
         """
@@ -145,8 +133,7 @@ class TestGenPolyAFT(unittest.TestCase):
         T = np.array([[1, 0,0], \
                       [0, 1,0], \
                       [0, 0, 1 ]])
-        
-      
+            
         qq = np.array([[2, 0, 0], \
                        [0, 2, 0], \
                        [3, 0, 0], \
@@ -164,25 +151,22 @@ class TestGenPolyAFT(unittest.TestCase):
         """
         Case 1: 
             -Compare to analytical expansion
-        """
-
-        
+        """        
         Nd = Q.shape[1]
-
-        u0=[2,3,4]
-        
-        
+        u0 = [2,3,4]
+            
         # Move to new function + numerically check this gradient
         # Verify Nonlinear force function analytical
-        Fnl_f, dFnldU_f =nl_force.force(u0) #output from function
+        Fnl_f, dFnldU_f = nl_force.force(u0) #output from function
+        
+        # Analytical solution
         Fnl_a=Emat @ np.array([4,9,8,64,6,12,12,24])
-        dFnldU_a =Emat @  np.array([[4, 0, 12, 0, 3, 0, 12, 12],\
+        dFnldU_a = Emat @  np.array([[4, 0, 12, 0, 3, 0, 12, 12],\
                      [0, 6, 0, 0, 2, 4, 4, 8],\
                      [0, 0, 0, 48, 0, 3, 0, 6]]).T 
         
         error_force = np.max(np.abs(Fnl_f - Fnl_a))
         error_J = np.max(np.abs(dFnldU_f - dFnldU_a))
-        
         
         force_failed = (error_force > 1e-10)
         J_failed = (error_J > 1e-10)
@@ -202,7 +186,7 @@ class TestGenPolyAFT(unittest.TestCase):
         Fnl_f, dFnldU_f = nl_force.force(u0) #output from function 
         Emat = rng.random((Nd,1))
         
-        grad_check= vutils.check_grad(nl_force.force, u0, verbose=False, 
+        grad_check = vutils.check_grad(nl_force.force, u0, verbose=False, 
                                         rtol=100*self.rtol_grad)    
         
         self.assertFalse(grad_check, 
@@ -229,7 +213,6 @@ class TestGenPolyAFT(unittest.TestCase):
                       [0, 1,0], \
                       [0, 0, 1 ]])
         
-      
         qq = np.array([[2, 0, 0], \
                        [0, 2, 0], \
                        [3, 0, 0], \
@@ -243,11 +226,6 @@ class TestGenPolyAFT(unittest.TestCase):
         Nd = Q.shape[1]
             
         nl_force = GenPolyForce(Q, T, Emat, qq)
-        
-        """
-        Case 1: 
-            -Compare to analytical expansion
-        """
         
         # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
         h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
@@ -276,7 +254,6 @@ class TestGenPolyAFT(unittest.TestCase):
         self.assertFalse(grad_failed, 
                          'Incorrect displacement w.r.t. frequency.')
 
-
     def test_multiharmonic_grads(self):
         """
         Test derivatives for multiharmonic motion and for mixed sets / skipping
@@ -299,7 +276,6 @@ class TestGenPolyAFT(unittest.TestCase):
         T = np.array([[1, 0,0], \
                       [0, 1,0], \
                       [0, 0, 1 ]])
-        
       
         qq = np.array([[2, 0, 0], \
                        [0, 2, 0], \
@@ -326,7 +302,6 @@ class TestGenPolyAFT(unittest.TestCase):
         
         nl_force = GenPolyForce(Q, T, Emat, qq)
         
-        
         ######################
         # Test without 4th harmonic
         
@@ -342,8 +317,7 @@ class TestGenPolyAFT(unittest.TestCase):
                                         rtol=self.rtol_grad)
         
         self.assertFalse(grad_failed, 'Incorrect displacement frequency.')   
-        
-        
+               
         ######################
         # Test without zeroth harmonic + skipping 4th harmonic
         h = np.array([1, 2, 3, 5, 6, 7]) # Automate Checking with this
@@ -367,9 +341,16 @@ class TestGenPolyAFT(unittest.TestCase):
         
         self.assertFalse(grad_failed, 'Incorrect frequency gradient.')   
         
+    def test_zeroU_input(self):    
+        """
+        Test derivatives when the input displacement is zero. Earlier gradiaent
+        calculation in matlab was not calculating correct gradient at u=0   
 
-    def test_zeroU_input(self):        
-        
+        Returns
+        -------
+        None.
+
+        """
         #######################
         # Test System
         
@@ -382,8 +363,7 @@ class TestGenPolyAFT(unittest.TestCase):
         T = np.array([[1, 0,0], \
                       [0, 1,0], \
                       [0, 0, 1 ]])
-        
-          
+                 
         qq = np.array([[2, 0, 0], \
                        [0, 2, 0], \
                        [3, 0, 0], \
@@ -395,7 +375,6 @@ class TestGenPolyAFT(unittest.TestCase):
             
         Emat = np.ones((Q.shape[1],qq.shape[0]))
             
-           
         # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
         h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
         Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
@@ -421,7 +400,7 @@ class TestGenPolyAFT(unittest.TestCase):
                                        rtol=self.rtol_grad)
            
         self.assertFalse(grad_failed, 
-                        'Incorrect gradiant w.r.t. displacement.')       
+                        'Incorrect gradiant w.r.t. displacement when disp is 0.')       
 
 
 if __name__ == '__main__':
