@@ -192,7 +192,7 @@ class TestUniSpring(unittest.TestCase):
 
         # Test several different values of U on different length scales for
         # each spring type
-        U = rng.rand(Nd*Nhc, 10)
+        U = rng.random((Nd*Nhc, 10))
 
         U = U*np.array([[0.1, 0.5, 1.0, 2.0, 3.0, 10.0, 20.0, 50.0, 100.0, 0.01]])
 
