@@ -267,8 +267,10 @@ class RoughContactFriction(NonlinearForce):
 
         Parameters
         ----------
-        unlt : Displacement history for a single cycle.
-        unltdot : Velocity history for the cycle (ignored)
+        unlt : (Nt, 3) numpy.ndarray
+            Displacement history for a single cycle.
+        unltdot : (Nt, 3) numpy.ndarray
+            Velocity history for the cycle (ignored)
         h : list of harmonics used (ignored)
         cst : (ignored)
         unlth0 : Initialization displacements for the sliders 
@@ -279,7 +281,8 @@ class RoughContactFriction(NonlinearForce):
 
         Returns
         -------
-        fxyn_t : Force history for the element
+        fxyn_t : Tuple of (Nt, 3) numpy.ndarray
+            Force history for the element. Returned as tuple
 
         """
         
@@ -294,7 +297,7 @@ class RoughContactFriction(NonlinearForce):
         # for external processing and AFT will use the private function
         # return ft, dfduh, dfdudh
         
-        return fxyn_t
+        return (fxyn_t,)
         
 
     def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False,

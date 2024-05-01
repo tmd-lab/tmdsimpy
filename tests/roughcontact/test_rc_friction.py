@@ -320,7 +320,7 @@ class TestRoughContact(unittest.TestCase):
             # 1. Calculate forces over a cycle and compare against a saved reference
             fxyn_curr = element_model.local_force_history(unlt, 0, 0, 0, 
                                                        np.array([0,0,0]), 
-                                                       max_repeats=1)
+                                                       max_repeats=1)[0]
             
             self.assertLess(np.linalg.norm(fxyn_curr - element_txyn[ind]), 
                             np.linalg.norm(element_txyn[ind])*self.rel_force_tol,
@@ -331,7 +331,7 @@ class TestRoughContact(unittest.TestCase):
                 # in general change
                 fxyn_steady = element_model.local_force_history(unlt, 0, 0, 0, 
                                                        np.array([0,0,0]), 
-                                                       max_repeats=2)
+                                                       max_repeats=2)[0]
                 
                 self.assertGreater(np.abs(fxyn_steady[0,0] - fxyn_curr[0,0]), 
                                    10.0, 'Case should differ on second cycle')
