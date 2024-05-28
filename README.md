@@ -7,28 +7,25 @@ This repository is not intended to include research problems beyond a few exampl
 
 ## Reference
 
-If using this code, please cite the relevant journal paper ([preprint here](https://doi.org/10.48550/arXiv.2401.08790)):
-```
-@article{porterTrackingSuperharmonic2024,
-    title = {Tracking Superharmonic Resonances for Nonlinear Vibration},
-    journal = {Mechanical Systems and Signal Processing},
-    author = {Justin H. Porter and Matthew R.W. Brake},
-    year = {Under Review},
-}
-```
-For the rough contact friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
-```
-@article{porterTowardsAPredictive2023,
-    title = {Towards a predictive, physics-based friction model for the dynamics of jointed structures},
-    journal = {Mechanical Systems and Signal Processing},
-    volume = {192},
-    pages = {110210},
-    year = {2023},
-    issn = {0888-3270},
-    doi = {10.1016/j.ymssp.2023.110210},
-    author = {Justin H. Porter and Matthew R.W. Brake},
-}
-```
+If you use this code, please cite the relevant journal paper from this list:
+
+1. For most uses of the code see [this preprint](https://arxiv.org/abs/2405.15918) (multiple degree of freedom systems, variable phase resonance nonlinear modes, reduced order modeling):
+   ```
+   @article{porterEfficientModelReduction,
+       title = {Efficient Model Reduction and Prediction of Superharmonic Resonances in Frictional and Hysteretic Systems},
+       journal = {Mechanical Systems and Signal Processing},
+       author = {Justin H. Porter and Matthew R.W. Brake},
+       number = {arXiv:2405.15918},
+       eprint = {2405.15918},
+       archiveprefix = {arxiv},
+       year = {Under Review},
+   }
+   ```
+2. Initial code development for single degree of freedom systems from [this paper](https://doi.org/10.1016/j.ymssp.2024.111410)
+   ([preprint here](https://doi.org/10.48550/arXiv.2401.08790)).
+3. Rough contact friction modeling from [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) 
+   (initially in MATLAB with prepreint [here](https://github.com/tmd-lab/microslip-rough-contact), reimplemented in Python for 1.).
+
 This code is provided under the MIT License to aid in research, no guarantee is made for the accuracy of the results when applied to other structures.
 
 
