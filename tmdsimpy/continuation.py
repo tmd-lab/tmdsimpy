@@ -263,6 +263,10 @@ class Continuation:
         if self.config['DynamicCtoP']:
             diagdRdX = np.diag(dRdXlamC)
             self.RPtoC = 1/np.max(np.abs(diagdRdX[:-1]))
+        else:
+            # Currently, code does not support vector RPtoC after this point, 
+            # so have to condense RPtoC to a scalar here for all cases.
+            self.RPtoC = np.mean(self.RPtoC)
         
         return dirC
         
@@ -383,7 +387,7 @@ class Continuation:
             final value of lambda
         return_grad : bool, optional
             Flag to return the prediction directions corresponding to each step.
-            The default is False. 
+            The default is False. Currently not fully implemented/supported yet.
 
         Returns
         -------

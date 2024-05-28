@@ -96,6 +96,9 @@ class Iwan4Force(HystereticForce):
                               np.atleast_1d(S)) )
         
         assert self.Q.shape[0] == 1, 'Not tested for simultaneous Iwan elements.'
+        
+        self.init_history()
+        
     
     def set_prestress_mu(self):
         """
@@ -181,7 +184,7 @@ class Iwan4Force(HystereticForce):
         dfnldfp : derivative of forces w.r.t. previous forces
 
         """
-                
+        
         # Stuck Force
         fnlsliders = unl - self.up + self.fpsliders
 
