@@ -1,6 +1,6 @@
 # TMDSimPy: Tribomechadynamics Simulations for Python  
 
-This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. 
+This repository contains Python files and functions for running numerical simulations for various tribomechadynamics problems. 
 Files intended for experimental analysis are not included here and can be found elsewhere. 
 Specific projects are based in other repositories and use these shared modeling routines as a dependency. 
 This repository is not intended to include research problems beyond a few examples.
@@ -78,8 +78,13 @@ python3 -m pip install -r spyder_reqs.txt
 
 ## Examples
 
-Several examples are included to demonstrate the repository and can be run to further verify the correctness of the code. 
+Several examples (see `examples` folder) are included to demonstrate the repository and can be run to further verify the correctness of the code. 
 One can also look at the tests folder to see further examples.
+
+### Superharmonic Resonance Reduced Order Model (VPRNM ROM)
+
+See `examples/vprnm_rom_iwan.py` for an application of the VPRNM ROM to capture a superharmonic resonance that is missed by single nonlinear mode theory (based on EPMC). 
+This example also uses EPMC and HBM.
 
 ### Brake-Reuss Beam with Physics-Based Rough Contact
 
