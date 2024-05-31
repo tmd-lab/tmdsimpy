@@ -613,7 +613,7 @@ class NonlinearSolverOMP(NonlinearSolver):
             
             ###### # Update Solution
             X = X + deltaX
-            
+
             ###### # Tolerance Checking
             
             if i == 0: # Store initial tolerances
