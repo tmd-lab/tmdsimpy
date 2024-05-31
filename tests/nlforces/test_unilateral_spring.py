@@ -196,9 +196,10 @@ class TestUniSpring(unittest.TestCase):
 
         # Test several different values of U on different length scales for
         # each spring type
-        U = rng.random((Nd*Nhc, 10))
+        Ucol = rng.random((Nd*Nhc, 10))
+        
 
-        U = U*np.array([[0.1, 0.5, 1.0, 2.0, 3.0, 10.0, 20.0, 50.0, 100.0, 0.01]])
+        U = Ucol*np.array([[0.1, 0.5, 1.0, 2.0, 3.0, 10.0, 20.0, 50.0, 100.0, 0.01]])
 
         Q_together = self.uni_spring_all.Q
 
@@ -206,6 +207,9 @@ class TestUniSpring(unittest.TestCase):
 
             U_curr = U[:, j]
             Fnl_tot = np.zeros_like(U_curr)
+            
+            Ustat = Ucol[:Nd, j]
+            Fnl_tot_stat = np.zeros_like(Ustat)
 
             for i in range(len(uni_springs)):
 
@@ -214,21 +218,26 @@ class TestUniSpring(unittest.TestCase):
                 Fnl_tot += Q_together[i]*uni_springs[i].aft(
                                                         U_curr*Q_together[i],
                                                         w, h)[0]
+                
+                Fnl_tot_stat += Q_together[i]*uni_springs[i].force(
+                                                        Ustat*Q_together[i])[0]
 
             Fnl_together = self.uni_spring_all.aft(U_curr, w, h)[0]
+            Fnl_together_stat = self.uni_spring_all.force(Ustat)[0]
 
             self.assertLess(np.linalg.norm(Fnl_tot-Fnl_together), 1e-12,
                             'Unilateral springs togther does not give same '
-                            + 'results as separate ones.')
+                            + 'AFT results as separate ones.')
+
 
             fun = lambda U: self.uni_spring_all.aft(U, w, h)[0:2]
             grad_failed = vutils.check_grad(fun, U_curr, verbose=False,
                                             atol=self.atol_grad,
                                             rtol=self.rtol_grad)
-
+            
             self.assertFalse(grad_failed,
                              'Combined AFT, Incorrect displacement gradient.')
-
+            
             # Numerically Verify Frequency Gradient
             fun = lambda w: self.uni_spring_all.aft(U_curr, w[0], h)[0::2]
             grad_failed = vutils.check_grad(fun, np.array([w]),
@@ -237,6 +246,21 @@ class TestUniSpring(unittest.TestCase):
 
             self.assertFalse(grad_failed,
                              'Combined AFT, Incorrect frequency gradient.')
+            
+                        
+            self.assertLess(np.linalg.norm(Fnl_tot_stat-Fnl_together_stat), 1e-12,
+                            'Unilateral springs togther does not give same '
+                            + 'force results as separate ones.')
+            
+            fun = lambda U: self.uni_spring_all.force(U)[0:2]
+            grad_failed = vutils.check_grad(fun, Ustat, verbose=False,
+                                            atol=self.atol_grad,
+                                            rtol=self.rtol_grad)
+            self.assertFalse(grad_failed,
+                             'Combined force, Incorrect displacement gradient.')
+
+
+
                
     def test_pinning(self):
         """
