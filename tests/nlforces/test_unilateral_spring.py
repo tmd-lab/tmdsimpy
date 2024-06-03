@@ -116,11 +116,7 @@ class TestUniSpring(unittest.TestCase):
             
             self.assertLess(np.linalg.norm(ftest_lochist-fexpect_lochist), 1e-16, 
                             'Unilateral spring case {} gives unexpected local history force values'.format(i))
-
-            # self.assertLess(np.linalg.norm(ftest_force-fexpect_force), 1e-16, 
-            #                 'Unilateral spring case {} gives unexpected force values'.format(i))   
-
-            
+        
              
     def test_derivative(self):
         """
