@@ -1,6 +1,6 @@
 import numpy as np
 from ..nlforces.nonlinear_force import InstantaneousForce
-from .. import harmonic_utils as hutils
+
 
 class UnilateralSpring(InstantaneousForce):
     """
@@ -64,9 +64,8 @@ class UnilateralSpring(InstantaneousForce):
         F = self.T @ fnl
 
         mask = np.greater(fnl, -self.Npreload)
-        temp = (mask*self.k)
-       
-        dFdX = self.T @ np.diag(temp) @ self.Q
+
+        dFdX = self.T @ np.diag(mask*self.k) @ self.Q
         
         return F, dFdX
     
