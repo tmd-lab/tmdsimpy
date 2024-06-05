@@ -102,7 +102,7 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
     # For Debugging:
     # import matplotlib
     # matplotlib.pyplot.spy(np.abs(dFnldU - dFnldU_num)> 1e-6)
-    
+
     abs_error = np.max(np.abs(dFnldU - dFnldU_num))
     norm_error =  np.max(np.abs(dFnldU - dFnldU_num)) \
                     /( np.linalg.norm(dFnldU_num) + (np.linalg.norm(dFnldU_num)==0))

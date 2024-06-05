@@ -94,7 +94,6 @@ class VibrationSystem:
         None.
 
         """
-        
         # Call a force calculation function with update flag set to True
         for nlforce in self.nonlinear_forces:
             if nlforce.nl_force_type() == 1: #Hysteretic Force
@@ -142,6 +141,9 @@ class VibrationSystem:
             set_aft = getattr(nlforce, "set_aft_initialize", None)
             if callable(set_aft):
                 nlforce.set_aft_initialize(X)
+                
+            elif nlforce.nl_force_type() == 0:
+                pass
             else:
                 warnings.warn('Nonlinear force: {} does not have an AFT initialize'.format(nlforce))
                 
@@ -258,7 +260,7 @@ class VibrationSystem:
         
         # Initialize Memory
         Fnl = np.zeros((Nhc*Ndof,), np.double)
-        
+               
         if calc_grad:
             dFnldU = np.zeros((Nhc*Ndof,Nhc*Ndof), np.double)
             dFnldw = np.zeros((Nhc*Ndof,), np.double)
@@ -608,6 +610,7 @@ class VibrationSystem:
         AFT_res = self.total_aft(Ascale*Uwxa[:-3], w, h, Nt=Nt, 
                                              aft_tol=aft_tol,
                                              calc_grad=calc_grad)
+
         if calc_grad:
             Fnl, dFnldU, dFnldw = AFT_res
         else:

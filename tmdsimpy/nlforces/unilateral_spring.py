@@ -1,6 +1,7 @@
 import numpy as np
 from ..nlforces.nonlinear_force import InstantaneousForce
 
+
 class UnilateralSpring(InstantaneousForce):
     """
     Unilateral Spring for contact and impact type nonlinear forces 
@@ -55,17 +56,16 @@ class UnilateralSpring(InstantaneousForce):
             DESCRIPTION.
 
         """
-        raise Exception('Test this function before using it')
-        
-        unl = self.Q @ X
+        # raise Exception('Test this function before using it')
+        unl = self.Q @ X 
         
         fnl = np.maximum(self.k*(unl - self.delta) - self.Npreload, -self.Npreload)
         
         F = self.T @ fnl
-        
+
         mask = np.greater(fnl, -self.Npreload)
-        
-        dFdX = self.T @ (mask*self.k) @ self.Q
+
+        dFdX = self.T @ np.diag(mask*self.k) @ self.Q
         
         return F, dFdX
     
@@ -73,10 +73,12 @@ class UnilateralSpring(InstantaneousForce):
                 
         ft = np.maximum(self.k*(unlt - self.delta) - self.Npreload, \
                         -self.Npreload)
-            
+        
         mask = np.greater(ft, -self.Npreload)
-        
         dfdu = self.k*mask
-        dfdud = np.zeros_like(unlt)
-        
+            
+        dfdud = np.zeros_like(dfdu)
+
         return ft, dfdu, dfdud
+    
+    

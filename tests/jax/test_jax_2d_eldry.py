@@ -27,6 +27,7 @@ from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce
 from tmdsimpy.jax.nlforces.elastic_dry_fric_2d import ElasticDryFriction2D 
 
 import tmdsimpy.harmonic_utils as hutils
+from tmdsimpy.vibration_system import VibrationSystem
 
 
 sys.path.append('..')
@@ -268,7 +269,7 @@ class TestJAXEldry(unittest.TestCase):
         w = 1.7
         
         ##### Verification
-        
+
         h = np.array([0, 1, 2, 3])
         Unl = np.array([[0.1, 0.2, 0.05, 0.1, 0.1, 0.1, 0.0],
                           [self.un_low, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]).T
@@ -636,8 +637,118 @@ class TestJAXEldry(unittest.TestCase):
             
             self.assertFalse(grad_failed, 
                          'Incorrect Gradient for static index {}'.format(i))
-        
         pass
+
+        
+    def test_eldry_test_7elem(self):
+        """
+        check elastic dry friction code with nl forces added individually vs
+        added together
+        """
+        #check force and jacobian
+        rng = np.random.default_rng(12345)
+        Q = rng.random((14,10))
+        T=Q.T
+        M = rng.random((10,10))
+        K = rng.random((10,10))
+        bdof=2
+        u1=rng.random(Q.shape[1])
+        Fs=np.zeros_like(u1)
+        
+        inputpars_kt = rng.random(Q.shape[0]//2)
+        inputpars_kn = rng.random(Q.shape[0]//2)
+        inputpars_mu = np.abs(rng.random(Q.shape[0]//2))
+        
+        
+        vib_sys_together = VibrationSystem(M, K)
+        
+        fnl_force1 = ElasticDryFriction2D(Q, T, inputpars_kt, inputpars_kn,\
+                                          inputpars_mu, u0=0)
+
+        vib_sys_together.add_nl_force(fnl_force1)
+        
+        Fnl_together, dFnldU_together  = vib_sys_together.static_res(u1,Fs)
+            
+        vib_sys_individual = VibrationSystem(M, K)
+        for quad in range(Q.shape[0]//2):
+            start_b = quad*bdof
+            end_b = quad* bdof + bdof
+            fnl_force2 = ElasticDryFriction2D(Q[start_b:end_b,:],T[:,start_b:end_b],
+                        inputpars_kt[quad], inputpars_kn[quad], inputpars_mu[quad], u0=0)
+            vib_sys_individual.add_nl_force(fnl_force2)
+            
+        Fnl_individual, dFnldU_individual  = vib_sys_individual.static_res(u1, Fs)
+        
+        error = np.linalg.norm(Fnl_together - Fnl_individual)
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Nonlinear force with individual friction element does\
+                            not match with combined elements.')
+        
+        error = np.linalg.norm(dFnldU_together - dFnldU_individual )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Nonlinear force Jacobian with individual friction element\
+                            does not match with combined elements')
+        
+        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        
+        Nd = Q.shape[1]
+        
+        U = rng.random((Nd*Nhc, 1))
+        
+        
+        w = 1 # Test for various w
+        
+        # Testing Simple First Harmonic Motion        
+        Fnl_together, dFnldU_together = vib_sys_together.total_aft(U, w, h)[0:2] 
+        Fnl_individual, dFnldU_individual = vib_sys_individual.total_aft(U, w, h)[0:2]
+        
+        error = np.linalg.norm(Fnl_together - Fnl_individual)
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force with individual friction element does'\
+                           +' not match with combined elements.')
+        
+        error = np.linalg.norm(dFnldU_together - dFnldU_individual )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force Jacobian with individual friction element'\
+                            +'does not match with combined elements')                
+        
+        # Update history variables after static so sliders reset
+        # If you do not do this, then the residual traction field will be different.
+        vib_sys_together.update_force_history(2*u1)
+        vib_sys_individual.update_force_history(2*u1)
+                      
+        error = np.linalg.norm(vib_sys_together.static_res(u1, Fs)[0] \
+                               - vib_sys_individual.static_res(u1, Fs)[0] )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Nonlinear force with individual friction element does\
+                            not match with combined elements after update force history.')  
+        
+
+        vib_sys_together.set_aft_initialize(2*u1)
+        vib_sys_individual.set_aft_initialize(2*u1)
+        
+        # Testing Simple First Harmonic Motion        
+        Fnl_together, dFnldU_together = vib_sys_together.total_aft(U, w, h)[0:2] 
+        Fnl_individual, dFnldU_individual = vib_sys_individual.total_aft(U, w, h)[0:2]
+        
+        error = np.linalg.norm(Fnl_together - Fnl_individual)
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force with individual friction element does'\
+                           +' not match with combined elements.')
+        
+        error = np.linalg.norm(dFnldU_together - dFnldU_individual )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force Jacobian with individual friction element'\
+                            +'does not match with combined elements')  
+
 
 if __name__ == '__main__':
     unittest.main()
