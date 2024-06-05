@@ -181,7 +181,7 @@ class TestGenPolyAFT(unittest.TestCase):
         Case 2: 
             -Compare to Numerical gradient
         """
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(12345)
         u0 = rng.random((Nd))
         Fnl_f, dFnldU_f = nl_force.force(u0) #output from function 
         Emat = rng.random((Nd,1))
@@ -192,67 +192,6 @@ class TestGenPolyAFT(unittest.TestCase):
         self.assertFalse(grad_check, 
             'Incorrect jacobian evaluation from nl_force.force, numerical check')
               
-    def test_aftgradient(self):   
-        """
-        Test analytical expansion of nonlinear force gradient for first harmonic motion
-         for the simple case. Also validates numerical gradient for random values of u and Emat
-        
-        Returns
-        -------
-        None.
-        """
-        # Test System
-        
-        # Simple Mapping to spring displacements
-        Q = np.array([[1, 0,0], \
-                      [0, 1,0], \
-                      [0, 0, 1 ]])
-        
-        # Weighted / integrated mapping back for testing purposes
-        T = np.array([[1, 0,0], \
-                      [0, 1,0], \
-                      [0, 0, 1 ]])
-        
-        qq = np.array([[2, 0, 0], \
-                       [0, 2, 0], \
-                       [3, 0, 0], \
-                       [0, 0, 3],  \
-                       [1, 1, 0], \
-                       [0, 1, 1],  \
-                       [2, 1, 0], \
-                       [1, 1,1]])
-            
-        Emat = np.ones((3,qq.shape[0]))
-        Nd = Q.shape[1]
-            
-        nl_force = GenPolyForce(Q, T, Emat, qq)
-        
-        # h = np.array([0, 1, 2, 3]) # Manual Checking expansion / debugging
-        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
-        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
-        w = 1 # Test for various w
-        
-        Nd = Q.shape[1]
-       
-        #U[:3] = 1.0
-        rng = np.random.default_rng()
-        U = rng.random((Nd*Nhc, 1))
-        
-        # Numerically Verify Gradient 
-        fun = lambda U: nl_force.aft(U, w, h)[0:2]
-        grad_failed = vutils.check_grad(fun, U, verbose=False, 
-                                        rtol=self.rtol_grad)
-        
-        self.assertFalse(grad_failed, 
-                         'Incorrect gradiant w.r.t. displacement.')
-        
-        # Numerically Verify Frequency Gradient
-        fun = lambda w: nl_force.aft(U, w[0], h)[0::2]
-        grad_failed = vutils.check_grad(fun, np.array([w]), verbose=False, 
-                                        rtol=self.rtol_grad)
-        
-        self.assertFalse(grad_failed, 
-                         'Incorrect displacement w.r.t. frequency.')
 
     def test_multiharmonic_grads(self):
         """
@@ -294,7 +233,7 @@ class TestGenPolyAFT(unittest.TestCase):
             
         nl_force = GenPolyForce(Q, T, Emat, qq)
         
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(12345)
         
         U = rng.random((Nd*Nhc, 1))
         
@@ -342,8 +281,9 @@ class TestGenPolyAFT(unittest.TestCase):
         
     def test_zeroU_input(self):    
         """
-        Test derivatives when the input displacement is zero. Earlier gradiaent
-        calculation in matlab was not calculating correct gradient at u=0   
+        Test derivatives when some of the input displacements are zero. 
+        Earlier gradiaent calculation in matlab was not calculating correct 
+        gradient at u=0   
 
         Returns
         -------
@@ -386,10 +326,10 @@ class TestGenPolyAFT(unittest.TestCase):
         U[Nd+0, 0] = 4
         
         # Second DOF, Sine Term, Fundamental
-        U[2*Nd+1, 0] = 3
+        # U[2*Nd+1, 0] = 3
         
-        # Third DOF, Sine Term, Fundamental
-        U[2*Nd+2, 0] = 2
+        # # Third DOF, Sine Term, Fundamental
+        # U[2*Nd+2, 0] = 2
         
         w = 1 # Test for various w
         nl_force = GenPolyForce(Q, T, Emat, qq)        

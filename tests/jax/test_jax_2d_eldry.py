@@ -641,8 +641,12 @@ class TestJAXEldry(unittest.TestCase):
 
         
     def test_eldry_test_7elem(self):
+        """
+        check elastic dry friction code with nl forces added individually vs
+        added together
+        """
         #check force and jacobian
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(12345)
         Q = rng.random((14,10))
         T=Q.T
         M = rng.random((10,10))
@@ -669,8 +673,8 @@ class TestJAXEldry(unittest.TestCase):
         for quad in range(Q.shape[0]//2):
             start_b = quad*bdof
             end_b = quad* bdof + bdof
-            fnl_force2 = ElasticDryFriction2D(Q[start_b:end_b,:],T[:,start_b:end_b]\
-                        ,inputpars_kt[quad], inputpars_kn[quad], inputpars_mu[quad], u0=0)
+            fnl_force2 = ElasticDryFriction2D(Q[start_b:end_b,:],T[:,start_b:end_b],
+                        inputpars_kt[quad], inputpars_kn[quad], inputpars_mu[quad], u0=0)
             vib_sys_individual.add_nl_force(fnl_force2)
             
         Fnl_individual, dFnldU_individual  = vib_sys_individual.static_res(u1, Fs)

@@ -204,7 +204,7 @@ class TestUniSpring(unittest.TestCase):
             U_curr = U[:, j]
             Fnl_tot = np.zeros_like(U_curr)
             
-            Ustat = Ucol[:Nd, j]
+            Ustat = U[:Nd, j]
             Fnl_tot_stat = np.zeros_like(Ustat)
 
             for i in range(len(uni_springs)):
