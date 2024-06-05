@@ -726,18 +726,10 @@ class TestJAXEldry(unittest.TestCase):
                                - vib_sys_individual.static_res(u1, Fs)[0] )
         
         self.assertLess(error, self.atol_grad, 
-                        'Check if update force history works for both function')  
-        
-        Fnl_together, dFnldU_together  = vib_sys_together.static_res(u1,Fs)
-        Fnl_individual, dFnldU_individual  = vib_sys_individual.static_res(u1, Fs)
-        
-        error = np.linalg.norm(Fnl_together - Fnl_individual)
-        
-        self.assertLess(error, self.atol_grad, 
                         'Nonlinear force with individual friction element does\
-                            not match with combined elements after update force history.')
+                            not match with combined elements after update force history.')  
         
-        
+
         vib_sys_together.set_aft_initialize(2*u1)
         vib_sys_individual.set_aft_initialize(2*u1)
         

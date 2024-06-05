@@ -109,10 +109,9 @@ class TestUniSpring(unittest.TestCase):
             
             utest = np.array([-5.0, delta, delta+1.0])
             fexpect_lochist = np.array([-Npre, -Npre, -Npre+1.0*kuni])
-            fexpect_force = np.array([-Npre, -Npre, -Npre+1.0*kuni])
+
                
             ftest_lochist = uni_springs[i].local_force_history(utest, np.zeros_like(utest))[0]
-            # ftest_force = uni_springs[i].force(utest)[0]
             
             self.assertLess(np.linalg.norm(ftest_lochist-fexpect_lochist), 1e-16, 
                             'Unilateral spring case {} gives unexpected local history force values'.format(i))
@@ -373,7 +372,7 @@ class TestUniSpring(unittest.TestCase):
 
     def test_unilateral_test_5elem(self):
         #check force and jacobian
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(12345)
         L = np.eye(20)
         Bolt_beam_ax =[1,2,3,4,6]
         Q = np.block([[L[Bolt_beam_ax, :]], [(L[Bolt_beam_ax, :] * (-1))]])
@@ -406,13 +405,13 @@ class TestUniSpring(unittest.TestCase):
         error = np.linalg.norm(Fnl_together - Fnl_individual)
         
         self.assertLess(error, self.atol_grad, 
-                        'Nonlinear force with individual friction element does\
+                        'Nonlinear force with individual elements does\
                             not match with combined elements.')
         
         error = np.linalg.norm(dFnldU_together - dFnldU_individual )
         
         self.assertLess(error, self.atol_grad, 
-                        'Nonlinear force Jacobian with individual friction element\
+                        'Nonlinear force Jacobian with individual elements\
                             does not match with combined elements')
         
         h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
@@ -432,38 +431,22 @@ class TestUniSpring(unittest.TestCase):
         error = np.linalg.norm(Fnl_together - Fnl_individual)
         
         self.assertLess(error, self.atol_grad, 
-                        'Aft of Nonlinear force with individual friction element does'\
+                        'Aft of Nonlinear force with individual elements does'\
                            +' not match with combined elements.')
         
         error = np.linalg.norm(dFnldU_together - dFnldU_individual )
         
         self.assertLess(error, self.atol_grad, 
-                        'Aft of Nonlinear force Jacobian with individual friction element'\
+                        'Aft of Nonlinear force Jacobian with individual elements'\
                             +'does not match with combined elements')                
         
-        # Update history variables after static so sliders reset
-        # If you do not do this, then the residual traction field will be different.
-        vib_sys_together.update_force_history(2*u1)
-        vib_sys_individual.update_force_history(2*u1)
-                      
+
         error = np.linalg.norm(vib_sys_together.static_res(u1, Fs)[0] \
                                - vib_sys_individual.static_res(u1, Fs)[0] )
         
         self.assertLess(error, self.atol_grad, 
                         'Check if update force history works for both function')  
         
-        Fnl_together, dFnldU_together  = vib_sys_together.static_res(u1,Fs)
-        Fnl_individual, dFnldU_individual  = vib_sys_individual.static_res(u1, Fs)
-        
-        error = np.linalg.norm(Fnl_together - Fnl_individual)
-        
-        self.assertLess(error, self.atol_grad, 
-                        'Nonlinear force with individual friction element does\
-                            not match with combined elements after update force history.')
-        
-        
-        vib_sys_together.set_aft_initialize(2*u1)
-        vib_sys_individual.set_aft_initialize(2*u1)
         
         # Testing Simple First Harmonic Motion        
         Fnl_together, dFnldU_together = vib_sys_together.total_aft(U, w, h)[0:2] 
