@@ -30,7 +30,7 @@ Indices and tables
 Contents
 --------
 .. toctree::
-   :maxdepth: -1
+   :maxdepth: 3
 
    README
    usage

@@ -20,7 +20,8 @@ extensions = ['sphinx.ext.autodoc',     # Pulls docstrings from Python code
               ]
 
 autosummary_generate = True  # Turn on sphinx.ext.autosummary
-# autosummary_imported_members = True
+autosummary_imported_members = False # Default
+autosummary_ignore_module_all = False
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
