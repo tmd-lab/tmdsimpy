@@ -7,8 +7,8 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'TMDSimPy'
-copyright = '2024, Justin Porter'
-author = 'Justin Porter'
+copyright = '2024, Justin H. Porter'
+author = 'Justin H. Porter'
 release = '0.0.1'
 
 # -- General configuration ---------------------------------------------------
@@ -43,6 +43,6 @@ html_static_path = ['_static']
 # https://www.sphinx-doc.org/en/master/tutorial/describing-code.html#including-doctests-in-your-documentation
 import pathlib
 import sys
-sys.path.insert(0, pathlib.Path(__file__).parents[1].resolve().as_posix())
+sys.path.insert(0, pathlib.Path(__file__).parents[2].resolve().as_posix())
 
 # numpydoc_class_members_toctree = False

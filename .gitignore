@@ -17,3 +17,7 @@ examples/structures/results
 *.txt
 *.out
 *profile
+
+# docs
+docs/build
+docs/source/generated

@@ -2,7 +2,7 @@ API
 ===
 
 .. autosummary::
-   :toctree: generated
+   :toctree: generated/
    :recursive:
    :template: custom-module-template.rst
  
