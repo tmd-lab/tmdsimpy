@@ -96,7 +96,8 @@ class TestRoughContactMIF(unittest.TestCase):
                                           meso_gap=0, 
                                           gaps=np.array([0.0, 0.0, 0.0, 0.0]), 
                                           gap_weights=np.array([0.6, 0.25, 0.1, 0.05]),
-                                          tangent_model='MIF')
+                                          tangent_model='MIF',
+                                          N_radial_quad=ref_dict['asp_num_quad_points'])
             
         correct_model2 = RoughContactFriction(Q, T, 
                                           ref_dict['E'], 
@@ -109,7 +110,8 @@ class TestRoughContactMIF(unittest.TestCase):
                                           meso_gap=0, 
                                           gaps=np.array([0.0, -0.1]), 
                                           gap_weights=np.array([1.0, 0.0]),
-                                          tangent_model='MIF')
+                                          tangent_model='MIF',
+                                          N_radial_quad=ref_dict['asp_num_quad_points'])
         
         correct_model3 = RoughContactFriction(Q, T, 
                                           ref_dict['E'], 
@@ -122,7 +124,8 @@ class TestRoughContactMIF(unittest.TestCase):
                                           meso_gap=0, 
                                           gaps=np.array([-0.1, 0.0]), 
                                           gap_weights=np.array([0.0, 1.0]),
-                                          tangent_model='MIF')
+                                          tangent_model='MIF',
+                                          N_radial_quad=ref_dict['asp_num_quad_points'])
         
         diff_model = RoughContactFriction(Q, T, 
                                           ref_dict['E'], 
@@ -135,7 +138,8 @@ class TestRoughContactMIF(unittest.TestCase):
                                           meso_gap=0, 
                                           gaps=np.array([0.0, -0.1]), 
                                           gap_weights=np.array([0.75, 0.25]),
-                                          tangent_model='MIF')
+                                          tangent_model='MIF',
+                                          N_radial_quad=ref_dict['asp_num_quad_points'])
             
         self.model_correct_asps = [correct_model1, 
                                    correct_model2, 

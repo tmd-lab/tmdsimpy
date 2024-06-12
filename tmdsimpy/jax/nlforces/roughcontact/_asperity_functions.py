@@ -377,27 +377,11 @@ def _tangential_asperity_mif(uxy, uxy0, txy0, fn, a, Gstar, mu,
     
     txy0_interp = jnp.zeros_like(txy0)
     
-    
-    # Option 1, don't have JAX expand for loop on compile, should compile 
-    # faster, but may not run faster.
+    # Having jax expand this for loop is worse for compile and evaluation time
     loop_fun = lambda i, txy0_interp : _interp_hist_loop_body(i, txy0_interp, 
-                               quad_radii_curr, quad_radii0, txy0)
+                                quad_radii_curr, quad_radii0, txy0)
     
     txy0_interp = jax.lax.fori_loop(0, a.shape[0], loop_fun, txy0_interp)
-    
-    # # Option 2: have JAX write out all lines of the for loop explicitly
-    # for xy_ind in range(2):
-    #     for ind in range(a.shape[0]):
-    #         # allow JAX to explicity write out the compilation of for loop for 
-    #         # interpolating history
-            
-    #         txy0_interp = txy0_interp.at[ind, :, xy_ind].set(
-    #                     jnp.interp(quad_radii_curr[ind, :],
-    #                                quad_radii0[ind, :],
-    #                                txy0[ind, :, xy_ind],
-    #                                left=0.0,
-    #                                right=0.0) # right = new contact area
-    #                     )
     
     # Tangential Stiffness
     Kt_tot = 8*Gstar*a
