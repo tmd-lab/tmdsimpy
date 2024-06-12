@@ -298,9 +298,36 @@ def _tangential_asperity(uxy, uxy0, fxy0, fn, a, Gstar, mu):
     
     return fxy
     
+
+def _interp_hist_loop_body(ind, txy0_interp, 
+                           quad_radii_curr, quad_radii0, txy0):
+    """
+    Wrapper function to allow for interpolation of traction history 
+    used in a for loop.
     
+    Does interpolation at a single index
+    """
     
-def _tangential_asperity_mif(uxy, uxy0, fxy0, fn, a, Gstar, mu, rquad0, wquad):
+    txy0_interp = txy0_interp.at[ind, :, 0].set(
+                jnp.interp(quad_radii_curr[ind, :],
+                           quad_radii0[ind, :],
+                           txy0[ind, :, 0],
+                           left=0.0,
+                           right=0.0) # right = new contact area
+                )
+    
+    txy0_interp = txy0_interp.at[ind, :, 1].set(
+                jnp.interp(quad_radii_curr[ind, :],
+                           quad_radii0[ind, :],
+                           txy0[ind, :, 1],
+                           left=0.0,
+                           right=0.0) # right = new contact area
+                )
+    
+    return txy0_interp
+    
+def _tangential_asperity_mif(uxy, uxy0, txy0, fn, a, Gstar, mu, 
+                             quad_radii0, quad_radii_norm, weight_radii):
     """
     Calculates tangential asperity forces for the Mindlin-Iwan Fit (MIF)
     model.
@@ -311,7 +338,7 @@ def _tangential_asperity_mif(uxy, uxy0, fxy0, fn, a, Gstar, mu, rquad0, wquad):
         DESCRIPTION.
     uxy0 : TYPE
         DESCRIPTION.
-    fxy0 : TYPE
+    txy0 : TYPE
         DESCRIPTION.
     fn : TYPE
         DESCRIPTION.
@@ -321,14 +348,98 @@ def _tangential_asperity_mif(uxy, uxy0, fxy0, fn, a, Gstar, mu, rquad0, wquad):
         DESCRIPTION.
     mu : TYPE
         DESCRIPTION.
+    quad_radii0 : (Nasp,Nrad) numpy.ndarray
+        Initial quadrature radii for each point in the history tractions
+        Could replace this with `np.outer(a0, quad_radii_norm)`
+    quad_radii_norm : (Nrad,) numpy.ndarray
+        Normalized quadrature radii to be used in integrals. All radii in [0,1]
+    weight_radii : (Nrad), numpy.ndarray
+        Quadrature weights for integral over radial displacements. 
+        These are just weights for a linear integral, this function includes
+        terms to handle the fact that it is an integral in radial coordinates.
 
     Returns
     -------
-    None.
+    asp_fxy : (Nasp, 2) numpy.ndarray
+        Integrated forces for each of the asperities in x,y directions
+    txy : (Nasp, Nrad, 2) numpy.ndarray
+        Tractions at each asperity (dim 0), radial position (dim 1), and for x
+        or y direction (dim 2).
+    quad_radii_curr : (Nasp, Nrad) numpy.ndarray
+        Radial positions in real lengths for each asperity traction 
+        calculation. With dim 0 being the asperity and dim 1 being the radial 
+        location
 
     """
     
-    fxy = 0
-    rquad = 0
+    # Interpolate history to new physical radii
+    quad_radii_curr = jnp.outer(a, quad_radii_norm)
     
-    return fxy, rquad
+    txy0_interp = jnp.zeros_like(txy0)
+    
+    
+    # Option 1, don't have JAX expand for loop on compile, should compile 
+    # faster, but may not run faster.
+    loop_fun = lambda i, txy0_interp : _interp_hist_loop_body(i, txy0_interp, 
+                               quad_radii_curr, quad_radii0, txy0)
+    
+    txy0_interp = jax.lax.fori_loop(0, a.shape[0], loop_fun, txy0_interp)
+    
+    # # Option 2: have JAX write out all lines of the for loop explicitly
+    # for xy_ind in range(2):
+    #     for ind in range(a.shape[0]):
+    #         # allow JAX to explicity write out the compilation of for loop for 
+    #         # interpolating history
+            
+    #         txy0_interp = txy0_interp.at[ind, :, xy_ind].set(
+    #                     jnp.interp(quad_radii_curr[ind, :],
+    #                                quad_radii0[ind, :],
+    #                                txy0[ind, :, xy_ind],
+    #                                left=0.0,
+    #                                right=0.0) # right = new contact area
+    #                     )
+    
+    # Tangential Stiffness
+    Kt_tot = 8*Gstar*a
+    
+    # Equation 42 of Porter and Brake (2023) 
+    kt_tilde = 0.8709 + (1 - 0.8709) / jnp.sqrt(1-quad_radii_norm**2) \
+                + 0.0629 * quad_radii_norm \
+                - 0.8915 * quad_radii_norm**2 \
+                + 0.6998 * quad_radii_norm**3
+                
+    # mask out nan at normalized radius of 1 
+    # (zero normal pressure there, so this is fine)
+    kt_tilde = jnp.where(jnp.isfinite(kt_tilde), kt_tilde, 0.0)
+    
+    # Equation 43 of Porter and Brake (2023) 
+    kt_local = jnp.outer(Kt_tot/a**2/np.pi, kt_tilde)
+    
+    kt_local = jnp.where(fn.reshape(-1,1)>0, kt_local, 0)
+    
+    # Normal Pressure Distribution, Equation 35 of Porter and Brake (2023)
+    tn = jnp.outer(3*fn/(2*np.pi*a**2), jnp.sqrt(1 - quad_radii_norm**2))
+    
+    # Mask out nan's where it was not in contact
+    tn = jnp.where(fn.reshape(-1,1)>0, tn, 0)
+
+    #### NEED TO MASK OUT NANS    
+    
+    # Stuck Force Prediction, Equation 37 of Porter and Brake (2023)
+    txy = jnp.atleast_3d(kt_local)*(uxy.reshape(1,1,-1)-uxy0.reshape(1,1,-1))\
+            + txy0_interp
+    
+    # Positive slip limit
+    txy = jnp.minimum(txy, jnp.atleast_3d(mu*tn))
+    
+    # Negative slip limit
+    txy = jnp.maximum(txy, jnp.atleast_3d(-mu*tn))
+    
+    # Integrate over radii on each asperity, 
+    # Equation 38 of Porter and Brake (2023)
+    asp_fxy = 2*np.pi*(a.reshape(-1,1))**2 \
+                * jnp.einsum('ijk,j', 
+                             txy * jnp.atleast_3d(quad_radii_norm), 
+                             weight_radii)
+    
+    return asp_fxy, txy, quad_radii_curr

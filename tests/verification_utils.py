@@ -30,7 +30,7 @@ def compare_mats(M, M_matlab, verbose=False):
     return error
     
 
-def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
+def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5, silent=False):
     """
     Default prints if verbose is True or if both atol and rtol are exceeded 
     
@@ -40,14 +40,19 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
         DESCRIPTION.
     U0 : TYPE
         DESCRIPTION.
-    verbose : TYPE, optional
-        DESCRIPTION. The default is True.
+    verbose : bool, optional
+        Always print output. Even if False, output will be printed if the 
+        gradient does not pass the test. 
+        The default is True.
     atol : TYPE, optional
         DESCRIPTION. The default is 1e-10.
     rtol : TYPE, optional
         DESCRIPTION. The default is 0.0.
     h  : finite difference step size
             The default is 1e-5
+    silent : bool, optional
+        If True, no output will be printed regardless of the results. 
+        The default is False.
 
     Returns
     -------
@@ -109,7 +114,7 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5):
     
     grad_failed = (abs_error > atol and norm_error > rtol)
     
-    if verbose or (abs_error > atol and norm_error > rtol) :
+    if (verbose or (abs_error > atol and norm_error > rtol)) and not silent:
         print('Difference Between numerical and analytical Jacobian:', abs_error)
         print('Diff/norm(numerical Jacobian):', norm_error)
                 

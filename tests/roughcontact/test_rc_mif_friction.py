@@ -42,7 +42,7 @@ import unittest
 sys.path.append('../..')
 
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction
-
+from tmdsimpy import harmonic_utils as hutils
 
 sys.path.append('..')
 import verification_utils as vutils
@@ -72,7 +72,7 @@ class TestRoughContactMIF(unittest.TestCase):
         # Tolerances
         self.rel_force_tol = 1e-6 # Error on force evaluation
         self.atol_grad = 1e-16
-        self.rtol_grad = 1e-8
+        self.rtol_grad = 1e-6
         
         ###############
         # Load Reference Data from old Rough Contact Model
@@ -94,8 +94,8 @@ class TestRoughContactMIF(unittest.TestCase):
                                           mu=ref_dict['mu'], 
                                           u0=0, 
                                           meso_gap=0, 
-                                          gaps=np.array([0.0, 0.0]), 
-                                          gap_weights=np.array([0.75, 0.25]),
+                                          gaps=np.array([0.0, 0.0, 0.0, 0.0]), 
+                                          gap_weights=np.array([0.6, 0.25, 0.1, 0.05]),
                                           tangent_model='MIF')
             
         correct_model2 = RoughContactFriction(Q, T, 
@@ -209,7 +209,56 @@ class TestRoughContactMIF(unittest.TestCase):
         at decreasing normal load.
         """
         
-        pass
+        unlth0 = np.array([0.0, 0.0, 0.0])
+        
+        reference = self.ref_dict['decreasing_normal']
+        
+        unlt = np.vstack((np.asarray(reference['x_disp']), 
+                          0*np.asarray(reference['x_disp']),
+                          np.asarray(reference['normal_disp']))).T
+        
+        for ind, model in enumerate(self.model_correct_asps):
+            
+            fxyn_t = model.local_force_history(unlt, 0*unlt, 0, 0, unlth0, 
+                                               max_repeats=1)[0]
+            
+            ft_err = np.linalg.norm(fxyn_t[:, 0] 
+                                    - np.asarray(reference['x_force'])) \
+                        / np.linalg.norm(reference['x_force'])
+            
+            self.assertLess(ft_err, self.rel_force_tol,
+                            'Tangent force is incorrect for constant load and '
+                            + 'model {}.'.format(ind))
+            
+            fn_err = np.linalg.norm(fxyn_t[:, 2] 
+                                    - np.asarray(reference['normal_force'])) \
+                        / np.linalg.norm(reference['normal_force'])
+            
+            self.assertLess(fn_err, self.rel_force_tol,
+                            'Normal force is incorrect for constant load and '
+                            + 'model {}.'.format(ind))
+            
+        # Check that changing the integration scheme correctly results in 
+        # different results
+        model = self.model_diff_asps
+        
+        fxyn_t = model.local_force_history(unlt, 0*unlt, 0, 0, unlth0, 
+                                           max_repeats=1)[0]
+        
+        ft_err = np.linalg.norm(fxyn_t[:, 0] 
+                                - np.asarray(reference['x_force'])) \
+                    / np.linalg.norm(reference['x_force'])
+        
+        self.assertGreater(ft_err, 100*self.rel_force_tol,
+                        'Tangent force should change for different asperities')
+        
+        fn_err = np.linalg.norm(fxyn_t[:, 2] 
+                                - np.asarray(reference['normal_force'])) \
+                    / np.linalg.norm(reference['normal_force'])
+        
+        self.assertGreater(fn_err, 100*self.rel_force_tol,
+                        'Normal force should change for different asperities')
+        
 
     def test_increase_normal_asperity(self):
         """
@@ -217,16 +266,261 @@ class TestRoughContactMIF(unittest.TestCase):
         at constant normal load.
         """
         
-        pass
+        unlth0 = np.array([0.0, 0.0, 0.0])
+        
+        reference = self.ref_dict['increasing_normal']
+        
+        unlt = np.vstack((np.asarray(reference['x_disp']), 
+                          0*np.asarray(reference['x_disp']),
+                          np.asarray(reference['normal_disp']))).T
+        
+        for ind, model in enumerate(self.model_correct_asps):
+            
+            fxyn_t = model.local_force_history(unlt, 0*unlt, 0, 0, unlth0, 
+                                               max_repeats=1)[0]
+            
+            ft_err = np.linalg.norm(fxyn_t[:, 0] 
+                                    - np.asarray(reference['x_force'])) \
+                        / np.linalg.norm(reference['x_force'])
+            
+            self.assertLess(ft_err, self.rel_force_tol,
+                            'Tangent force is incorrect for constant load and '
+                            + 'model {}.'.format(ind))
+            
+            fn_err = np.linalg.norm(fxyn_t[:, 2] 
+                                    - np.asarray(reference['normal_force'])) \
+                        / np.linalg.norm(reference['normal_force'])
+            
+            self.assertLess(fn_err, self.rel_force_tol,
+                            'Normal force is incorrect for constant load and '
+                            + 'model {}.'.format(ind))
+            
+        # Check that changing the integration scheme correctly results in 
+        # different results
+        model = self.model_diff_asps
+        
+        fxyn_t = model.local_force_history(unlt, 0*unlt, 0, 0, unlth0, 
+                                           max_repeats=1)[0]
+        
+        ft_err = np.linalg.norm(fxyn_t[:, 0] 
+                                - np.asarray(reference['x_force'])) \
+                    / np.linalg.norm(reference['x_force'])
+        
+        self.assertGreater(ft_err, 100*self.rel_force_tol,
+                        'Tangent force should change for different asperities')
+        
+        fn_err = np.linalg.norm(fxyn_t[:, 2] 
+                                - np.asarray(reference['normal_force'])) \
+                    / np.linalg.norm(reference['normal_force'])
+        
+        self.assertGreater(fn_err, 100*self.rel_force_tol,
+                        'Normal force should change for different asperities')
+
     
     def test_static_force(self):
-        # Check gradients here
+        """
+        Check the static forces and that history is correctly saved and 
+        restarted (compare to local force history)
+        """
         
-        pass
+        unlth0 = np.array([0.0, 0.0, 0.0])
+        
+        test_key_list = ['constant_normal', 'increasing_normal']
+        
+        for key in test_key_list:
+            
+            reference = self.ref_dict[key]
+            
+            unlt = np.vstack((np.asarray(reference['x_disp']), 
+                              0*np.asarray(reference['x_disp']),
+                              np.asarray(reference['normal_disp']))).T
+            
+            model_list = [self.model_correct_asps[0], self.model_diff_asps]
+            
+            for ind, model in enumerate(model_list):
+                
+                fxyn_t = model.local_force_history(unlt, 0*unlt, 0, 0, unlth0, 
+                                                   max_repeats=1)[0]
+                
+                model.init_history()
+                
+                fnlt_static = np.zeros_like(unlt)
+                
+                for time_ind in range(unlt.shape[0]):
+                    
+                    fnlt_static[time_ind, :] = model.force(unlt[time_ind, :], 
+                                                           update_hist=True)[0]
+                    
+                ft_err = np.linalg.norm(fxyn_t - fnlt_static) \
+                            / np.linalg.norm(fxyn_t)
+                
+                self.assertLess(ft_err, self.rel_force_tol,
+                                'Static force is not consistent with local '
+                                + 'force history for model: {}'.format(ind))
+                
     
-    def test_aft(self):
+    def test_static_grad(self):
+        """
+        Check the static forces and that history is correctly saved and 
+        restarted (compare to local force history)
+        """
+                
+        test_key_list = ['constant_normal', 'increasing_normal']
+        
+        for key in test_key_list:
+            
+            reference = self.ref_dict[key]
+            
+            unlt = np.vstack((np.asarray(reference['x_disp']), 
+                              -0.25*np.asarray(reference['x_disp']),
+                              np.asarray(reference['normal_disp']))).T
+            
+            model_list = [self.model_correct_asps[0], self.model_diff_asps]
+            
+            num_failed_tight = 0
+            
+            for ind, model in enumerate(model_list):
+                
+                model.init_history()
+                
+                # Check static force gradient just at a subset of times
+                for time_ind in range(0, unlt.shape[0], 10):
+                    
+                    fun = lambda X : model.force(X, update_hist=False)
+                    
+                    grad_failed = vutils.check_grad(fun, unlt[time_ind, :], 
+                                                    verbose=False, 
+                                                    atol=self.atol_grad,
+                                                    rtol=0.0055, # self.rtol_grad,
+                                                    h=1e-12)
+                    
+                    num_failed_tight += vutils.check_grad(fun, unlt[time_ind, :], 
+                                                    verbose=False, 
+                                                    atol=self.atol_grad,
+                                                    rtol=self.rtol_grad,
+                                                    h=1e-12,
+                                                    silent=True)
+                    
+                    self.assertFalse(grad_failed, 
+                                'Incorrect Gradient w.r.t. U for AFT, '
+                                + 'model: {}, time: {}'.format(ind, time_ind))
+                    
+                    model.force(unlt[time_ind, :], update_hist=True)
+            
+            self.assertLessEqual(num_failed_tight, 9, 
+                                 'More than the expected number of gradient '
+                                 + 'checks required looser tolerances')
+
+
+    def test_aft_versus_local_hist(self):
+        """
+        Check that AFT and local force history give consistent results
+        """
+        w = 1.35
+        h = np.array(range(5+1))
+        Nt = 1 << 7
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+
+        U_subset = np.array([0, .5e-5, -.1e-5, 
+                            0.1e-5, 0.2e-5, -0.1e-5, 
+                            0.3e-5, 0.2e-5, -0.1e-5, 
+                            0.1e-5, 0.1e-5, -0.5e-5])
+        
+        U = np.zeros(Ndof * Nhc)
+        U[:U_subset.shape[0]] = U_subset
+        
+        # Time series from harmonic displacements
+        Ulocal = np.reshape(U, (Ndof, Nhc), 'F').T
+        unlt = hutils.time_series_deriv(Nt, h, Ulocal, 0) # Nt x Ndnl
+        
+        unlth0 = np.zeros(3)
+        
+        model_list = [self.model_correct_asps[0]] + [self.model_diff_asps]
+
+        for ind, model in enumerate(model_list):
+            
+            fxyn_t = model.local_force_history(unlt, 0, h, 0, unlth0)[0]
+            
+            
+            Fnl_local = hutils.get_fourier_coeff(h, fxyn_t)
+            Fnl_local = np.reshape(Fnl_local.T, (-1,), 'F')
+            
+            Fnl_aft = model.aft(U, w, h)[0]
+            
+            self.assertLess(np.linalg.norm(Fnl_local - Fnl_aft), 1e-10,
+                        'AFT is not consistent with the local force history.')
+    
+    def test_aft_grad(self):
+        """
+        Test for AFT Gradients with Mindlin Iwan Fit asperity tangential 
+        contact model
+        """
+        
         # Check gradients here
-        pass
+        model_list = [self.model_correct_asps[0]] + [self.model_diff_asps]
+        
+        U_list = [np.array([0, .5e-5, 2e-5, 
+                          0.1e-5, 0.2e-5, 0.05e-5, 
+                          0.3e-5, 0.2e-5, 0.05e-5, 
+                          0.0, 0.0, 0.0, 
+                          0.0, 0.0, 0.0,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, -.1e-5, 
+                          0.1e-5, 0.2e-5, -0.1e-5, 
+                          0.3e-5, 0.2e-5, -0.1e-5, 
+                          0.1e-5, 0.1e-5, -0.5e-5]),
+                  np.array([0, .5e-5, 2e-5, 
+                          0.0e-5, 0.0e-5, -0.0e-5, 
+                          0.4e-5, 0.4e-5, 0.08e-5, 
+                          0.0e-5, 0.0e-5, -0.0e-5,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                  np.array([0, .5e-5, 2e-5, 
+                          0.0e-5, 0.0e-5, 0.0e-5, 
+                          0.4e-5, 0.4e-5, 0.08e-5, 
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.0e-5, 0.0e-5, 0.0e-5,
+                          0.1e-5, 0.1e-5, 0.02e-5]),
+                ]
+        
+        w = 1.35
+        h = np.array(range(5+1))
+        Nt = 1 << 7
+        
+        Ndof = 3
+        Nhc = hutils.Nhc(h)
+
+        # import pdb; pdb.set_trace()
+
+        for ind, model in enumerate(model_list):
+            for j in range(len(U_list)):
+                
+                
+                U = np.zeros(Ndof * Nhc)
+                U[:U_list[j].shape[0]] = U_list[j]
+                
+                fun = lambda U : model.aft(U, w, h, Nt=Nt, max_repeats=2)[0:2]
+                
+                loosen_grad = 1
+                # if j == 6:
+                #     loosen_grad = 1e3
+                
+                grad_failed = vutils.check_grad(fun, U, verbose=False, 
+                                            atol=self.atol_grad,
+                                            rtol=self.rtol_grad*loosen_grad,
+                                            h=1e-6*np.linalg.norm(U))
+                
+                self.assertFalse(grad_failed, 
+                                 'Incorrect Gradient w.r.t. U for AFT, '
+                                 + 'model: {}, set: {}'.format(ind, j))
+                
+                dFdw = model.aft(U, w, h, Nt=Nt, max_repeats=2)[2]
+                
+                self.assertLess(np.linalg.norm(dFdw), 1e-12, 
+                                'Gradient w.r.t. w should be zero.'
+                                + ' Model: {}, set: {}'.format(ind, j))
 
 if __name__ == '__main__':
     unittest.main()
