@@ -300,9 +300,35 @@ def _tangential_asperity(uxy, uxy0, fxy0, fn, a, Gstar, mu):
     
     
     
+def _tangential_asperity_mif(uxy, uxy0, fxy0, fn, a, Gstar, mu, rquad0, wquad):
+    """
+    Calculates tangential asperity forces for the Mindlin-Iwan Fit (MIF)
+    model.
+
+    Parameters
+    ----------
+    uxy : TYPE
+        DESCRIPTION.
+    uxy0 : TYPE
+        DESCRIPTION.
+    fxy0 : TYPE
+        DESCRIPTION.
+    fn : TYPE
+        DESCRIPTION.
+    a : TYPE
+        DESCRIPTION.
+    Gstar : TYPE
+        DESCRIPTION.
+    mu : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
     
+    fxy = 0
+    rquad = 0
     
-    
-    
-    
-    
+    return fxy, rquad
