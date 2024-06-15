@@ -4,34 +4,44 @@ from ..nlforces.nonlinear_force import InstantaneousForce
 
 class UnilateralSpring(InstantaneousForce):
     """
-    Unilateral Spring for contact and impact type nonlinear forces 
+    Unilateral spring for contact and impact type nonlinear forces 
     (with potential preload)
     
-    Force displacement Graph
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    k : float or (Nnl,) numpy.ndarray
+        Stiffness coefficient
+    Npreload : float or (Nnl,) numpy.ndarray
+        The minimum force is -Npreload for displacements less than `delta`
+    delta : float or (Nnl,) numpy.ndarray
+        Offset of the elbow in the force from being at zero displacement.
     
-               |            /
-    F = 0 _____|___________/____
-               |          /
-          _____|_________/  (-Npreload)
-               |---d ---|
-               |
+    Notes
+    -----
+    
+    Force displacement relationship to calculate the force 
+    given a displacement u:
+    
+    >>> if u > delta: # in contact
+    ...     force = k * (u - delta) - Npreload
+    ... else: # out of contact
+    ...     force = -Npreload
+    
+    """
+    
+    """
+    F(u) = \begin{cases}
+               k * (u - \delta) - N_{preload} & u > \delta (in contact) \\
+               - N_{preload} & u \leq \delta (out of contact) \\
+           \end{cases}
     """
     
     def __init__(self, Q, T, k, Npreload=0, delta=0):
-        """
-        Initialize a nonlinear force model
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        k : stiffness coefficient
-        Npreload : the minimum force is -Npreload
-        delta : offset of the elbow in the force from being at zero displacement
-
-        """
         
         self.Q = Q
         self.T = T

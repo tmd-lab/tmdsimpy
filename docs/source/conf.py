@@ -38,6 +38,13 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'bizstyle' # 'alabaster'
 html_static_path = ['_static']
 
+import sys
+import os
+import pathlib
+
+pathlib.Path(os.path.join(os.path.dirname(os.path.abspath(__file__)), 
+                          '_static/')).mkdir(exist_ok=True)
+
 # -- Path to Module -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/quickstart.html#autodoc
 
@@ -46,8 +53,6 @@ html_static_path = ['_static']
 
 # Alternative documentation: 
 # https://www.sphinx-doc.org/en/master/tutorial/describing-code.html#including-doctests-in-your-documentation
-import pathlib
-import sys
 sys.path.insert(0, pathlib.Path(__file__).parents[2].resolve().as_posix())
 
 # numpydoc_class_members_toctree = False

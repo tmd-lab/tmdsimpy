@@ -189,7 +189,7 @@ class Continuation:
             previous two solutions.
             
         Notes
-        -------
+        -----
         1. This function currently solves an (N+1, N+1) linear system to find
         an appropriate null-space vector for the top (N, N+1) matrix. This 
         allows for using the same linear solvers with parallel options as 

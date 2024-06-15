@@ -2,47 +2,56 @@ import numpy as np
 from .. import harmonic_utils as hutils
 
 class NonlinearForce:
+    """
+    Template class for nonlinear forces. 
     
+    This class does not actually implement any nonlinear force.
     
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    
+    """
+    
+    def __init__(self, Q, T):
+        
+        self.Q = Q
+        self.T = T
+        
     def nl_force_type(self):
         """
+        Method to return a flag for the force type.
+        
         Returns
         -------
         int
-            Value indicates the force type
-            0 - Instantaneous Force Type
-            1 - Hysteretic Force Type
+            Value indicates the force type.
+            0 == Instantaneous Force Type.
+            1 == Hysteretic Force Type.
         """
         
         return 0
     
-    def __init__(self, Q, T):
-        """
-        Initialize a nonlinear force model
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-
-        """
-        self.Q = Q
-        self.T = T
-        
     def force(self, X):
         """
-        Evaluate the nonlinear force for a set of global displacements X
+        Evaluate the nonlinear force for a set of global displacements
 
         Parameters
         ----------
-        X : Global Displacements, n x 1
+        X : (N,) numpy.ndarray
+            Global displacements
 
         Returns
         -------
-        F: Global Forces, n x 1
-        dFdX: Derivative of Global Forces w.r.t. Global Coordinates, n x n
+        F: (N,) numpy.ndarray
+            Global forces
+        dFdX: (N,N) numpy.ndarray
+            Derivative of global forces with respect to global 
+            displacements `X`
 
         """
         
@@ -50,28 +59,45 @@ class NonlinearForce:
         dFdX = np.zeros((X.shape[0], X.shape[0]))
         
         return F, dFdX
-        
-        
-        
-    def aft(self, U, w, h, Nt=128, tol=1e-7):
+    
+    def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
         Implementation of the alternating frequency-time method to extract 
         harmonic nonlinear force coefficients
 
         Parameters
         ----------
-        U : harmonic DOFs
-        w : frequency (in case of velocity dependence)
-        h : List of harmonics
-        Nt : Number of time steps. The default is 128.
-        tol : tolerance on convergence of force at start and end of AFT. 
-              The default is 1e-7.
+        U : (N*Nhc,) numpy.ndarray
+            displacement harmonic DOFs
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            Tolerance on convergence of force at start and end of AFT. 
+            Most cases ignore this tolerance, but it is included to ensure
+            a compatible interface. 
+            The default is 1e-7.
+        calc_grad : boolean, optional
+            Flag for if to calculate the gradients and return them.
+            `Fnl` should always be returned as the first entry of a tuple 
+            regardless of if other returned values are calculated.
+            Flag is ignored in many cases, but in others can significantly 
+            decrease computation time.
+            The default is True.
 
         Returns
         -------
-        Fnl : Nonlinear Hamonic Force Coefficients, (n * Nhc) 
-        dFnldU : Jacobian of Fnl w.r.t. U, (n * Nhc) x (n * Nhc) 
-        dFnldU : Jacobian of Fnl w.r.t. w, (n * Nhc)
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
 
         """
         Fnl = np.zeros_like(U)
@@ -82,28 +108,83 @@ class NonlinearForce:
     
 class InstantaneousForce(NonlinearForce):
     """ 
-    Class of forces that can be evaluated at current state without 
-    knowledge of history
+    Template class for instantaneous nonlinear forces. 
+    
+    This type of forces can be evaluated at the current state without knowledge
+    of history.
+    This class does not actually implement any nonlinear forces.
+    
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    
+    Notes
+    -----
+    
+    Each of the local `Nnl` nonlinear forces is a function of just a single
+    local displacement with the same index. 
+    This does not imply that the nonlinear forces must be a function of a 
+    single global DOF. 
+    Rather the local displacements can be a linear combination of any of the 
+    global DOFs through the mappings `Q` and `T`.
+    See `tmdsimpy.nlforces.GenPolyForce` for a instantaneous force type class 
+    without this restriction.
+    
     """
     
     def nl_force_type(self):
+        """
+        Method to identify the force type as instantaneous. 
+        
+        Returns
+        -------
+        int
+            0, indicating instanteous force type.
+        """
+        
         return 0
     
     def local_force_history(self, unlt, unltdot):
         """
-        For evaluating local force history, used by AFT
-        Should support vectorization to calculate all of the necessary forces
+        Evaluates the local nonlinear forces based on local nonlinear 
+        displacements for a time series.
         
         Parameters
         ----------
-        unl : Local displacements for Force
-        unldot : Local velocities for Force
+        unl : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
         
         Returns
         -------
-        ft : Local nonlinear forces
-        dfdu : Derivative of forces w.r.t. instantaneous displacement
-        dfdud : Derivative of forces w.r.t. instantaneous velocities
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces, rows are different time instants and
+            columns are different local force DOFs.
+        dfdu : (Nt,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to displacements `unl`. 
+            Each column index `i` is the derivative `ft[:, i]` with respect
+            to `unl[:, i]`.
+        dfdud : (Nt,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to velocities `unltdot`. 
+            Each column index `i` is the derivative `ft[:, i]` with respect
+            to `unltdot[:, i]`.
+        
+        Notes
+        -----
+        
+        This function is used for AFT evaluations of nonlinear forces
+        and should support vectorization for necessary forces.
+        
+        Since the nonlinear forces are dependent on only one of the local DOFs, 
+        the derivative matrix need not be three dimensional to contain all
+        necessary information.
 
         """
         ft = np.zeros_like(unlt)
@@ -115,38 +196,50 @@ class InstantaneousForce(NonlinearForce):
     
     def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
-        Alternating Frequency Time Domain Method for calculating the Fourier
-        Coefficients of instantaneous forces. 
-        Notation: The variable names should be cleaned up. Currently U and Fnl
-        correspond to global DOFs while Unl and F correspond to reduced DOFs 
-        that the nonlinear force is evaluated at. 
-        
-        WARNING: Needs further verification for cases using multiple nonlinear 
-        displacements and or nonlinear output forces.
+        Implementation of the alternating frequency-time method to extract 
+        harmonic nonlinear force coefficients (instantaneous forces).
         
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            Nhc*nd x 1
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
-             The default is 128.
-        tol : Convergence criteria, irrelevant for instantaneous forcing.
-              The default is 1e-7.
-      calc_grad : boolean
-              This argument is ignored for now. It is included for 
-              compatability of interface. Future work could use it to
-              avoid calculating dFnldU.
-              The default is True
+        U : (N*Nhc,) numpy.ndarray
+            displacement harmonic DOFs
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored for instantaneous forces. 
+            It is included for compatability of interface. 
+            The default is 1e-7.
+        calc_grad : boolean, optional
+            This argument is ignored for instantaneous forces. 
+            It is included for compatability of interface. 
+            The default is True.
 
         Returns
         -------
-        Fnl : TYPE
-            DESCRIPTION.
-        dFnldU : TYPE
-            DESCRIPTION.
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
+        
         """
+        
+        # Notes omitted from docstring about understanding implementation
+        """
+        Implementation notation could use cleaning up: 
+        
+        Currently U and Fnl
+        correspond to global DOFs while Unl and F correspond to reduced DOFs 
+        that the nonlinear force is evaluated at. 
+        """
+        
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
         dFnldw = np.zeros_like(U)
@@ -188,7 +281,6 @@ class InstantaneousForce(NonlinearForce):
         J = np.zeros((Nhc*Ndnl, Nhc*Ndnl))
         for di in range(Ndnl):
             J[di::Ndnl, di::Ndnl] = dFdUnl[:, di, :]
-        
         
         
         # Convert to Global Coordinates
