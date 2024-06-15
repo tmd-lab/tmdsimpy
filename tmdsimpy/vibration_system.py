@@ -33,9 +33,7 @@ class VibrationSystem:
     """
     
     def __init__(self, M, K, C=None, ab=None):
-        """
-        Initialize the linear part of a system
-        """
+        
         self.M = M
         self.K = K
         self.ab = None

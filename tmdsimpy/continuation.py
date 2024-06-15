@@ -112,15 +112,6 @@ class Continuation:
         fun : function
             function for evaluations, all are done using physical coordinates 
             and conditioning is handled in this class.
-       
-    Methods
-    -------
-    predict(fun, XlamP0, XlamPprev, dirC_prev)
-        Generates predictions of directions for a next step.
-    correct_res(fun, XlamC, XlamC0, ds, dirC=None, calc_grad=True)
-        Residual function including augmented continuation equation.
-    continuation(fun, XlamP0, lam0, lam1, return_grad=False)
-        Function to conduct a continuation.
          
     """
     

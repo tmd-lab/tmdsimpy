@@ -23,6 +23,10 @@ autosummary_generate = True  # Turn on sphinx.ext.autosummary
 autosummary_imported_members = False # Default
 autosummary_ignore_module_all = False
 
+# autosummary / methods / stubfiles issues
+# https://exchangetuts.com/sphinx-warning-autosummary-stub-file-not-found-for-the-methods-of-the-class-check-your-autosummary-generate-settings-1640709483669579
+numpydoc_show_class_members = False
+
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
