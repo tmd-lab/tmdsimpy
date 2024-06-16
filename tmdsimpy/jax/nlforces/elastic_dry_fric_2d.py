@@ -1,7 +1,3 @@
-"""
-Definition of Elastic Dry Friction Element using JAX for automatic derivatives
-"""
-
 # Standard imports
 import numpy as np
 import warnings
@@ -21,43 +17,61 @@ from ...nlforces.nonlinear_force import NonlinearForce
 
 class ElasticDryFriction2D(NonlinearForce):
     """
-    Elastic Dry friction Slider Element Nonlinearity with JAX for automatic 
-    differentiation
-
-    The AFT formulation assumes that the spring starts at 0 force
-    at zero displacement.    
+    2D Elastic Dry Friction (Spring + Coulomb Friction) Model
+    
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs. 
+        `Nnl` should be even.
+        Rows `0::2` correspond to local tangential DOFs.
+        Rows `1::2` correspond to local normal DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+        Columns `0::2` correspond to local tangential forces.
+        Columns `1::2` correspond to local normal forces.
+    kt : float
+        Tangential stiffness
+    kn : float
+        Tangential stiffness
+    mu : float
+        Friction coefficient
+    u0 : float, (Nnl,) numpy.ndarray, or None, optional
+        If a float, all sliders in AFT are initialized at that displacement and
+        zero force.
+        If a numpy.ndarray, entries `0::2` correspond to the initial slider
+        displacements and zero force for AFT.
+        If None, then the zeroth harmonic displacements are used to initialize
+        the slider position in AFT.
+        Highly recommended not to use `u0=None` because may result in
+        non-unique solutions. Not fully verified for None option.
+        The default is 0.
+    
+    See Also
+    --------
+    set_aft_initialize :
+        Overrides the value of `u0`.
+    
+    Notes
+    -----
+    
+    Positive normal displacements are in contact and yield positive normal
+    forces. Negative normal displacements are out of contact and yield zero
+    normal force.
+    
+    Derivatives are calculated with automatic differentiation using JAX. 
+    JAX calculates dense derivative matrices, so the calculation may become
+    very inefficient if more than 1 slider is included in the object 
+    (i.e., `Nnl` > 2).
+    
+    `kt`, `kn`, and `mu` may work for inputs of `(Nnl//2,) numpy.ndarrays`. 
+    However, this is not tested.
+    
     """
 
     def __init__(self, Q, T, kt, kn, mu, u0=0):
-        """
-        Initialize a nonlinear force model
         
-        Implementation currently assumes that Nnl=2 (two nonlinear DOFs)
-        The Nonlinear DOFs must first be tangential displacement then normal
-        displacement
-        
-        Has been updated to allow for multiple elastic dry friction sliders. 
-        However, that may be memory inefficient since the Jacobians that are 
-        calculated aren't sparse.
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential stiffness, tested for scalar, may work for vector of size 
-                Nnl
-        Fs : slip force, tested for scalar, may work for vector of size 
-                Nnl
-        u0 : initialization value for the slider. If u0 = None, then 
-                the zeroth harmonic is used to initialize the slider position.
-                u0 should be size of number of tangential DOFs 
-                (e.g., 1 right now)
-                Highly recommended not to use u0=None because may result in
-                non-unique solutions. Not fully verified for None option.
-
-        """
         self.Q = np.asarray(Q)
         self.T = np.asarray(T)
         
@@ -84,44 +98,64 @@ class ElasticDryFriction2D(NonlinearForce):
         
     def nl_force_type(self):
         """
-        Marks as a hysteretic force.
+        Method to identify the force type as hysteretic. 
+        
+        Returns
+        -------
+        int
+            1, indicating hysteretic force type.
         """
+        
         return 1
         
     def set_prestress_mu(self):
         """
-        Set friction coefficient to a different value (generally 0.0) for
-        prestress analysis
+        Sets friction coefficient to zero while saving initial value in a 
+        different variable. Useful for prestress analysis.
+        
+        Returns
+        -------
+        None
         """
         self.mu = self.prestress_mu
         
     def reset_real_mu(self): 
         """
-        Reset friction coefficient to a real value (generally not 0.0) for
-        dynamic analysis
+        Resets friction coefficient to initial value. 
+        Useful for after prestress analysis with zero friction coefficient.
+        
+        Returns
+        -------
+        None
         """
         self.mu = self.real_mu
         
-       
     def init_history(self):
         """
-        Initialize history variables to zero
-        Only applies to tangent displacement and force
+        Method to initialize history variables to zero force and displacement.
+
+        Returns
+        -------
+        None.
+        
+        Notes
+        -----
+        History variables are just initialized for tangential displacements.
+        
         """
         self.up = np.zeros(self.Q.shape[0]//2)
         self.fp = np.zeros(self.Q.shape[0]//2)
 
-
     def set_aft_initialize(self, X):
         """
-        Set a center for frictional sliders to be initialized at zero force
-        for AFT routines. 
+        Set an initial slider position with zero force for AFT calculation.
 
         Parameters
         ----------
-        X : np.array, size (Ndof,)
-            Solution to a static solution or other desired set of displacements
-            that will be used as the baseline position of frictional sliders.
+        X : (N,) numpy.ndarray
+            Global displacements to be used with `self.Q` to calculate
+            local slider positions for initializing AFT.
+            Generally, a solution to a static problem.
 
         Returns
         -------
@@ -130,43 +164,51 @@ class ElasticDryFriction2D(NonlinearForce):
         """
         self.u0 = self.Q @ X
         
-        return
-        
-        
     def update_history(self, unl, fnl):
         """
-        Updates hysteretic states
+        Updates hysteretic states to be the input displacement and force.
 
         Parameters
         ----------
-        unl : nonlinear displacements to update
-        fnl : nonlinear forces to save as update
+        unl : (Nnl//2,) numpy.ndarray
+            Local tangential nonlinear displacements to save
+        fnl : (Nnl//2,) numpy.ndarray
+            Local tangential nonlinear forces to save
 
         Returns
         -------
         None.
 
         """
+        
         self.up = unl
         self.fp = fnl
         
     def force(self, X, update_hist=False):
         """
-        Forces from nonlinearity given some global displacement vector
+        Calculate global nonlinear forces for some global displacement vector.
 
         Parameters
         ----------
-        X : Displacements
-        update_hist : Option to save the inputs for future calls as history 
-                        variables
+        X : (N,) numpy.ndarray
+            Global displacements
+        update_hist : bool
+            Flag to save displacement and force from the evaluation as history
+            variables for subsequent calls to this function.
 
         Returns
         -------
-        F : Global nonlinear force
-        dFdX : Global nonlinear force gradient
+        F : (N,) numpy.ndarray
+            Global nonlinear force
+        dFdX : (N,N) numpy.ndarray
+            Derivative of `F` with respect to `X`.
+            
+        Notes
+        -----
+        If `update_hist` is True, then `update_history` is called on the 
+        local results of this calculation to save the history.
 
         """
-
         
         # Get local displacements
         unl = self.Q @ X
@@ -192,30 +234,41 @@ class ElasticDryFriction2D(NonlinearForce):
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
+        Implementation of the alternating frequency-time (AFT) method to extract 
+        harmonic nonlinear force coefficients.
         
-        Tolerances are ignored since Elastic Dry Friction converges to steady
-        -state with 
-        two cycles of the hysteresis loop, so that is done by default. 
-
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            shape: (Nhc*nd,)
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
-             The default is 128.
-        max_repeats : number of hysteresis loops to calculate to reach steady
-                        state. Maximum value allowed. 
-                        The default is 2
-        atol : Convergence criteria, absolute for steady-state hysteresis loops
-              The default is 1e-10.
-        rtol : Convergence criteria, relative for steady-state hysteresis loops
-               The default is 1e-10.
-
+        U : (N*Nhc,) numpy.ndarray
+            Displacement harmonic DOFs (global)
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored, and is included for compatability of 
+            interface. 
+            The default is 1e-7.
+        
         Returns
         -------
-        None.
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
+        
+        Notes
+        -----
+        The tolerance `tol` is ignored because elastic dry friction converges
+        to steady-state with two cycles of the hysteresis loop. Two cycles of
+        the nonlinear forces are calculated automatically without the option to
+        change this setting.
 
         """
 
@@ -282,43 +335,80 @@ class ElasticDryFriction2D(NonlinearForce):
         return Fnl, dFnldU, dFnldw
     
     
-    def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
+    def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2,
                             atol=1e-10, rtol=1e-10):
-         """
-         Calculates local force history for a single element of the rough 
-         contact model given the local nonlinear displacements over a cycle.
-    
-         Parameters
-         ----------
-         unlt : Displacement history for a single cycle.
-         unltdot : Velocity history for the cycle (ignored)
-         h : list of harmonics used (ignored)
-         cst : (ignored)
-         unlth0 : Initialization displacements for the sliders 
-         max_repeats : Number of times to repeat the cycle of displacements
-                       to converge the hysteresis loops to steady-state
-         atol : Ignored
-         rtol : Ignored
-    
-         Returns
-         -------
-         fxyn_t : Force history for the element
-    
-         """
-         #########################
-         # Determine Slider Starting Position
-         
-         if self.u0 is None:
-             # Initialize based on the zeroth harmonic.
-             u0 = unlth0
-         else:
-             u0 = self.u0*np.ones_like(unlth0[0])
-         
-         pars = np.array([self.kt, self.kn, self.mu])
-         
-         fxyn_t = _local_force_history(unlt, pars, u0[::2])
+        """
+        Evaluate the local forces for steady-state harmonic motion used in AFT.
+        
+        Parameters
+        ----------
+        unl : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            Ignored here, included for compatibility of interface.
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst: (Nt,Nhc) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            This is passed to `init_history_harmonic` to initialize model is
+            `self.u0` is None.
+        max_repeats : int, optional
+            Ignored here, included for compatibility of interface.
+            The default is 2.
+        atol : float, optional
+            Ignored here, included for compatibility of interface.
+            Absolute tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+        rtol : float, optional
+            Ignored here, included for compatibility of interface.
+            Relative tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+            
+        Returns
+        -------
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF. This is returned as the first
+            entry in a tuple.
+        
+        Notes
+        -----
+        This method is for the post-processing of force displacement
+        relationships of the model from harmonic solutions.
+        
+        This method is not directly called by AFT for the elastic dry
+        friction model. Rather this just provides a public interface to the 
+        same private JAX function that AFT uses. As such, only the forces and
+        not the derivatives are returned.
 
-         return (fxyn_t,)
+        """
+        
+        #########################
+        # Determine Slider Starting Position
+
+        if self.u0 is None:
+            # Initialize based on the zeroth harmonic.
+            u0 = unlth0
+        else:
+            u0 = self.u0*np.ones_like(unlth0[0])
+
+        pars = np.array([self.kt, self.kn, self.mu])
+
+        fxyn_t = _local_force_history(unlt, pars, u0[::2])
+
+        return (fxyn_t,)
         
     
 def _local_eldy_force(unl, up, fp, pars):
