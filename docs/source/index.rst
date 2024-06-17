@@ -18,8 +18,6 @@ Welcome to TMDSimPy's documentation!
    :caption: Contents:
 
 
-# .. autofunction:: tmdsimpy.harmonic_utils.Nhc
-
 Indices and tables
 ==================
 
