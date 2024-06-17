@@ -146,7 +146,6 @@ cd docs
 make html
 ```
 The html can then be opened from `[docs/]build/html/index.html`.
-Note that this requires libraries listed in `spyder_reqs.txt`, but not yet fully updated in `specific_reqs.txt`.
 
 If you have warnings, you may need to do a clean build with
 ```
@@ -155,7 +154,6 @@ rm -rf source/generated
 make html
 ```
 
-New code should not add any errors or warnigs to the sphinx compilation of the docs.
 All items should have a short summary docstring.
 Methods and functions should all include for "Parameters" and "Returns" sections.
 All classes should have a "Parameters" section that includes information for the constructor method.

@@ -148,6 +148,45 @@ class TestRoughContactMIF(unittest.TestCase):
         self.model_diff_asps = diff_model
         
         self.ref_dict = ref_dict
+        
+        
+        
+        
+        # Models for gradient checking, use fewer sliders to speed up
+        # gradient checking time to keep reasonable
+        N_radial_quad_fast = 10
+        
+        correct_model1_fast = RoughContactFriction(Q, T, 
+                                ref_dict['E'], 
+                                ref_dict['nu'], 
+                                ref_dict['R'], 
+                                ref_dict['Et'], 
+                                np.float64(ref_dict['Sys']), 
+                                mu=ref_dict['mu'], 
+                                u0=0, 
+                                meso_gap=0, 
+                                gaps=np.array([0.0, 0.0, 0.0, 0.0]), 
+                                gap_weights=np.array([0.6, 0.25, 0.1, 0.05]),
+                                tangent_model='MIF',
+                                N_radial_quad=N_radial_quad_fast)
+            
+        
+        diff_model_fast = RoughContactFriction(Q, T, 
+                                ref_dict['E'], 
+                                ref_dict['nu'], 
+                                ref_dict['R'], 
+                                ref_dict['Et'], 
+                                np.float64(ref_dict['Sys']), 
+                                mu=ref_dict['mu'], 
+                                u0=0, 
+                                meso_gap=0, 
+                                gaps=np.array([0.0, -0.1]), 
+                                gap_weights=np.array([0.75, 0.25]),
+                                tangent_model='MIF',
+                                N_radial_quad=N_radial_quad_fast)
+        
+        self.fast_models = [correct_model1_fast, diff_model_fast]
+            
 
 
     def test_constant_normal_asperity(self):
@@ -463,7 +502,7 @@ class TestRoughContactMIF(unittest.TestCase):
         """
         
         # Check gradients here
-        model_list = [self.model_correct_asps[0]] + [self.model_diff_asps]
+        model_list = self.fast_models
         
         U_list = [np.array([0, .5e-5, 2e-5, 
                           0.1e-5, 0.2e-5, 0.05e-5, 
