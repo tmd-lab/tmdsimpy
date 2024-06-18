@@ -7,9 +7,39 @@ from .. import harmonic_utils as hutils
 
 class Iwan4Force(HystereticForce):
     """
-    4-Parameter Iwan Nonlinearity
-        Segalman, D.J., 2005. A Four-Parameter Iwan Model for Lap-Type 
-        Joints. J. Appl. Mech 72, 752–760.
+    Implementation of the 4-parameter Iwan model for hysteresis in joints.
+    
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential stiffness coefficient
+    Fs : float
+        Slip force
+    chi : float
+        Controls microslip damping slope. Recommended to have `chi` > -1.
+        Smaller values of `chi` may not work.
+    beta : float, positive
+        Controls discontinuity at beginning of macroslip (zero is smooth)
+    Nsliders : int, optional
+        Number of discrete sliders for the Iwan element. 
+        Note that this does not include 1 additional slider for the 
+        delta function at phimax.
+        Default is 100 (commonly used in literature).
+    alphasliders : float, optional
+        determines the non-uniform discretization (see Segalman (2005))
+        For midpoint rule, using anything other than 1.0 has 
+        significantly higher error.
+        The default is 1.0.
+    
+    Notes
+    -----
+    
+    The 4-parameter Iwan model for jointed connections from [1]_.
     
     Not Verified for more than one input displacement to the Iwan model 
     (after Q mapping)
@@ -17,41 +47,31 @@ class Iwan4Force(HystereticForce):
     Implementation absorbs kt into the probability distribution. Sliders start 
     to slip at displacement phi.
     
-    Jenkins becomes 
-    f = /   (u - up) + fp    (stuck)
-        \   phi              (fstuck > phi)
+    Here sliders are represented with the formulation :
+    
+    >>> fstuck = (u - up) + fp
+    ... 
+    ... if fstuck > phi: # stuck
+    ...     force = fstuck
+    ... else:  # Slipping
+    ...     force = phi
+    
     with the real slider force being kt*f at each instant. f and fp therefore 
     have units of displacement not force.
     
-    Quadrature points based on Segalman (2005), but with some modification so 
+    Quadrature points based on [1]_, but with some modification so 
     that the quadrature weights are independent of stick/slip for the sake of 
     computational efficiency
+    
+    References
+    ----------
+    .. [1] 
+       Segalman, D.J., 2005. A Four-Parameter Iwan Model for Lap-Type 
+       Joints. J. Appl. Mech 72, 752–760.
     
     """
     
     def __init__(self, Q, T, kt, Fs, chi, beta, Nsliders=100, alphasliders=1.0):
-        """
-        Initialize a nonlinear force model
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential Stiffness
-        Fs : slip force
-        chi : controls microslip damping slope
-        beta : controls discontinuity at beginning of macroslip (zero is smooth)
-        Nsliders : number of discrete sliders for the Iwan element. 
-                    Note that this does not include 1 additional slider for the 
-                    delta function at phimax
-                    Default is 100 (commonly used in literature)
-        alphasliders : determines the non-uniform discretization (see Segalman (2005))
-                       For midpoint rule, using anything other than 1.0 has 
-                       significantly higher error
-
-        """
         
         self.Q = Q
         self.T = T

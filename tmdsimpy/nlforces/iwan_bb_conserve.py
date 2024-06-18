@@ -3,36 +3,48 @@ from ..nlforces.nonlinear_force import InstantaneousForce
 
 class ConservativeIwanBB(InstantaneousForce):
     """
-    Using the Iwan (4-parameter) backbone curve as a conservative (softening) 
-    stiffness
+    4-parameter Iwan model backbone curve as a conservative (softening) 
+    nonlinearity
     
-    Not Verified for more than one input displacement.
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (Nnl, N) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential Stiffness
+    Fs : float
+        Slip force
+    chi : float
+        Controls microslip damping slope. Recommended to have `chi` > -1.
+        Smaller values of `chi` may not work.
+    beta : float, positive
+        Controls discontinuity at beginning of macroslip (zero is smooth)
+    
+    Notes
+    -----
+    
+    Parameterization of the backbone of the 4-parameter Iwan model. 
+    This is a standard equation in joints community and the exact equations
+    are taken from [1]_.
+    
+    This is not tested for multiple simultaneous elements.
+    
+    
+    References
+    ----------
+    .. [1] 
+        Porter, J.H., N.N. Balaji, C.R. Little, M.R.W. Brake, 2022. A 
+        quantitative assessment of the model form error of friction models 
+        across different interface representations for jointed structures. 
+        Mechanical Systems and Signal Processing.
+    
     """
     
     def __init__(self, Q, T, kt, Fs, chi, beta):
-        """
-        Initialize a nonlinear force model
         
-        Parameterization is one of the standard forms used in the joints 
-        community. Specifically, copying code from: 
-            Porter, J.H., Balaji, N.N., Little, C.R., Brake, M.R.W., 2022. A 
-            quantitative assessment of the model form error of friction models 
-            across different interface representations for jointed structures. 
-            Mechanical Systems and Signal Processing.
-
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential Stiffness
-        Fs : slip force
-        chi : controls microslip damping slope
-        beta : controls discontinuity at beginning of macroslip (zero is smooth)
-
-        """
         self.Q = Q
         self.T = T
         self.kt = kt*1.0

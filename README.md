@@ -132,13 +132,34 @@ cd ..
 
 ## Code Development Guidance
 
+Prior to merging new code, the following should be checked:
+1. All tests run and pass.
+2. The documentation builds without warnings or errors with sphinx (see next section).
+3. All new functions, methods, and classes are appropriately documented in numpydoc strings.
+
 ### Documentation
 
-Documentation is in progress utilizing numpy docstring formatting as described [here](https://numpydoc.readthedocs.io/en/latest/format.html). 
-All new functions, modules, and classes should follow correct formatting of docstrings. 
-Methods, and functions should all include for "Parameters" and "Returns" sections.
-All Classes should have a "Parameters" section that includes information for the constructor method.
-The intention is to utilize Sphinx to generate documentation once everything is in correct numpy docstring formatting.
+Documentation is in progress utilizing numpydoc string format, see [here](https://numpydoc.readthedocs.io/en/latest/format.html).
+html of the documentation can be generated with the following:
+```
+cd docs
+make html
+```
+The html can then be opened from `[docs/]build/html/index.html`.
+
+If you have warnings, you may need to do a clean build with
+```
+make clean # again from the docs folder
+rm -rf source/generated
+make html
+```
+
+All items should have a short summary docstring.
+Methods and functions should all include for "Parameters" and "Returns" sections.
+All classes should have a "Parameters" section that includes information for the constructor method.
+
+For classes, the methods section is not needed since it is automatically generated in the sphinx docs.
+For modules, the routine listings section is not needed because it is likewise automatically generated.
 
 
 ### Testing

@@ -2,6 +2,7 @@ import numpy as np
 
 class Continuation:
     """
+    
     Parameters
     ----------
     solver : tmdsimpy.solvers.NonlinearSolver or similar 
@@ -94,8 +95,10 @@ class Continuation:
                     solution) for interpolation.
                     The default is None.
     
-    Terminology
-    ----------
+    Notes
+    -----
+    Terminology:
+    
         X : numpy.array
             General vector of unknowns
         lam : float
@@ -109,17 +112,10 @@ class Continuation:
         fun : function
             function for evaluations, all are done using physical coordinates 
             and conditioning is handled in this class.
+         
     """
     
     def __init__(self, solver, ds0=0.01, CtoP=None, RPtoC=None, config={}):
-        """
-        Initialize Continuation Parameters
-
-        Returns
-        -------
-        None.
-
-        """
         
         self.solver = solver
         
@@ -193,7 +189,7 @@ class Continuation:
             previous two solutions.
             
         Notes
-        -------
+        -----
         1. This function currently solves an (N+1, N+1) linear system to find
         an appropriate null-space vector for the top (N, N+1) matrix. This 
         allows for using the same linear solvers with parallel options as 
@@ -310,16 +306,33 @@ class Continuation:
 
         Parameters
         ----------
-        fun : Function describing the N unknowns in X.
-        XlamC : Test solution at the current point to evaluate residual at.
-        XlamC0 : Solution at the previous point in conditioned space
-        ds : Current Arc length step size
-        dirC : Direction of the predictor step, only needed for orthogonal corrector
+        fun : function
+            Residual function for describing the N unknowns in X 
+            (first N of Xlam).
+        XlamC : (N+1,) numpy.ndarray
+            Test solution at the current point to evaluate residual at.
+        XlamC0 : (N+1,) numpy.ndarray
+            Solution at the previous point in conditioned space
+        ds : float
+            Current Arc length step size
+        dirC : (N+1,) numpy.ndarray, optional
+            Direction of the predictor step, only needed for orthogonal 
+            corrector.
+            The default is None.
+        calc_grad : bool, optional
+            Flag to calculate the gradient of the residual function and 
+            arc length residual.
+            The default is True.
 
         Returns
         -------
-        Raug : Residual vector with augmented equation for the arc length constraint.
-        dRaugdXlamC : Gradient in conditioned space for the augmented residual.
+        Raug : (N+1,) numpy.ndarray
+            Residual vector with augmented equation for the arc length 
+            constraint.
+            Always returned as the first entry in a tuple.
+        dRaugdXlamC : (N+1,N+1) numpy.ndarray
+            Gradient in conditioned space for the augmented residual. 
+            Only returned as second entry in tuple if calc_grad=True.
 
         """
         XlamP = XlamC * self.CtoP
@@ -411,8 +424,8 @@ class Continuation:
         conditioning vectors etc. Be aware when repeatedly calling this 
         function. Future work should make this more robust.
             
-        Troubleshooting
-        -------
+        Troubleshooting :
+        
         So continuation failed, what should you do next? This is not 
         necessarily shocking or cause for too much alarm. It is expected that 
         one can always come up with a difficult problem to break any algorithm.

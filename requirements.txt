@@ -7,6 +7,10 @@ pyyaml
 # Examples:
 matplotlib
 
+# documentation
+Sphinx==7.2.6
+numpydoc==1.6.0
+
 # for subset of routines using JAX and auto diff 
 jax[cpu]
 

@@ -38,13 +38,13 @@ class GenPolyForce(InstantaneousForce):
         """
         Function evaluating nonlinear force and force gradient wrt displacement)
         
-        Inputs
+        Parameters
         ----------
         X : (Nd,) numpy.ndarray
             displacement vector
         
-        Outputs
-        -------------
+        Returns
+        -------
         F : (Nd,) numpy.ndarray
             Nonlinear force
         dFdX: (Nd,Nd) numpy.ndarray  
@@ -67,13 +67,13 @@ class GenPolyForce(InstantaneousForce):
         Function evaluating nonlinear force and force gradient wrt displacement 
         from time history)
         
-        Inputs
+        Parameters
         ----------
         unlt : (Nt,Nd) numpy.ndarray
             displacement time history
         
-        Outputs
-        -------------
+        Returns
+        -------
         F : (Nt, Nd, Nd,) numpy.ndarray
             Nonlinear force history
         dFdX: (Nd,Nd) numpy.ndarray  

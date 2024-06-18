@@ -7,89 +7,81 @@ from ..solvers import NonlinearSolver
 
 class NonlinearSolverOMP(NonlinearSolver):
     """
-    Nonlinear solver object that contains several functions and solver settings
-
+    Parallel nonlinear solver object that contains several functions.
+    
+    This solver instance utilizes JAX for shared memory parallelism of 
+    linear algebra steps for the linear and nonlinear solves.
+    
     Parameters
     ----------
     config : dict, optional
-        Dictionary of settings to be used in the solver (see below).
-
-    Notes
-    ----------
+        Dictionary of settings to be used in the solver. Keys include:
+        
+        max_steps : int, default 20
+            maximum number of iterations allowed in the nonlinear solver
+        reform_freq : int, default 1
+            Frequency of recalculating and refactoring Jacobian matrix of the
+            nonlinear problem. 1 corresponds to Newton-Raphson of doing this 
+            every step. Larger numbers will correspond to BFGS low rank updates
+            in between steps with refactoring. 
+            When reform_freq > 1, function being solved must accept the keyword
+            calc_grad=True or calc_grad=False to differentiate if Jacobian 
+            matrix should be calculated. If calc_grad=True, then returned tuple
+            should be (R, dRdX) if False, returned tuple should start with (R,), 
+            but may return other values past the 0th index of tuple.
+            Function may be a lambda function that completely ignores calc_grad, 
+            for instance: `fun = lambda X, calc_grad=True : fun0(X)`
+        verbose : Boolean, default true
+            Flag for if output should be printed. 
+        xtol : double, default None
+            Convergence tolerance on the L2 norm of the step size (dX). If None, 
+            code will set the value to be equal to 1e-6*X0.shape[0] where X0 
+            is the initial guess for a given solution calculation. 
+            if xtol is passed to nsolve, that value is used instead
+        rtol : double, default None
+            convergence toleranace on the L2 norm of the residual vector (R).
+        etol : double, default None
+            convergence tolerance on the energy norm of the inner product of 
+            step (dX) and residual (R) or e=np.abs(dX @ R)
+        xtol_rel : double, default None
+            convergence tolerance on norm(dX) / norm(dX_step0)
+        rtol_rel : double, default None
+            convergence tolerance on norm(R) / norm(R_step0)
+        etol_rel : double, default None
+            convergence tolerance on norm(e) / norm(e_step0)
+        stopping_tol: list, default ['xtol']
+            List can contain options of 'xtol', 'rtol', 'etol', 'xtol_rel', 
+            'rtol_rel', 'etol_rel'. If any of the listed tolerances are 
+            satisfied, then iteration is considered converged and exits. 
+            Futher development would allow for the list to contain lists of 
+            these same options and in a sublist, all options would be required. 
+            This has not been implemented. 
+        accepting_tol : list, default []
+            List that can contain the same set of strings as stopping_tol. 
+            Once maximum interactions has been reached, if any of these 
+            tolerances are satisified by the final step, then the solution
+            is considered converged. This allows for looser tolerances to be
+            accepted instead of non-convergence, while still using max 
+            iterations to try to achieve the tighter tolerances.
+        line_search_iters : int, optional
+            Number of iterations used in line search (self.line_search). 
+            If 0, line search is not used.
+            If line search is desired, a recommended value is less than 10, perhaps
+            about 2 to 5.
+            If it is greater than 0, then function being solved must accept 
+            calc_grad=True or calc_grad=False as inputs.
+            The default is 0.
+        line_search_tol : float, optional
+            If the line search function decreases to be less than the initial value
+            times this tolerance, than it is accepted as converged.
+            This is not intended to be a tight tolerance, line search is just 
+            intended to quickly reduce the step in case of poor problem behavior.
+            The default is 0.5.
+        line_search_same_sign : bool, optional
+            If true, line search tries to only a return a step that does not change
+            the sign of the quantity deltaX @ R(X + alpha*deltaX).
+            The default is True.
     
-    Parallel linear and nonlinear solver functions here. 
-    
-    Libraries used may respond to OpenMP environment variables such as: \n
-    > export OMP_PROC_BIND=spread # Spread threads out over physical cores \n
-    > export OMP_NUM_THREADS=32 # Change 32 to desired number of threads
-
-    
-    config dictionary keys
-    -------
-    max_steps : int, default 20
-        maximum number of iterations allowed in the nonlinear solver
-    reform_freq : int, default 1
-        Frequency of recalculating and refactoring Jacobian matrix of the
-        nonlinear problem. 1 corresponds to Newton-Raphson of doing this 
-        every step. Larger numbers will correspond to BFGS low rank updates
-        in between steps with refactoring. 
-        When reform_freq > 1, function being solved must accept the keyword
-        calc_grad=True or calc_grad=False to differentiate if Jacobian 
-        matrix should be calculated. If calc_grad=True, then returned tuple
-        should be (R, dRdX) if False, returned tuple should start with (R,), 
-        but may return other values past the 0th index of tuple.
-        Function may be a lambda function that completely ignores calc_grad, 
-        for instance: `fun = lambda X, calc_grad=True : fun0(X)`
-    verbose : Boolean, default true
-        Flag for if output should be printed. 
-    xtol : double, default None
-        Convergence tolerance on the L2 norm of the step size (dX). If None, 
-        code will set the value to be equal to 1e-6*X0.shape[0] where X0 
-        is the initial guess for a given solution calculation. 
-        if xtol is passed to nsolve, that value is used instead
-    rtol : double, default None
-        convergence toleranace on the L2 norm of the residual vector (R).
-    etol : double, default None
-        convergence tolerance on the energy norm of the inner product of 
-        step (dX) and residual (R) or e=np.abs(dX @ R)
-    xtol_rel : double, default None
-        convergence tolerance on norm(dX) / norm(dX_step0)
-    rtol_rel : double, default None
-        convergence tolerance on norm(R) / norm(R_step0)
-    etol_rel : double, default None
-        convergence tolerance on norm(e) / norm(e_step0)
-    stopping_tol: list, default ['xtol']
-        List can contain options of 'xtol', 'rtol', 'etol', 'xtol_rel', 
-        'rtol_rel', 'etol_rel'. If any of the listed tolerances are 
-        satisfied, then iteration is considered converged and exits. 
-        Futher development would allow for the list to contain lists of 
-        these same options and in a sublist, all options would be required. 
-        This has not been implemented. 
-    accepting_tol : list, default []
-        List that can contain the same set of strings as stopping_tol. 
-        Once maximum interactions has been reached, if any of these 
-        tolerances are satisified by the final step, then the solution
-        is considered converged. This allows for looser tolerances to be
-        accepted instead of non-convergence, while still using max 
-        iterations to try to achieve the tighter tolerances.
-    line_search_iters : int, optional
-        Number of iterations used in line search (self.line_search). 
-        If 0, line search is not used.
-        If line search is desired, a recommended value is less than 10, perhaps
-        about 2 to 5.
-        If it is greater than 0, then function being solved must accept 
-        calc_grad=True or calc_grad=False as inputs.
-        The default is 0.
-    line_search_tol : float, optional
-        If the line search function decreases to be less than the initial value
-        times this tolerance, than it is accepted as converged.
-        This is not intended to be a tight tolerance, line search is just 
-        intended to quickly reduce the step in case of poor problem behavior.
-        The default is 0.5.
-    line_search_same_sign : bool, optional
-        If true, line search tries to only a return a step that does not change
-        the sign of the quantity deltaX @ R(X + alpha*deltaX).
-        The default is True.
     """
     
     def __init__(self, config={}):
@@ -256,10 +248,11 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         References
         ----------
-        .. [1] Matthies, H., Strang, G., 1979. The solution of nonlinear finite
-        element equations. International Journal for Numerical Methods in 
-        Engineering 14, 1613–1626. https://doi.org/10.1002/nme.1620141104
-
+        .. [1] 
+           Matthies, H., G. Strang, 1979. The solution of nonlinear finite
+           element equations. International Journal for Numerical Methods in 
+           Engineering 14, 1613–1626. https://doi.org/10.1002/nme.1620141104
+        
         """
         
         nfev = 0 # Count number of function evals
@@ -393,7 +386,7 @@ class NonlinearSolverOMP(NonlinearSolver):
         
         Solver settings are set at initialization of NonlinearSolverOMP 
         (see that documentation).
-
+        
         Parameters
         ----------
         fun : function handle 
@@ -419,7 +412,7 @@ class NonlinearSolverOMP(NonlinearSolver):
             Passing in a value here does not change the config value 
             permanently (not parallel safe though)
             The default is None. 
-
+        
         Returns
         -------
         X : (N,) numpy.ndarray
@@ -439,7 +432,7 @@ class NonlinearSolverOMP(NonlinearSolver):
             'success' rather than the message for decisions. 
             'nfev' does not include any function evaluations done as part 
             of the line search routine. 
-            
+        
         See Also
         --------
         NonlinearSolverOMP : 
@@ -449,7 +442,7 @@ class NonlinearSolverOMP(NonlinearSolver):
         line_search : 
             Class method that may be used to improve convergence of nsolve
             if the appropriate solver settings are used.
-            
+        
         Notes
         -----
         This function uses either a full Newton-Raphson (NR) solver approach or
@@ -461,20 +454,20 @@ class NonlinearSolverOMP(NonlinearSolver):
         intended to provide easy checks to see what is going on during 
         solutions. These outputs are slightly convoluted in that some outputs
         are for the previous iteration, check code for exact details.
-            
+        
         Other Parameters
         ----------------
         Dscale : float or numpy.ndarray, optional
             This argument does nothing. Conditioning of the numerical problem
             should be achieved by wrapping the problem of interest rather than
             here.
-            
+        
         References
         ----------
-        .. [1] Nocedal, J., Wright, S.J., 2006. Numerical optimization, 2nd ed, 
-        Springer series in operations research. Springer, New York.
-
-
+        .. [1] 
+           Nocedal, J., S.J. Wright, 2006. Numerical optimization, 2nd ed, 
+           Springer series in operations research. Springer, New York.
+        
         """
         
         ##########################################################

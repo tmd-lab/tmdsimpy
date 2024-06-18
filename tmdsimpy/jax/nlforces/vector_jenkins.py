@@ -1,7 +1,3 @@
-"""
-Definition of Jenkins Element using JAX for automatic derivatives
-"""
-
 # Standard imports
 import numpy as np
 

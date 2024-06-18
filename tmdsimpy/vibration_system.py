@@ -27,15 +27,13 @@ class VibrationSystem:
         The default is None.
 
     See Also
-    ----------
+    --------
     VibrationSystem.set_new_C : 
         sets the damping matrix to a new value for an existing object
     """
     
     def __init__(self, M, K, C=None, ab=None):
-        """
-        Initialize the linear part of a system
-        """
+        
         self.M = M
         self.K = K
         self.ab = None
@@ -534,7 +532,7 @@ class VibrationSystem:
             Derivative of residual w.r.t. log amplitude
         
         Notes
-        -------
+        -----
         1. Mass normalization constraint for amplitude is only applied to 
         harmonic 1 here. If you need subharmonic components, then some 
         restructuring is likely needed. 
