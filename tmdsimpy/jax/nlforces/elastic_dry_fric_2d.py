@@ -28,7 +28,7 @@ class ElasticDryFriction2D(NonlinearForce):
     at zero displacement.    
     """
 
-    def __init__(self, Q, T, kt, kn, mu, u0=0):
+    def __init__(self, Q, T, kt, kn, mu, u0=0, meso_gap=0):
         """
         Initialize a nonlinear force model
         
@@ -50,12 +50,16 @@ class ElasticDryFriction2D(NonlinearForce):
                 Nnl
         Fs : slip force, tested for scalar, may work for vector of size 
                 Nnl
-        u0 : initialization value for the slider. If u0 = None, then 
+        u0 : float or None or (Nnl,) numpy.ndarray
+            initialization value for the slider. If u0 = None, then 
                 the zeroth harmonic is used to initialize the slider position.
                 u0 should be size of number of tangential DOFs 
                 (e.g., 1 right now)
                 Highly recommended not to use u0=None because may result in
                 non-unique solutions. Not fully verified for None option.
+         meso_gap : float or (Nnl/2,) numpy.ndarray
+                 gap between frictional elements (Topology and distribution 
+                                                     of asperity parameters )
 
         """
         self.Q = np.asarray(Q)
@@ -81,6 +85,8 @@ class ElasticDryFriction2D(NonlinearForce):
         self.u0 = u0
         
         self.init_history()
+        # Topology and distribution of asperity parameters 
+        self.meso_gap = meso_gap
         
     def nl_force_type(self):
         """
@@ -177,8 +183,8 @@ class ElasticDryFriction2D(NonlinearForce):
         
         pars = np.array([self.kt, self.kn, self.mu])
         
-        dfnldunl,fnl = _local_eldy_force_grad(unl, self.up, self.fp, pars)
-        
+        dfnldunl,fnl = _local_eldy_force_grad(unl, self.up, self.fp, pars, 
+                                              self.meso_gap)
         #############################
         
         F = self.T @ fnl
@@ -261,7 +267,7 @@ class ElasticDryFriction2D(NonlinearForce):
         
         # Case with gradient and local force
         dFdUwlocal, Flocal = _local_aft_eldry_grad(Uwlocal, pars, u0, \
-                                                     tuple(h), Nt, u0h0)
+                                        tuple(h), Nt, u0h0, self.meso_gap)
         
         
         #########################
@@ -316,12 +322,12 @@ class ElasticDryFriction2D(NonlinearForce):
          
          pars = np.array([self.kt, self.kn, self.mu])
          
-         fxyn_t = _local_force_history(unlt, pars, u0[::2])
+         fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
 
          return (fxyn_t,)
         
     
-def _local_eldy_force(unl, up, fp, pars):
+def _local_eldy_force(unl, up, fp, pars, meso_gap):
     """
     See _local_eldy_force_grad for gradient call.
 
@@ -346,7 +352,7 @@ def _local_eldy_force(unl, up, fp, pars):
     fnl = jnp.zeros_like(unl)
     
     # Normal Force
-    fnl = fnl.at[1::2].set(jnp.maximum(unl[1::2]*kn, 0.0))
+    fnl = fnl.at[1::2].set(jnp.maximum((unl[1::2]-meso_gap)*kn, 0.0))
     
     # Tangent Force - must use where to get tradient consistently correct
     fpred = kt*(unl[0::2]-up)
@@ -359,7 +365,7 @@ def _local_eldy_force(unl, up, fp, pars):
     return fnl,fnl
 
 @partial(jax.jit) 
-def _local_eldy_force_grad(unl, up, fp, pars):
+def _local_eldy_force_grad(unl, up, fp, pars, meso_gap):
     """
     Function that computes the gradient of local force. Using Aux data allows for 
     returning Fnl also from one function call. 
@@ -380,7 +386,7 @@ def _local_eldy_force_grad(unl, up, fp, pars):
 
     """
     
-    dfnldunl,fnl = jax.jacfwd(_local_eldy_force, has_aux=True)(unl, up, fp, pars)
+    dfnldunl,fnl = jax.jacfwd(_local_eldy_force, has_aux=True)(unl, up, fp, pars,meso_gap)
     
     return dfnldunl,fnl
 
@@ -415,7 +421,7 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
  
 
 @partial(jax.jit, static_argnums=(3,4,5)) 
-def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
+def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
     """
     Conducts AFT in a functional form that can be used with JAX and JIT
 
@@ -487,7 +493,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # gradients are concerned.
     u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0[0::2])
     
-    ft = _local_force_history(unlt, pars, u0)
+    ft = _local_force_history(unlt, pars, u0, meso_gap)
     
     # Convert back into frequency domain
     Flocal = jhutils.get_fourier_coeff(htuple, ft)
@@ -499,7 +505,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
         
 
 @partial(jax.jit, static_argnums=(3,4,5)) 
-def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
+def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
     """
     Function that computes the gradient of AFT. Using Aux data allows for 
     returning Flocal also from one function call. 
@@ -523,11 +529,11 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
     """
     
     J,F = jax.jacfwd(_local_aft_eldry, has_aux=True)(Uwlocal, pars, u0, 
-                                                       htuple, Nt, u0h0)    
+                                                       htuple, Nt, u0h0, meso_gap)    
     return J,F
 
 @partial(jax.jit) 
-def _local_force_history(unlt, pars, u0):
+def _local_force_history(unlt, pars, u0, meso_gap):
     """
     Calculates the steady-state displacement history for a set of displacements
     
@@ -558,7 +564,7 @@ def _local_force_history(unlt, pars, u0):
     ft = jnp.zeros_like(unlt)
     
     # Normal Force
-    ft = ft.at[:, 1::2].set(jnp.maximum(unlt[:, 1::2]*kn, 0.0))
+    ft = ft.at[:, 1::2].set(jnp.maximum((unlt[:, 1::2]-meso_gap)*kn, 0.0))
     
     # Do a loop function for each update at index i
     loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)

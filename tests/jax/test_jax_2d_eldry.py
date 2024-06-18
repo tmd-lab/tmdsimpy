@@ -748,7 +748,105 @@ class TestJAXEldry(unittest.TestCase):
         self.assertLess(error, self.atol_grad, 
                         'Aft of Nonlinear force Jacobian with individual friction element'\
                             +'does not match with combined elements')  
+            
+            
+    def test_meso_gap(self):
+        """
+        check if the function works correctly for meso gap with multiple 
+        friction elements. Here, 2 test cases are generated where with gap 
+        test case has stat displacement delta and without gap
+        """
+        #check force and jacobian
+        Ndofs = 14
+        rng = np.random.default_rng(12345)
+        Q = np.eye(Ndofs)
+        T=Q.T
+        M = rng.random((Ndofs,Ndofs))
+        K = rng.random((Ndofs,Ndofs))
+      
+        inputpars_kt = rng.random(Q.shape[0]//2)
+        inputpars_kn = rng.random(Q.shape[0]//2)
+        inputpars_mu = np.abs(rng.random(Q.shape[0]//2))
+        
+        meso_gap =  np.array([0.05, 0.04, 0.03, 0.01, 0.03, 0.04, 0.05])
+        # meso_gap1 =  np.array([0, 0, 0, 0, 0, 0, 0])
+        u0wogap = rng.random(Q.shape[1])
+        
+        # Modify specific elements of u0wogap
+        u0wogap[1::2] = np.array([-0.01, 0.06, 0.05, 0.0, 0.03, 0.02, 0.10])
+        
+        # Create an independent copy of u0wogap
+        u0wgap = u0wogap.copy()
+        
+        # Add meso_gap to every second element of the copy
+        u0wgap[1::2] = u0wgap[1::2] + meso_gap
+        
+        Fs=np.zeros_like(u0wgap)
+        
+        vib_sys_wgap = VibrationSystem(M, K)
+    
+        fnl_force1 = ElasticDryFriction2D(Q, T, inputpars_kt, inputpars_kn,\
+                                          inputpars_mu, u0=0, meso_gap=meso_gap)
 
+        vib_sys_wgap.add_nl_force(fnl_force1)
+        
+        #system without gap
+        vib_sys_wogap = VibrationSystem(M, K)
+        
+        fnl_force2 = ElasticDryFriction2D(Q, T, inputpars_kt, inputpars_kn,\
+                                          inputpars_mu, u0=0, meso_gap=0)
 
+        vib_sys_wogap.add_nl_force(fnl_force2)
+        
+        
+        Fnl_wgap, dFnldU_wgap  = vib_sys_wgap.static_res(u0wgap,Fs + K@ (u0wgap-u0wogap) )
+        Fnl_wogap, dFnldU_wogap  = vib_sys_wogap.static_res(u0wogap,Fs)
+        
+        
+        error = np.linalg.norm(Fnl_wgap - Fnl_wogap)
+
+        self.assertLess(error, self.atol_grad, 
+                        'Nonlinear force with gap '\
+                            +'does not match without gap')   
+        
+        error = np.linalg.norm(dFnldU_wgap - dFnldU_wogap )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Nonlinear force Jacobian with gap'\
+                            +'does not match without gap')                
+
+        #AFT check
+        h = np.array([0, 1, 2, 3, 4, 5, 6, 7]) # Automate Checking with this
+        Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
+        
+        Nd = Q.shape[1]
+        
+        Ugap = rng.random((Nd*Nhc, 1))
+        U_nogap = Ugap.copy() 
+        
+        Ugap[:Ndofs] = u0wgap.reshape(-1,1)
+        U_nogap[:Ndofs] = u0wogap.reshape(-1,1)
+        
+        Ugap[Ndofs:2*Ndofs]=1 # to get oscillations 
+        U_nogap[Ndofs:2*Ndofs]=1
+        
+        w = 1.7 # Test for various w
+        
+        # Testing Simple First Harmonic Motion        
+        Fnl_wgap, dFnldU_wgap  = vib_sys_wgap.total_aft(Ugap, w, h)[0:2] 
+        Fnl_wogap, dFnldU_wogap = vib_sys_wogap.total_aft(U_nogap, w, h)[0:2]
+        
+        error = np.linalg.norm(Fnl_wgap - Fnl_wogap)
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force with gap'\
+                           +' not match without gap')
+        
+        error = np.linalg.norm(dFnldU_wgap - dFnldU_wogap )
+        
+        self.assertLess(error, self.atol_grad, 
+                        'Aft of Nonlinear force with gap'\
+                            +'does not match without')                
+            
 if __name__ == '__main__':
     unittest.main()
