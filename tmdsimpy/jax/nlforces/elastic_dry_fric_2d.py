@@ -436,15 +436,15 @@ class ElasticDryFriction2D(NonlinearForce):
          #########################
          # Determine Slider Starting Position
          
-         if self.u0 is None:
-             # Initialize based on the zeroth harmonic.
-             u0 = unlth0
-         else:
-             u0 = self.u0*np.ones_like(unlth0[0])
-         
-         pars = np.array([self.kt, self.kn, self.mu])
-         
-         fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
+        if self.u0 is None:
+            # Initialize based on the zeroth harmonic.
+            u0 = unlth0
+        else:
+            u0 = self.u0*np.ones_like(unlth0[0])
+        
+        pars = np.array([self.kt, self.kn, self.mu])
+        
+        fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
         
         #########################
         # Determine Slider Starting Position
