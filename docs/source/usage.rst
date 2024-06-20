@@ -30,3 +30,5 @@ Derivative/Jacobian matrices - each row corresponds to the thing that the deriva
 
 Nonlinear forces are internal forces and thus positive displacements generally result in positive nonlinear forces (corresponding to resisting motion).
 This is because the nonlinear forces appear on the same side of the equation as the acceleration terms.
+
+Residual - a scalar or 1D array of values that should be converged to zero so that the equations of interest are satisfied.

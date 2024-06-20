@@ -335,6 +335,9 @@ class VibrationSystem:
         hbm_amp_phase_control_res : 
             HBM with two extra equations and unknowns that allows for solutions
             along a constant response amplitude and phase.
+        hbm_amp_phase_control_dA_res : 
+            HBM with amplitude and phase control for continuation with
+            respect to amplitude.
         
         """
         
