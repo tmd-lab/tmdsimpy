@@ -268,7 +268,7 @@ class ElasticDryFriction2D(NonlinearForce):
         
         return F, dFdX
         
-    def aft(self, U, w, h, Nt=128, tol=1e-7):
+    def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
         Implementation of the alternating frequency-time (AFT) method to extract 
         harmonic nonlinear force coefficients.
@@ -289,6 +289,10 @@ class ElasticDryFriction2D(NonlinearForce):
             This argument is ignored, and is included for compatability of 
             interface. 
             The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
         
         Returns
         -------
@@ -313,8 +317,10 @@ class ElasticDryFriction2D(NonlinearForce):
         # Memory Initialization 
         
         Fnl = np.zeros_like(U)
-        dFnldU = np.zeros((U.shape[0], U.shape[0]))
-        dFnldw = np.zeros_like(U)
+        
+        if calc_grad:
+            dFnldU = np.zeros((U.shape[0], U.shape[0]))
+            dFnldw = np.zeros_like(U)
         
         
         #########################
@@ -348,27 +354,34 @@ class ElasticDryFriction2D(NonlinearForce):
         # # If no Grad is needed use:
         # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
         
+        if calc_grad:
         # Case with gradient and local force
-        dFdUwlocal, Flocal = _local_aft_eldry_grad(Uwlocal, pars, u0, \
+            dFdUwlocal, Flocal = _local_aft_eldry_grad(Uwlocal, pars, u0, \
                                         tuple(h), Nt, u0h0, self.meso_gap)
-        
-        
+        else:
+            Flocal,_ = _local_aft_eldry(Uwlocal, pars, u0, \
+                                        tuple(h), Nt, u0h0, self.meso_gap)
+            
         #########################
         # Convert AFT to Global Coordinates
         
         # Reshape Flocal
         Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
-                
+        
         # Global coordinates        
         Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
-        dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
-                                                @ np.kron(np.eye(Nhc), self.Q)
         
-        dFnldw = np.reshape(self.T @ \
-                            np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
-                            (U.shape[0],), 'F')
-        
-        return Fnl, dFnldU, dFnldw
+        if calc_grad:
+            dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
+                                                    @ np.kron(np.eye(Nhc), self.Q)
+            
+            dFnldw = np.reshape(self.T @ \
+                                np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
+                                (U.shape[0],), 'F')
+            
+            return Fnl, dFnldU, dFnldw
+        else:
+            return (Fnl,)
     
     
     def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2,
