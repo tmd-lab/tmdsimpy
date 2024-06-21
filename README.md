@@ -134,6 +134,9 @@ cd ..
 
 Prior to merging new code, the following should be checked:
 1. All tests run and pass.
+2. New classes should be imported in the `__init__.py` file for that folder. 
+   For example, see the nonlinear forces. 
+   Make sure that the file with the class is removed from `__all__` and that the class is added.
 2. The documentation builds without warnings or errors with sphinx (see next section).
 3. All new functions, methods, and classes are appropriately documented in numpydoc strings.
 

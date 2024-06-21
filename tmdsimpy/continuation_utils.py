@@ -1,6 +1,12 @@
 """
-Utility functions for continuation including functions to pass as inputs to 
-save results during continuation etc.
+Utility functions for continuation including callback functions.
+
+See Also
+--------
+tmdsimpy.Continuation : 
+    Class for solving continuation problems
+tmdsimpy.postprocess.continuation_post : 
+    Module for post-processing functions from continuation solutions
 """
 
 from os.path import exists
@@ -9,23 +15,40 @@ from . import harmonic_utils as hutils
 
 def combine_callback_funs(funs_list, XlamP, dirP_prev):
     """
-    Calls a set of callback functions for continuation
+    Calls a set of callback functions for continuation.
     
     Parameters
     ----------
-    funs_list : List of Functions
-        List of callback functions that are called with arguments XlamP,dirP_prev
-    XlamP : np.array
+    funs_list : list of functions
+        List of callback functions that are called with arguments 
+        `XlamP,dirP_prev`.
+    XlamP : (N+1,) numpy.ndarray
         Solution at the current step in physical coordinates (including 
-        continuation parameter)
-    dirP_prev : np.array
+        continuation parameter).
+    dirP_prev : (N+1,) numpy.ndarray
         Direction for prediction from previous step to this step. 
         Can be used to get slope of solution at previous point w.r.t. lam 
-        by dividing dirP / dirP[-1]
+        by dividing `dirP / dirP[-1]`
 
     Returns
     -------
     None.
+    
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    
+    Notes
+    -----
+    Use this function when you want to call multiple callback functions with 
+    continuation as 
+    
+    >>> funs_list = [] # fill this in
+    ...
+    ... lambda XlamP, dirP_prev : combine_callback_funs(funs_list, 
+    ...                                                 XlamP, dirP_prev)
 
     """
     
@@ -36,22 +59,42 @@ def combine_callback_funs(funs_list, XlamP, dirP_prev):
 
 def continuation_save(XlamP, dirP_prev, fname):
     """
+    Saves continuation data to a file.
+    
     Saves continuation variables. Saved output will 2D arrays with the same 
     names as inputs here. Each row of output will correspond to a single 
     solution point.
 
     Parameters
     ----------
-    XlamP : np.array
-        Solution.
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter).
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. lam 
+        by dividing `dirP / dirP[-1]`
+    fname : str
         Filename to save variables to. Should have file extension of .npz
 
     Returns
     -------
     None.
+
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` as
+    
+    >>> callback_fun = lambda XlamP, dirP_prev : continuation_save(XlamP, 
+    ...                                            dirP_prev, 'saved_data.npz')
 
     """
     
@@ -74,20 +117,58 @@ def continuation_save(XlamP, dirP_prev, fname):
 
 def print_epmc_stats(XlamP, dirP_prev, fname):
     """
-    Saves EPMC key statistics to a text file for easy monitoring
+    Saves EPMC key statistics to a text file for easy monitoring.
+    
+    This function is intended for monitoring active runs. For final solution
+    details, save the full solution and plot based on those results, not based
+    on the results written out by this summary file.
 
     Parameters
     ----------
-    XlamP : np.array
-        Solution to EPMC continuation.
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
-        Filename to save variables to.
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter) to an EPMC set of equations.
+        First entries are harmonic displacements of mass normalized mode, 
+        `XlamP[-3]` is frequency (rad/s), 
+        `XlamP[-2]` is mass proportional self excitation factor,
+        `XlamP[-1]` is log10(modal amplitude).
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. lam 
+        by dividing `dirP / dirP[-1]`
+    fname : str
+        Filename to save variables to. The output is a text file. 
+        Recommended file extension is '.dat'.
 
     Returns
     -------
     None.
+    
+    Notes
+    -----
+    
+    The output includes the log modal amplitude, the natural frequency, and
+    the damping factor for the current solution.
+
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    tmdsimpy.VibrationSystem.epmc_res : 
+        EPMC residual function. This assumes that `XlamP` matches the unknowns
+        vector for this residual function.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+    continuation_save : 
+        Function for saving the full solution points.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` as
+    
+    >>> callback_fun = lambda XlamP, dirP_prev : print_epmc_stats(XlamP, 
+    ...                                            dirP_prev, 'epmc_sum.dat')
 
     """
     
@@ -116,32 +197,85 @@ def print_epmc_stats(XlamP, dirP_prev, fname):
 def print_hbm_amp_stats(XlamP, dirP_prev, fname, h, order,
                         output_recov, output_harmonic):
     """
-    Saves HBM key statistics to a text file for easy monitoring
-    This only works correctly for HBM with amplitude controlled.
+    Saves HBM amplitude control key statistics to a text file for easy 
+    monitoring.
+    
+    This function is intended for monitoring active runs. For final solution
+    details, save the full solution and plot based on those results, not based
+    on the results written out by this summary file.
+    Function only intended to work when amplitude control is applied with HBM
+    (Harmonic Balance Method).
 
     Parameters
     ----------
-    XlamP : np.array
-        Solution to HBM amplitude control continuation.
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
-        Filename to save variables to.
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter) to a HBM amplitude control set of equations.
+        First entries are harmonic displacements, 
+        `XlamP[-2]` is force scaling, 
+        `XlamP[-1]` is frequency (rad/s).
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. `lam` 
+        by dividing `dirP / dirP[-1]`
+    fname : str
+        Filename to save variables to. The output is a text file. 
+        Recommended file extension is '.dat'.
     h : numpy.ndarray, sorted
-        List of harmonics included in HBM
+        List of harmonics included in HBM solution.
     order : int, zero or positive
-        order of the derivative that is controlled. order=0 means 
-        displacement output, order=2 means acceleration output
+        Order of the derivative that is output. `order=0` means 
+        displacement output, `order=2` means acceleration output.
     output_recov: (Ndof,) numpy.ndarray
         Recovery vector to be used to output response at a specific DOF
-        where Ndof is the number of degrees of freedom of the system. 
+        where `Ndof` is the number of degrees of freedom of the system. 
     output_harmonic : int
         Which harmonic the amplitude at the output_recov dof should be output 
-        for. Behavior is undefined if output_harmonic is not included in h
+        for. Behavior is undefined if `output_harmonic` is not included in `h`.
 
     Returns
     -------
     None.
+    
+    Notes
+    -----
+    
+    `Ndof` is the number of DOFs of the system while `N` is the number of 
+    unknowns for the HBM residual at a given `lam` value.
+    
+    The output includes (for the current solution) frequency, 
+    force scaling magnitude, and the amplitude at the DOF defined by 
+    `output_recov` corresponding to `output_harmonic` and `order`.
+    Other functions in this module correspond to other variants of HBM.
+
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    tmdsimpy.VibrationSystem.hbm_amp_control_res : 
+        HBM amplitude control residual function. 
+        This assumes that `XlamP` matches the unknowns vector for this residual
+        function.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+    continuation_save : 
+        Function for saving the full solution points.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` as
+    
+    >>> import numpy as np 
+    ... 
+    ... h = np.arange(5)
+    ... order = 2 # Acceleration
+    ... output_recov = np.array([1, 0, 0])
+    ... output_harmonic = 1
+    ... 
+    ... callback_fun = lambda XlamP, dirP_prev : print_hbm_amp_stats(XlamP, 
+    ...                    dirP_prev, 'hbm_sum.dat', h, order,
+    ...                    output_recov, output_harmonic)
 
     """
     
@@ -172,43 +306,121 @@ def print_hbm_amp_stats(XlamP, dirP_prev, fname, h, order,
 def print_hbm_amp_phase_stats(XlamP, dirP_prev, fname, freq, amp, h, order, 
                               output_recov, output_harmonic):
     """
-    Saves HBM key statistics to a text file for easy monitoring
-    This only works correctly for HBM with amplitude and phase controlled.
+    Saves HBM amplitude and phase control key statistics to a text file for 
+    easy monitoring.
     
-    Frequency and amplitude of 1st harmonic are only printed from those 
-    arguments and not based on XlamP. Define your anonymous function 
-    appropriately.
+    This function is intended for monitoring active runs. For final solution
+    details, save the full solution and plot based on those results, not based
+    on the results written out by this summary file.
+    Function only intended to work when amplitude and phase control is applied
+    with HBM (Harmonic Balance Method).
 
     Parameters
     ----------
-    XlamP : np.array
-        Solution to HBM amplitude control continuation.
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter) to a HBM amplitude control set of equations.
+        
         Assumes that this is harmonic displacements, then cosine scaling of 
         force, sine scaling of force, ignored lam variable (but requires 
         exactly 1 variable after the two force scaling values for indexing)
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
-        Filename to save variables to.
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. `lam` 
+        by dividing `dirP / dirP[-1]`
+    fname : str
+        Filename to save variables to. The output is a text file. 
+        Recommended file extension is '.dat'.
     freq : float
-        frequency, rad/s.
+        Frequency to be printed, rad/s.
     amp : amplitude
-        control amplitude that should be printed.
+        Control amplitude that should be printed.
     h : numpy.ndarray, sorted
-        List of harmonics included in HBM
+        List of harmonics included in HBM solution.
     order : int, zero or positive
-        order of the derivative that is controlled. order=0 means 
-        displacement output, order=2 means acceleration output
+        Order of the derivative that is output. `order=0` means 
+        displacement output, `order=2` means acceleration output.
     output_recov: (Ndof,) numpy.ndarray
         Recovery vector to be used to output response at a specific DOF
-        where Ndof is the number of degrees of freedom of the system. 
+        where `Ndof` is the number of degrees of freedom of the system. 
     output_harmonic : int
         Which harmonic the amplitude at the output_recov dof should be output 
-        for. Behavior is undefined if output_harmonic is not included in h
+        for. Behavior is undefined if `output_harmonic` is not included in `h`.
 
     Returns
     -------
     None.
+    
+    Notes
+    -----
+    
+    
+    `Ndof` is the number of DOFs of the system while `N` is the number of 
+    unknowns for the HBM residual at a given `lam` value.
+    
+    Frequency and amplitude of 1st harmonic are only printed from those 
+    arguments and not based on XlamP. Define your anonymous function 
+    appropriately.
+    
+    The output includes (for the current solution) frequency, 
+    force scaling magnitude for sine and cosine, 
+    and the amplitude at the DOF defined by 
+    `output_recov` corresponding to `output_harmonic` and `order`.
+    Other functions in this module correspond to other variants of HBM.
+    
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    tmdsimpy.VibrationSystem.hbm_amp_phase_control_res : 
+        HBM amplitude and phase control residual function. 
+        `XlamP` works when it matches this unknown vector.
+    tmdsimpy.VibrationSystem.hbm_amp_phase_control_dA_res :
+        HBM with amplitude and phase control residual function.
+        `XlamP` works when it matches this unknown vector.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+    continuation_save : 
+        Function for saving the full solution points.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` 
+    for continuation with respect to frequency at a constant amplitude 
+    with `tmdsimpy.VibrationSystem.hbm_amp_phase_control_res`
+    
+    >>> import numpy as np 
+    ... 
+    ... h = np.arange(5)
+    ... order = 2 # Acceleration
+    ... output_recov = np.array([1, 0, 0])
+    ... output_harmonic = 1
+    ...
+    ... control_amp = 40 # m/s^2 since order is 2.
+    ... 
+    ... callback_fun = lambda XlamP, dirP_prev : print_hbm_amp_stats(XlamP,
+    ...                    dirP_prev, 'hbm_sum.dat', XlamP[-1], control_amp, h,
+    ...                    order, output_recov, output_harmonic)
+
+
+    Define a callback function handle to pass to `tmdsimpy.Continuation` 
+    for continuation with respect to frequency at a constant amplitude 
+    with `tmdsimpy.VibrationSystem.hbm_amp_phase_control_dA_res`
+    
+    >>> import numpy as np 
+    ... 
+    ... h = np.arange(5)
+    ... order = 2 # Acceleration
+    ... output_recov = np.array([1, 0, 0])
+    ... output_harmonic = 1
+    ...
+    ... constant_freq = 1 # rad/s.
+    ... 
+    ... callback_fun = lambda XlamP, dirP_prev : print_hbm_amp_stats(XlamP,
+    ...                    dirP_prev, 'hbm_sum.dat', constant_freq, XlamP[-1],
+    ...                    h, order, output_recov, output_harmonic)
+    
     """
     
     # If file doesn't exist, write a header
@@ -240,29 +452,88 @@ def print_hbm_amp_phase_stats(XlamP, dirP_prev, fname, freq, amp, h, order,
 def print_vprnm_stats(XlamP, dirP_prev, fname, h, order,
                         output_recov_harmonic_list):
     """
-    Saves VPRNM key statistics to a text file for easy monitoring
-    This only works correctly for VPRNM with amplitude controlled.
+    Saves VPRNM key statistics to a text file for easy monitoring.
 
+    This function is intended for monitoring active runs. For final solution
+    details, save the full solution and plot based on those results, not based
+    on the results written out by this summary file.
+    Function only intended to work for basic VPRNM, see module for other
+    options.
+    
     Parameters
     ----------
-    XlamP : np.array
-        Solution to VPRNM continuation.
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
-        Filename to save variables to.
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter) to a VPRNM set of equations.
+        First entries are harmonic displacements, `XlamP[-2]` is frequency
+        (rad/s), `XlamP[-1]` is force scaling.
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. `lam` 
+        by dividing `dirP / dirP[-1]`
+    fname : str
+        Filename to save variables to. The output is a text file. 
+        Recommended file extension is '.dat'.
     h : numpy.ndarray, sorted
-        List of harmonics included in HBM
+        List of harmonics included in VPRNM solution.
     order : int, zero or positive
-        order of the derivative that is controlled. order=0 means 
-        displacement output, order=2 means acceleration output
+        Order of the derivative that is output. `order=0` means 
+        displacement output, `order=2` means acceleration output.
     output_recov_harmonic_list : list of tuples
-        each tuple contains 1. a (Ndof,) numpy.ndarray describing the output
+        Each tuple contains 1. a `(Ndof,) numpy.ndarray` describing the output
         DOF and 2. an int describing which harmonic should be output.
+        Behavior is undefined if output harmonic is not included in `h`.
 
     Returns
     -------
     None.
+    
+    Notes
+    -----
+    
+    `Ndof` is the number of DOFs of the system while `N` is the number of 
+    unknowns for the VPRNM residual at a given `lam` value.
+
+    The output includes (for the current solution) force magnitude, frequency, 
+    and the amplitude at the DOFs and harmonics defined by 
+    `output_recov_harmonic_list` at displacement derivative `order`.
+    Other functions in this module correspond to other variants of VPRNM/HBM.
+
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    tmdsimpy.VibrationSystem.vprnm_res : 
+        VPRNM residual function. 
+        This assumes that `XlamP` matches the unknowns vector for this residual
+        function.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+    continuation_save : 
+        Function for saving the full solution points.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` as
+    
+    >>> import numpy as np 
+    ... 
+    ... h = np.arange(5)
+    ... order = 2 # Acceleration
+    ... 
+    ... output_recov1 = np.array([1, 0, 0])
+    ... output_harmonic1 = 1
+    ... 
+    ... output_recov2 = np.array([0, 1, 0])
+    ... output_harmonic2 = 3
+    ...
+    ... output_recov_harmonic_list = [(output_recov1, output_harmonic1),
+    ...                               (output_recov2, output_harmonic2)]
+    ... 
+    ... callback_fun = lambda XlamP, dirP_prev : print_vprnm_stats(XlamP, 
+    ...                    dirP_prev, 'vprnm_sum.dat', h, order,
+    ...                    output_recov_harmonic_list)
 
     """
     
@@ -314,39 +585,99 @@ def print_vprnm_amp_phase_stats(XlamP, dirP_prev, fname, h, control_order,
                                 output_order, output_recov_harmonic_list):
     """
     Saves VPRNM Amplitude and Phase Control key statistics to a text file for 
-    easy monitoring. 
-    This is only written to work correctly with 
-    VibrationSystem.vprnm_amp_phase_res
+    easy monitoring.
 
+    This function is intended for monitoring active runs. For final solution
+    details, save the full solution and plot based on those results, not based
+    on the results written out by this summary file.
+    Function only intended to work for basic VPRNM, see module for other
+    options.
+    
     Parameters
     ----------
-    XlamP : np.array
-        Solution to VPRNM amplitude and phase control continuation.
-    dirP_prev : np.array
-        Prediction direction at previous solution.
-    fname : String
-        Filename to save variables to.
+    XlamP : (N+1,) numpy.ndarray
+        Solution at the current step in physical coordinates (including 
+        continuation parameter) to a VPRNM amplitude control set of equations.
+        First entries are harmonic displacements,
+        `XlamP[-4]` is cosine force scaling, `XlamP[-3]` is sine force scaling, 
+        `XlamP[-2]` is frequency (rad/s), `XlamP[-1]` is amplitude level.
+    dirP_prev : (N+1,) numpy.ndarray
+        Direction for prediction from previous step to this step. 
+        Can be used to get slope of solution at previous point w.r.t. `lam` 
+        by dividing `dirP / dirP[-1]`
+    fname : str
+        Filename to save variables to. The output is a text file. 
+        Recommended file extension is '.dat'.
     h : numpy.ndarray, sorted
-        List of harmonics included in HBM
+        List of harmonics included in VPRNM solution.
     control_order : int, zero or positive
-        order of the derivative that is controlled. order=0 means 
+        Order of the derivative that is controlled. order=0 means 
         displacement output, order=2 means acceleration output
         Solely determines the header for the column, but does not
         effect any of the values since VPRNM directly controls the derivative
-        order of the amplitude
+        order of the amplitude.
     output_order : int, zero or positive
-        Order of the derivative for the output recovery vectors.
-        Note that this need not be the same as the order of the control for 
-        VPRNM
+        Order of the derivative that is output. `order=0` means 
+        displacement output, `order=2` means acceleration output.
     output_recov_harmonic_list : list of tuples
-        each tuple contains 1. a (Ndof,) numpy.ndarray describing the output
+        Each tuple contains 1. a `(Ndof,) numpy.ndarray` describing the output
         DOF and 2. an int describing which harmonic should be output.
+        Behavior is undefined if output harmonic is not included in `h`.
 
     Returns
     -------
     None.
+    
+    Notes
+    -----
+    
+    `Ndof` is the number of DOFs of the system while `N` is the number of 
+    unknowns for the VPRNM residual at a given `lam` value.
+
+    The output includes (for the current solution) force magnitude, frequency, 
+    and the amplitude at the DOFs and harmonics defined by 
+    `output_recov_harmonic_list` at displacement derivative `order`.
+    Other functions in this module correspond to other variants of VPRNM/HBM.
+
+    See Also
+    --------
+    tmdsimpy.Continuation : 
+        Class for continuation where this function is intended to be used 
+        as a callback function.
+    tmdsimpy.VibrationSystem.vprnm_amp_phase_res : 
+        VPRNM residual function. 
+        This assumes that `XlamP` matches the unknowns vector for this residual
+        function.
+    combine_callback_funs : 
+        Function for combining multiple callback functions for `Continuation`.
+    continuation_save : 
+        Function for saving the full solution points.
+
+    Examples
+    --------
+    Define a callback function handle to pass to `tmdsimpy.Continuation` as
+    
+    >>> import numpy as np 
+    ... 
+    ... h = np.arange(5)
+    ... control_order = 2 # Acceleration
+    ... output_order = 2 # Acceleration
+    ... 
+    ... output_recov1 = np.array([1, 0, 0])
+    ... output_harmonic1 = 1
+    ... 
+    ... output_recov2 = np.array([0, 1, 0])
+    ... output_harmonic2 = 3
+    ...
+    ... output_recov_harmonic_list = [(output_recov1, output_harmonic1),
+    ...                               (output_recov2, output_harmonic2)]
+    ... 
+    ... callback_fun = lambda XlamP, dirP_prev : print_vprnm_amp_phase_stats(
+    ...                    XlamP, dirP_prev, 'vprnm_sum.dat', h, control_order,
+    ...                    output_order, output_recov_harmonic_list)
 
     """
+    
     
     # If file doesn't exist, write a header
     write_header = not exists(fname)
@@ -406,25 +737,26 @@ def _calc_harmonic_resp(U, w, h, order, output_recov, output_harmonic):
 
     Parameters
     ----------
-    U : 1D numpy.ndarray
+    U : (N+a,) numpy.ndarray
         harmonic displacements. This is only indexed from the beginning so 
         other items may be included at the end.
     w : float
         frequency in rad/s.
     h : numpy.ndarray, sorted
-        List of harmonics included in HBM
+        List of harmonics included in harmonic solution
     order : int, zero or positive
-        order of the derivative that is controlled. order=0 means 
-        displacement output, order=2 means acceleration output
-    output_recov : 1D numpy.ndarray
-        vector for extracting the DOF of interest from the displacements.
+        Order of the derivative that is controlled. order=0 means 
+        displacement output, order=2 means acceleration output.
+        This is the derivative of displacement that is output.
+    output_recov : (N,) numpy.ndarray
+        Vector for extracting the DOF of interest from the displacements.
     output_harmonic : int
         harmonic of interest from the list h.
 
     Returns
     -------
     amp : float
-        response amplitude
+        Response amplitude for DOF, harmonic, order that are input.
         
     Notes
     -----
