@@ -470,7 +470,7 @@ class ElasticDryFriction2D(NonlinearForce):
 
         pars = np.array([self.kt, self.kn, self.mu])
 
-        fxyn_t = _local_force_history(unlt, pars, u0[::2])
+        fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
 
         return (fxyn_t,)
         
