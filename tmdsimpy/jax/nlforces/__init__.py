@@ -1,6 +1,11 @@
 """
 Nonlinear forces implemented utilizing the JAX library and automatic 
 differentiation.
+
+See Also
+--------
+tmdsimpy.nlforces :
+    Nonlinear forces implemented without JAX.
 """
 
 # Import nonlinear forces written with JAX

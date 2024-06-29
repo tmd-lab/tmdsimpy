@@ -14,7 +14,7 @@ class Iwan4Force(HystereticForce):
     Q : (Nnl, N) numpy.ndarray
         Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
         to the `Nnl` local nonlinear DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
     kt : float
         Tangential stiffness coefficient

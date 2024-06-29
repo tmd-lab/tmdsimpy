@@ -12,7 +12,7 @@ class NonlinearForce:
     Q : (Nnl, N) numpy.ndarray
         Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
         to the `Nnl` local nonlinear DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
     
     """
@@ -38,7 +38,8 @@ class NonlinearForce:
     
     def force(self, X):
         """
-        Evaluate the nonlinear force for a set of global displacements
+        Template force function for evaluating the nonlinear force for a set
+        of global displacements.
 
         Parameters
         ----------
@@ -119,7 +120,7 @@ class InstantaneousForce(NonlinearForce):
     Q : (Nnl, N) numpy.ndarray
         Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
         to the `Nnl` local nonlinear DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
     
     See Also
@@ -320,7 +321,7 @@ class HystereticForce(NonlinearForce):
     Q : (Nnl, N) numpy.ndarray
         Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
         to the `Nnl` local nonlinear DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
     
     Notes

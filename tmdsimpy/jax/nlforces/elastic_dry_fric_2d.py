@@ -27,7 +27,7 @@ class ElasticDryFriction2D(NonlinearForce):
         `Nnl` should be even.
         Rows `0::2` correspond to local tangential DOFs.
         Rows `1::2` correspond to local normal DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
         Columns `0::2` correspond to local tangential forces.
         Columns `1::2` correspond to local normal forces.
@@ -119,7 +119,7 @@ class ElasticDryFriction2D(NonlinearForce):
         """
         self.mu = self.prestress_mu
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
         Resets friction coefficient to initial value. 
         Useful for after prestress analysis with zero friction coefficient.
@@ -234,8 +234,8 @@ class ElasticDryFriction2D(NonlinearForce):
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
-        Implementation of the alternating frequency-time (AFT) method to extract 
-        harmonic nonlinear force coefficients.
+        Implementation of the alternating frequency-time (AFT) method to 
+        extract harmonic nonlinear force coefficients.
         
         Parameters
         ----------
