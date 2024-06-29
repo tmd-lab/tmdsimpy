@@ -321,7 +321,7 @@ class VibrationSystem:
         
         See Also
         --------
-        harmonic_utils.predict_harmonic_solution : 
+        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
             Function for generating initial guesses to HBM type problems.
         hbm_res_dFl : 
             HBM residual with a different input/third output
@@ -409,6 +409,8 @@ class VibrationSystem:
             Harmonic balance residual with a different input/output
             that allows for continuation with respect to frequency. 
             See documentation of this function for a full list of HBM variants.
+        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
+            Function for generating initial guesses to HBM type problems.
     
         """
         
@@ -684,6 +686,9 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants
+        linear_frf_base : 
+            Update this docstring to have the correct linear FRF method for 
+            base excitation here.
         
         """
         
@@ -1253,6 +1258,8 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants.
+        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+            Function for generating initial guesses to HBM type problems.
         """
         
         ###### Basic Initialization
@@ -1381,7 +1388,9 @@ class VibrationSystem:
         --------
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
-            See documentation of this function for a full list of HBM variants
+            See documentation of this function for a full list of HBM variants.
+        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+            Function for generating initial guesses to HBM type problems.
         """
         
         # Size of Problem
@@ -1503,6 +1512,8 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants
+        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+            Function for generating initial guesses to HBM type problems.
         """
         
         R_dRdUFcFs_dRdw = self.hbm_amp_phase_control_res(
@@ -1604,6 +1615,8 @@ class VibrationSystem:
         vprnm_res : 
             VPRNM implementation without additional amplitude and phase 
             constraints (constant force excitation)
+        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
+            Function for generating initial guesses to HBM type problems.
         """
                 
         hbm_R_dRdUFcFs_dRdw = self.hbm_amp_phase_control_res(UFcFswA[:-1], 

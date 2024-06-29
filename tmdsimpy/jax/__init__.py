@@ -1,3 +1,11 @@
+"""
+Module of routines that exploit JAX for JIT compilation and automatic 
+differentiation.
+
+Many functions, methods, and classes implemented here have non-JAX versions,
+but not all.
+"""
+
 # Configure JAX to use 64 bit before JAX is used by the package.
 import jax
 jax.config.update("jax_enable_x64", True)

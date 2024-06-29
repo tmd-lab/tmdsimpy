@@ -1,19 +1,43 @@
+"""
+Utilities for harmonic discretization operations used in HBM and similar.
+
+See Also
+--------
+tmdsimpy.jax.harmonic_utils : 
+    A reimplementation of parts of this module with JAX and JIT compilation.
+
+"""
+
 import numpy as np
 
 
 def Nhc(h):
     """
-    Quick function to calculate the number of harmonic components
+    Function to calculate the number of harmonic components.
 
     Parameters
     ----------
-    h : 1D np.array 
-        Harmonics that should be included. E.g., numpy.array(range(5))
+    h : (H,) numpy.ndarray
+        Harmonics that should be included. E.g., numpy.array(range(5)).
+        Must not include any repeated entries.
 
     Returns
     -------
     Nhc : int
-        Number of harmonic components (1 for zeroth, 2 for rest)
+        Number of harmonic components (1 for zeroth, 2 for rest).
+    
+    Notes
+    -----
+    If harmonic 0 is included in `h`, then `Nhc = 2*H-1`. 
+    If harmonic 0 is not included, then `Nhc = 2*H`
+    
+    Examples
+    --------
+    >>> import numpy as np
+    ... h_max = 5 # include 0th and first 5 harmonics
+    ... h = np.arange(h_max+1)
+    ... Nhc(h)
+    11
 
     """
     
@@ -25,8 +49,7 @@ def Nhc(h):
 
 def harmonic_stiffness(M, C, K, w, h, calc_grad=True, only_C=False):
     """
-    Returns the harmonic stiffness and its derivative w.r.t. frequency w. 
-    This implementation is optimized for small systems.
+    Returns the harmonic stiffness and its frequency derivative.
 
     Parameters
     ----------
@@ -37,35 +60,40 @@ def harmonic_stiffness(M, C, K, w, h, calc_grad=True, only_C=False):
     K : (N,N) numpy.ndarray
         Stiffness Matrix
     w : float
-        Frequency (fundamental)
-    h : 1D numpy.ndarray
+        Frequency (fundamental/harmonic 1)
+    h : (H,) numpy.ndarray, sorted
         List of harmonics, zeroth harmonic must be first if included (best 
         practice for it to be sorted order).
-        The number of harmonic components is 
-        Nhc = tmdsimpy.harmonic_utils.Nhc(h)
     calc_grad: bool, optional
         If True, both outputs are calculated. If False, only E is calculated 
-        and returned. Return is still in a tuple so 
-        E=harmonic_stiffness_many_dof(...)[0] always works.
+        and returned. Returned values are always included in a tuple.
         The default is True.
     only_C : bool, optional
-        Flag to indicate that M and K should both be assumed to be zero. This 
-        is a call that is used to calculate a gradient in EPMC, so it is worth
-        optimizing to cut out half of the operations here. M and K are 
+        Flag to indicate that M and K should both be assumed to be zero. 
+        M and K are 
         completely ignored in this case and do not need to be passed in with 
-        correct shapes or values. The default is False.
-
+        correct shapes or values. 
+        The default is False.
+    
     Returns
     -------
     E : (N*Nhc, N*Nhc) numpy.ndarray
         Square stiffness matrix corresponding to linear properties at every
-        harmonic. Ordered as all dofs for each of (if h[0]==0 is included)
-        [0, 
-        cos(h[1]*w*t), sin(h[1]*w*t), 
-        cos(h[2]*w*t), sin(h[2]*w*t)]
-        If only_C==True, then only the damping properties are applied.
+        harmonic. Ordered as all dofs for each of harmonic component and 
+        then the next component.
+        If `only_C=True`, then only the damping properties are applied.
+        Always returned as the first entry of a tuple.
     dEdw : (N*Nhc, N*Nhc) numpy.ndarray
-        Square derivative matrix. Not returned if calc_grad==False.
+        Derivative of each entry of `E` with respect to scalar frequency `w`.
+        Not returned if `calc_grad=False`.
+    
+    Notes
+    -----
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
+    The `only_C` flag is used for EPMC gradient calculations to improve 
+    efficiency by eliminating unnecessary operations.  
     
     """
     
@@ -137,25 +165,40 @@ def harmonic_stiffness(M, C, K, w, h, calc_grad=True, only_C=False):
 
 def time_series_deriv(Nt, h, X0, order):
     """
-    Returns Derivative of a time series defined by a set of harmonics
+    Returns derivative of a time series defined by a set of harmonics.
     
     Parameters
     ----------
     Nt : int, power of 2
-        Number of times considered, must be even
-    h : 1D numpy.ndarray
-        Harmonics considered, 0th harmonic must be first if included
-    X0 : (Nhc, nd) numpy.ndarray
+        Number of times considered, must be even.
+        Must be greater than `2*h.max()`.
+    h : (H,) numpy.ndarray, sorted
+        Harmonics considered, 0th harmonic must be first if included.
+    X0 : (Nhc, N) numpy.ndarray
         Harmonic Coefficients for columns corresponding to degrees of freedom
-        and rows corresponding to different harmonic components
-        Nhc = Nhc(h)
+        and rows corresponding to different harmonic components.
     order : int
-        Order of the derivative returned
+        Order of the derivative returned. 0 is generally displacement, 1 
+        is velocity, 2 is acceleration.
     
     Returns
     -------
-    x_t : (Nt, nd) numpy.ndarray
-        Time series of each DOF
+    x_t : (Nt, N) numpy.ndarray
+        Time series of each DOF. Rows are time instants and columns are
+        DOFs.
+    
+    See Also
+    --------
+    tmdsimpy.jax.harmonic_utils.time_series_deriv :
+        Implementation of this function of JAX and JIT compiled operations.
+    
+    Notes
+    -----
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
+    The normalized time instants between [0,1) for a cycle can be calculated as
+    `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
     """
     
     #Nhc = 2*(h !=0).sum() + (h==0).sum() # Number of Harmonic Components
@@ -223,20 +266,36 @@ def time_series_deriv(Nt, h, X0, order):
 
 def get_fourier_coeff(h, x_t):
     """
-    Calculates the Fourier coefficients corresponding to the harmonics in h of
-    the input x_t
+    Calculates the Fourier coefficients corresponding to a time series.
 
     Parameters
     ----------
-    h : 1D numpy.ndarray
+    h : (H,) numpy.ndarray sorted 
         Harmonics considered, 0th harmonic must be first if included
-    x_t : (Nt, nd) numpy.ndarray
-        Time series of each DOF
+    x_t : (Nt, N) numpy.ndarray
+        Time series of each DOF. Rows are time instants over a cycle 
+        (see Notes). 
+        Columns are DOFs.
 
     Returns
     -------
-    v : (Nhc, nd) numpy.ndarray
-        Containing fourier coefficients of harmonics h. Nhc = Nhc(h)
+    v : (Nhc, N) numpy.ndarray
+        Containing Fourier coefficients of harmonics `h` (rows) and 
+        DOFs (columns).
+
+    See Also
+    --------
+    tmdsimpy.jax.harmonic_utils.get_fourier_coeff :
+        Implementation with JAX and JIT compilation support.
+        
+    Notes
+    -----
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
+    The normalized time instants between [0,1) for a cycle can be calculated as
+    `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
+    
     """
     
     Nt, nd = x_t.shape
@@ -265,33 +324,41 @@ def get_fourier_coeff(h, x_t):
 def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
     """
     Function returns a conditioning vector for harmonic solutions. 
+    
     Each harmonic is assigned a constant equal to the larger of delta or the
-    mean absolute value of all components at that harmonic in X (sine and cosine)
+    mean absolute value of all components at that harmonic in `X` 
+    (sine and cosine components considered together).
 
     Parameters
     ----------
     X : (Ndof*Nhc+m,) numpy.ndarray
-        Baseline harmonics values, consecutive sets of Ndof correspond to 
-        harmonic components as listed in h (sine and cosine for h[i] != 0).
-        Here Nhc = harmonic_utils.Nhc(h).
-        The m extra components will be individually assigned delta or their 
+        Baseline harmonics values, consecutive sets of `Ndof` correspond to 
+        harmonic components as listed in `h` (sine and cosine for `h[i] != 0`).
+        The `m` extra components will be individually assigned `delta` or their 
         absolute value.
     Ndof : int
         Number of degrees of freedom associated with the model.
-    h : 1D numpy.ndarray, sorted
-        List of harmonics
-    delta : scalar or 1D array like
+    h : (H,) numpy.ndarray, sorted
+        List of harmonics.
+    delta : scalar or 1D array like, optional
         Small value to prevent divide by zero (minimum value that will be 
-        returned in CtoP).
+        returned in `CtoP`).
         When delta is array like, the array entries correspond to minimum 
-        values for each harmonic in h, and then a single minimum value for
+        values for each harmonic in `h`, and then a single minimum value for
         all terms after the harmonic unknowns.
+        The default is 1e-4.
         
     Returns
     -------
     CtoP : (Ndof*Nhc+m,) numpy.ndarray
-        Vector of same size as X to convert Xphysical=CtoP*Xconditioned
+        Vector of same size as `X` to convert `Xphysical=CtoP*Xconditioned`
 
+    Notes
+    -----
+    
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
     """
     
     m = X.shape[0] - Nhc(h)*Ndof
@@ -339,84 +406,119 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
                          vprnm_calc_grad=True):
     """
     Generate an initial guess to an harmonic balance method (HBM) type problem 
-    based on a linear system
+    based on a linear system.
 
     Parameters
     ----------
     vib_sys : tmdsimpy.VibrationSystem
         Vibration system for the initial prediction. The initial prediction is
         linear, so this should be linear around the state of interest (e.g., 
-        for frictional systems create a new VibrationSystem around the 
-        prestressed state using the linearized stiffness).
+        for frictional systems create a new `tmdsimpy.VibrationSystem` around
+        the prestressed state using the linearized stiffness).
         This must use mass and stiffness proportional damping.
+        This system is defined to have `N` degrees of freedom.
     w : float
-        frequency in rad/s.
-    h : 1D numpy.ndarray, sorted
-        List of harmonics to include in solution.
+        frequency in rad/s that the prediction should occur at.
     Fl : 1D numpy.ndarray
-        Forcing corresponding to the harmonics.
+        Forcing corresponding to the harmonics (each DOF of first component, 
+        then each DOF of second component etc.).
         Only the first harmonic terms of Fl are considered.
         For equations that do amplitude and phase control, Fl should
-        only include first harmonic cosine forcing terms to get correct results
-    solver : tmdsimpy.NonlinearSolver
-        Solver to be used in calculating an eigenproblem for vib_sys.
+        only include first harmonic cosine forcing terms to get correct 
+        results.
+        Size of `Fl` should be of size at least `(2+(h[0]==0))*N`.
+    h : (H,) numpy.ndarray, sorted
+        List of harmonics to include in solution. Should be sorted.
+    solver : tmdsimpy.NonlinearSolver or similar
+        Solver to be used in calculating an eigenproblem for `vib_sys`.
     equation : {'HBM', 'HBM_AMP', 'HBM_AMP_PHASE', 'VPRNM_AMP_PHASE'}
         Which equation to provide an initial guess for. Note that not all 
         options may be implemented yet.
-        Options are 
-        HBM=standard HBM for frequency continuation,
-        HBM_AMP=Amplitude HBM with constant phase forcing ,
-        HBM_AMP_PHASE=Amplitude HBM with constant response phase, variable 
-        force phase
-        (for frequency continuation),
-        VPRNM_AMP_PHASE=VPRNM with amplitude and phase controlled HBM.
-        If you need HBM_AMP_PHASE for amplitude continuation, just change the 
+        Options are
+        
+            'HBM' :
+                standard HBM for frequency continuation,
+            'HBM_AMP' : 
+                Amplitude HBM with constant phase forcing ,
+            'HBM_AMP_PHASE' :
+                Amplitude HBM with constant response phase, variable 
+                force phase (for frequency continuation),
+            'VPRNM_AMP_PHASE' :
+                VPRNM with amplitude and phase controlled HBM.
+        
+        If you need 'HBM_AMP_PHASE' for amplitude continuation, just change the 
         last entry of the returned array to be the desired prediction amplitude
         instead of frequency.
-    Xstat : numpy.ndarray, optional
+    Xstat : (N,) numpy.ndarray, optional
         Static displacement vector for the zeroth harmonic solution. 
         If None, zeros will be returned for the zeroth harmonic.
+        Also only applies if harmonic 0 is included in `h`.
         The default is None.
     fmag : float, optional
-        Scaling for the Fl vector. 
-        This only matters if the mode is 'HBM'. 
+        Scaling for the `Fl` vector. 
+        This only matters if the mode is 'HBM'.
+        Scaling does not apply to the zeroth harmonic.
         The default is None.
     control_amp : float, optional
         Amplitude of response is controlled to. 
-        This does not matter for HBM
+        This does not matter for 'HBM'
         The default is None.
-    control_recov : numpy.ndarray, optional
-        recovery vector which extracts the DOF of interest for amplitude 
+    control_recov : (N,) numpy.ndarray, optional
+        Recovery vector which extracts the DOF of interest for amplitude 
         control. 
         The default is None.
     control_order : int, optional
-        power of frequency to multiply amplitude control by. 
+        Power of frequency to multiply amplitude control by.
+        Does not apply for 'HBM'.
+        0 corresponds to displacment, 1 corresponds to velocity, 
+        2 corresponds to acceleration.
         The default is None.
     rhi : int, optional
         Higher harmonic of interest to include in initial guess. 
-        This only matters for VPRNM.
+        This only matters for `equation=VPRNM`.
+        For VPRNM, this should be the harmonic that shows a superharmonic
+        resonance.
         The default is None.
     neigs : int, optional
         The number of modes that should be used in constructing the linear
         prediction of the response amplitude.
         The default is 3.
     vib_sys_nl : tmdsimpy.VibrationSystem or None
-        Vibration system with nonlinear forces (linear portions do not matter)
-        Used exclusively for predicting nonlinear forces acting on superharmonic
-        for VPRNM.
+        Vibration system with nonlinear forces (linear portions do not matter).
+        Used exclusively for predicting nonlinear forces acting on
+        superharmonic for 'VPRNM' prediction.
     vprnm_calc_grad : bool, optional 
-        calc_grad flag to pass to VPRNM. This code does not need the gradient
-        of VPRNM. However, not all nonlinear forces support the calc_grad=False
+        'calc_grad' flag to pass to VPRNM. This code does not need the gradient
+        of VPRNM. However, not all nonlinear forces support the 
+        `calc_grad=False`
         input argument. If the nonlinear forces do support this input argument
         it is recommended to use False because it will be faster.
         The default is True.
 
     Returns
     -------
-    Ulam0 : numpy.ndarray
+    Ulam0 : (N*Nhc+m,) numpy.ndarray
         Initial guess for the given set of equations. 
-        This will generally include harmonic displacements as the first entries. 
-        The last few entries vary based on the equation mode.
+        This will include harmonic displacements as the first entries (N*Nhc).
+        Harmonic components are for all DOFs of the first component, then all 
+        DOFs of the next etc.
+        The last `m` entries vary based on `equation` as follows
+        
+            'HBM' :
+                forcing frequency (rad/s)
+            'HBM_AMP' : 
+                force scaling, frequency (rad/s)
+            'HBM_AMP_PHASE' :
+                Force cosine scaling, force sine scaling, frequency (rad/s)
+            'VPRNM_AMP_PHASE' :
+                Force cosine scaling, force sine scaling, frequency (rad/s),
+                control amplitude.
+        
+    See Also
+    --------
+    tmdsimpy.VibrationSystem :
+        Class with residual methods for solving many systems of equations that
+        the present function makes predictions for.
 
     """
     
@@ -553,21 +655,27 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
 
 def zero_crossing(X, zero_tol=np.Inf):
     """
-    Finds the locations where the array X crosses values zero. 
+    Finds the locations where the vector has zero crossings (sign changes). 
 
     Parameters
     ----------
-    X : numpy.ndarray
-        Array to find approximate zero crossings in
+    X : 1D numpy.ndarray
+        Array to find approximate zero crossings in.
     zero_tol : scalar, optional
-        Require X at crossing to be less than this tolerance.
-        The default is np.Inf.
+        Require `X` at crossing to be less than this tolerance.
+        The default is `numpy.inf`.
 
     Returns
     -------
     TF : numpy.ndarray of bool
-        Has size the same as X, has True for indices of approximate zero 
-        crossings
+        Has size the same as X, has `True` for indices of approximate zero 
+        crossings. 
+        `True` should always be the first index of the two indices that are
+        before and after the crossing.
+    
+    Notes
+    -----
+    This function is not tested and should be used with care.
 
     """
     
@@ -579,7 +687,7 @@ def zero_crossing(X, zero_tol=np.Inf):
 
 def shift_pm_pi(phase):
     """
-    Intended to shift phase to be within (-pi, pi].
+    Shift phase to be within [-pi, pi).
 
     Parameters
     ----------
@@ -591,6 +699,10 @@ def shift_pm_pi(phase):
     phase : numpy.ndarray
         Shifted phase.
 
+    Notes
+    -----
+    This function is not tested and should be used with care.
+    
     """
     phase = np.copy(phase)
     
@@ -600,16 +712,14 @@ def shift_pm_pi(phase):
 
 def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     """
-    Rotates a set of harmonic solutions through `phase_angle` by subtracting
-    the phase angle. 
+    Rotates a set of harmonic solutions through a phase defined at a given 
+    harmonic.
     
-    For documentation, `Nhc=harmonic_utils.Nhc(h)`.
-
     Parameters
     ----------
     U_orig : (M, Nhc*Ndof+a) or (Nhc*Ndof+a,) numpy.ndarray
         This is a set of harmonic solutions where rows are independent 
-        solutions and each row contains Nhc sets of Ndof coordinates 
+        solutions and each row contains `Nhc` sets of `Ndof` coordinates 
         corresponding to solution displacements. The rows contain all of the 
         first harmonic, then all of the second harmonic etc. as given by 
         the harmonics in h. Each harmonic greater than 0 has all cosine terms
@@ -619,14 +729,14 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     Ndof : int
         Number of degrees of freedom defining the size of `U_orig` as above.
     h : numpy.ndarray, sorted
-        Array of the harmonics used in U_orig
+        Array of the harmonics used in `U_orig`.
     phase_rotate : float or (M,) numpy.ndarray
-        Phase to rotate the solution U_orig through. See Notes for description
-        of sign. 
+        Phase to rotate the solution `U_orig` through. See Notes for 
+        description of sign. 
         This rotation is applied to the harmonic `h_rotate` which other 
         harmonics shifted by a consistent amount of time. 
-        If this is an array, then each row of U_orig is shifted by a different
-        phase as given by the equivalent entry in this array.
+        If this is an array, then each row of `U_orig` is shifted by a 
+        different phase as given by the equivalent entry in this array.
     h_rotate : int
         The harmonic that should be rotated by `phase_angle`.
 
@@ -639,13 +749,17 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     Notes
     -----
     
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
     The phase angle is subtracted so if the input is
     `Uc * cos(Omega * t)`
-    the output is `Uc*cos(Omega * t - phase_angle)` for h_rotate==1.
+    the output is `Uc*cos(Omega * t - phase_angle)` for `h_rotate==1`.
     
     The harmonic `h_rotate` is rotated by the phase angle and ther harmonics 
-    are consistently rotated based on some time shift t0 so that 
+    are consistently rotated based on some time shift `t0` so that 
     `Uc*cos(h_rotate*Omega*(t-t0)) = Uc*cos(h_rotate*Omega - phase_angle)`.
+    
     """
     
     U_orig = np.atleast_2d(U_orig)
