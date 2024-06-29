@@ -81,17 +81,11 @@ def local_harmonic_forces(vibration_system, U, w, h, Nt=128, aft_tol=1e-7):
         if nlforce.nl_force_type() == 1:
             # Hysteretic Nonlinearities
             
-            if hasattr(nlforce, 'uxyn_initialize'):
-                # Generally the rough contact nonlinearity should come here.
-                
-                unlth0 = nlforce.uxyn_initialize
+            if hasattr(nlforce, 'u0'):
+                # Generally the rough contact nonlinearity should come here,
+                # and other nonlinear friction type elements.    
+                unlth0 = nlforce.u0
             
-            elif hasattr(nlforce, 'u0') and not hasattr(nlforce, 'uxyn_initialize'):
-                # This implementation needs to be figured out for what types 
-                # of nonlinear force that it is needed
-                assert False, 'Nonlinear force object at index ' \
-                    + '{} has unexpected set of attributes '.format(ind) \
-                    + 'for history initialization.'
             else:
                 # Basic hysteretic force initialization
                 unlth0 = Uh[0, :]

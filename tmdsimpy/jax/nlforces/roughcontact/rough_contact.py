@@ -5,9 +5,6 @@ This model is a python implementation of the work in:
     J. H. Porter and M. R. W. Brake, 2023, Towards a predictive, physics-based 
     friction model for the dynamics of jointed structures, Mechanical Systems 
     and Signal Processing
-    
-This model only considers the simplest tangent model and plasticity in the 
-normal direction
 
 Code for the MATLAB version is available on GitHub: 
     https://github.com/tmd-lab/microslip-rough-contact
@@ -39,35 +36,39 @@ from . import _asperity_functions as asp_funs
 
 class RoughContactFriction(NonlinearForce):
     """
-    Rough Contact friction Slider Element Nonlinearity with JAX for automatic 
-    differentiation
+    Rough contact friction slider element nonlinearity.
 
     Parameters
     ----------
-    Q : (Nnl, N) numpy.ndarray
-        Transformation matrix from system DOFs (N) to nonlinear DOFs (Nn=3)
-    T : (N, Nnl) numpy.ndarray
-        Transformation matrix from local nonlinear forces to global 
-        nonlinear forces
+    Q : (3, N) numpy.ndarray
+        Transformation matrix from system DOFs (`N`) to nonlinear DOFs (`3`).
+    T : (N, 3) numpy.ndarray
+        Transformation matrix from local nonlinear forces to global
+        nonlinear forces.
     ElasticMod : float
-        Elastic Modulus
+        Elastic modulus (in Pa) for contacting asperities.
     PoissonRatio : float
-        Poisson's Ratio
+        Poisson's ratio for contacting asperities.
     Radius : float
-        Initial Undeformed Effective Asperity Radius 
-        (Half of real radius of one asperity in general [1]_)
+        Initial undeformed effective asperity radius in meters 
+        (half of real radius of one asperity in general [1]_).
     TangentMod : float
-        Plasticity Hardening Modulus
+        Plasticity hardening modulus  (in Pa) of asperities in contact.
     YieldStress : float
-        Yield Strength / Yield Stress
+        Yield strength / yield stress (in Pa) for contacting asperities 
+        (before plastic hardening).
     mu : float
-        Friction Coefficient
-    u0 : float, optional
-        Unused option for setting initialization of friction.
-        Should use method `set_aft_initialize` to set the AFT friction
-        initialization point.
+        Friction coefficient for tangential force limit proportional to normal
+        force.
+    u0 : float, (2,) numpy.ndarray, or (3,) numpy.ndarray, optional
+        Sets the starting position for AFT friction evaluations.
+        If float, then both tangential directions take that value. 
+        If a `(2,) numpy.ndarray`, then it sets the two tangential directions
+        with these two values. 
+        If a `(3,) numpy.ndarray`, then it sets all three directions with the
+        given values (but the normal direction should be irrelevant).
         The default is 0.
-    meso_gap: float, optional
+    meso_gap : float, optional
         Initial gap between contact due to other (e.g. mesoscale) topology.
         This gap is added to the gaps of all asperities in the integral.
         The default is 0.
@@ -86,20 +87,36 @@ class RoughContactFriction(NonlinearForce):
     N_radial_quad : int, optional
         Number of radial quadrature points to use for each contact asperity 
         when using the `tangent_model == 'MIF'`.
+        The default is 100.
         
         
     Notes
     -----
     
-    Implementation currently assumes that Nnl=3 (three nonlinear DOFs)
+    This class implements two rough contact models from [1]_ for use in [2]_.
+    The Mindlin Iwan Fit (MIF) model is implemented in frequency domain for
+    the first time here and was used in frequency domain with plasticity
+    normal contact for the first time in [2]_.
+    
+    Implementation currently requires exactly three nonlinear DOFs
+    corresponding to a single location.
     The Nonlinear DOFs must first be both tangential displacement then 
-    normal displacement
+    normal displacement.
+    
+    Implementation uses automatic differentiation with JAX.
     
     References
     ----------
-    .. [1] J. H. Porter and M. R. W. Brake, 2023, Towards a predictive, 
-       physics-based friction model for the dynamics of jointed structures,
-       Mechanical Systems and Signal Processing
+    .. [1] Porter, J. H., and M. R. W. Brake, 2023, "Towards a predictive, 
+       physics-based friction model for the dynamics of jointed structures"",
+       Mechanical Systems and Signal Processing. 192:110210.
+       https://doi.org/10.1016/j.ymssp.2023.110210
+
+    .. [2]
+       Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+       Reduction and Prediction of Superharmonic Resonances in Frictional and
+       Hysteretic Systems." Mechanical Systems and Signal Processing.
+       arXiv:2405.15918.
   
     """
 
@@ -128,8 +145,6 @@ class RoughContactFriction(NonlinearForce):
         self.mu = mu # This friction coefficient sometimes switches between real and prestress
         self.real_mu = mu # Save real friction coefficient
         self.prestress_mu = 0.0 # Prestress should use zero friction coefficient
-        
-        self.u0 = u0
         
         # Calculated Initial Parameters
         self.Estar = ElasticMod / 2.0 / (1.0 - PoissonRatio**2)
@@ -178,8 +193,22 @@ class RoughContactFriction(NonlinearForce):
             
             
         # Just consider default of starting sliders at origin for AFT
-        self.uxyn_initialize = np.array([0.0, 0.0, 0.0])
-            
+        self.u0 = np.array([0.0, 0.0, 0.0])
+        if isinstance(u0, np.ndarray):
+            if u0.shape[0] == 1 or u0.shape[0] == 2:
+                self.u0[:2] = u0
+            elif u0.shape[0] == 3:
+                # setting all coordinates
+                self.u0 = u0
+            else:
+                assert False, \
+                    'Shape of numpy.ndarray u0 is expected to be '\
+                    + '(1,), (2,) or (3,)'
+        else:
+            # assume that it is a scalar float to set the two tangential
+            # directions
+            self.u0[:2] = u0
+        
         # Initialize History Variables
         self.init_history()
 
@@ -249,7 +278,7 @@ class RoughContactFriction(NonlinearForce):
 
         """
         
-        self.uxyn_initialize = self.Q @ X
+        self.u0 = self.Q @ X
         
         return
     
@@ -446,7 +475,7 @@ class RoughContactFriction(NonlinearForce):
         
         if calc_grad:
             # Case with gradient and local force
-            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.u0, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights,
                                     self.quad_radii, self.weight_radii, 
@@ -456,7 +485,7 @@ class RoughContactFriction(NonlinearForce):
                                     tuple(h), Nt, repeats=max_repeats,
                                     tangent_model=self.tangent_model)
         else:
-            Flocal,_ = _local_aft(Uwlocal, self.uxyn_initialize, 
+            Flocal,_ = _local_aft(Uwlocal, self.u0, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights,
                                     self.quad_radii, self.weight_radii, 
