@@ -138,8 +138,16 @@ class ElasticDryFriction2D(NonlinearForce):
         -------
         None.
         
+        See Also
+        --------
+        set_aft_initialize :
+            Method for initializing history states for AFT analysis.
+        
         Notes
         -----
+        This sets force history for evaluations with `force` method for static
+        calculations.
+        
         History variables are just initialized for tangential displacements.
         
         """
@@ -160,6 +168,11 @@ class ElasticDryFriction2D(NonlinearForce):
         Returns
         -------
         None.
+
+        See Also
+        --------
+        init_history :
+            Method for initializing history states for static analysis.
 
         """
         self.u0 = self.Q @ X
@@ -269,6 +282,10 @@ class ElasticDryFriction2D(NonlinearForce):
         to steady-state with two cycles of the hysteresis loop. Two cycles of
         the nonlinear forces are calculated automatically without the option to
         change this setting.
+
+        A numpy `kron` operation is utilized to convert forces back to physical
+        domain. This operation may result in many unnecessary calculations that
+        could be eliminated to speed up AFT.
 
         """
 
