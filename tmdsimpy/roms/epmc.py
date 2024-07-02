@@ -1,25 +1,32 @@
 """
-This module contains a number of reduced order models based on 
-the Extended Periodic Motion Concept (EPMC) to capture primary resonance
-behavior of a nonlinear vibration system. 
+Module for reduced order models (ROMs) based on the Extended Periodic
+Motion Concept (EPMC).
+
+These ROMs are intended to capture the primary resonance of a forced
+vibration response based on an EPMC nonlinear mode.
 The module utilizes EPMC solutions that have already been calculated.
 
 See Also
 --------
-vibration_system.VibrationSystem.epmc_res : 
-    EPMC residual method that can be used to solve the set of EPMC equations
-continuation.Continuation.continuation :
-    Method of obtaining solutions to EPMC at multiple points with continuation
-    
+tmdsimpy.VibrationSystem.epmc_res : 
+    EPMC residual method that can be used to solve the set of EPMC equations.
+tmdsimpy.VibrationSystem.hbm_res :
+    Harmonic balance method residual function for calculating truth solutions.
+tmdsimpy.Continuation.continuation :
+    Method of obtaining solutions to EPMC at multiple points with continuation.
+
 Notes
 -----
-EPMC [1]_ solves for a nonlinear mode behavior. 
+EPMC [1]_ solves for a nonlinear mode behavior. These solutions generally
+require continuation.
 
 References
 ----------
-.. [1] Krack, Malte. "Nonlinear Modal Analysis of Nonconservative Systems: 
-    Extension of the Periodic Motion Concept." Computers & Structures 154 
-    (July 1, 2015): 59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
+.. [1] 
+   Krack, M. 2015. "Nonlinear Modal Analysis of Nonconservative Systems: 
+   Extension of the Periodic Motion Concept." Computers & Structures 
+   154:59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
+
 """
 
 import numpy as np
@@ -31,21 +38,15 @@ from ..postprocess import continuation_post as cpost
 def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None, 
                    phiH_Fl_real=None, phiH_Fl_imag=None):
     """
-    This function utilizes a set of solutions to the Extended Periodic Motion
-    Concept (EPMC) to approximate an isolated nonlinear resonance under 
-    constant forcing
-    
-    For the purposes of this documentation, Nhc is the number of harmonic 
-    components corresponding to 
-    `Nhc = harmonic_utils.Nhc(h)`.
+    Reduced order model based on EPMC to capture constant forcing responses.
 
     Parameters
     ----------
     epmc_bb : (M, Nhc*Ndof+3) numpy.ndarray
         Each row corresponds to an EPMC solution at a given amplitude level. 
         The first Nhc*Ndof entries of each row are the displacements of the 
-        harmonics in h (e.g., [U0, U1c, U1s] where U0 is static, U1c is the 
-        Ndof displacements corresponding to h=1 and cosine, U1c is for sine). 
+        harmonics in h 
+        (all of the first harmonic component, then all of next etc.). 
         The last three entries of each row are frequency (rad/s), 
         xi in EPMC formulation (coefficient in front of mass matrix to create
         a damping matrix), and log10(modal amplitude).
@@ -54,7 +55,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
         to the zeroth harmonic.
     Ndof : int
         Number of degrees of freedom in the EPMC solution.
-    h : numpy.ndarray
+    h : numpy.ndarray, sorted
         Array of the harmonics used to calculate `epmc_bb`, must be sorted.
     Fl : (Nhc*Ndof) numpy.ndarray or None, optional
         External constant excitation to be considered. 
@@ -65,10 +66,12 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
         `epmc_bb`. If provided, it is also used in calculating the fraction of 
         critical damping (if `zeta` is not provided).
         Units should be rad/s.
+        If a `numpy.ndarray`, the order corresponds to entries in `epmc_bb`.
         The default is None.
     zeta : None, float, or (M,) numpy.ndarray, optional
         Alternative modal damping (fraction of critical) to use rather
         than calculating it from the `epmc_bb`. 
+        If a `numpy.ndarray`, the order corresponds to entries in `epmc_bb`.
         The default is None.
     phiH_Fl_real : None, float, or (M,) numpy.ndarray, optional
         Real component of the complex product between the conjugate or
@@ -76,7 +79,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
         of the mode shape and the forcing vector (considering on the 1st 
         harmonic). 
         Should only be provided when Fl=None.
-        If a numpy array, the order corresponds to entries in `epmc_bb`.
+        If a `numpy.ndarray`, the order corresponds to entries in `epmc_bb`.
         The default is None.
     phiH_Fl_imag : None, float, or (M,) numpy.ndarray, optional
         Imaginary component of the complex product between the conjugate or
@@ -90,7 +93,8 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     Returns
     -------
     FRC_reconstruct : (Mout,Nhc*Ndof+1) numpy.ndarray
-        Reconstructed Frequency Response Curve (FRC) based on the EPMC solution.
+        Reconstructed Frequency Response Curve (FRC) based on the EPMC
+        solution.
         Each row corresponds to a different forcing frequency.
         The first Nhc*Ndof columns are harmonic displacements in the same 
         order as `epmc_bb`, but in physical displacement coordinates.
@@ -105,19 +109,27 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     See Also
     --------
     constant_displacement :
-        EPMC ROM for constant displacement rather than constant force
-    vibration_system.VibrationSystem.epmc_res : 
+        EPMC ROM for constant displacement rather than constant force.
+    tmdsimpy.VibrationSystem.epmc_res : 
         EPMC residual method that each line of epmc_bb solves as the Uwxa 
-        input
-    vibration_system.VibrationSystem.hbm_res : 
+        input.
+    tmdsimpy.VibrationSystem.hbm_res : 
         HBM residual method that each row of FRC_reconstruct approximates
-        a solution to the input Uw of this function.
-    continuation.Continuation.continuation :
+        a solution to the input `Uw` of this function.
+    tmdsimpy.Continuation.continuation :
         Method of obtaining solutions to EPMC at multiple points to create
-        the epmc_bb input to this function
-        
+        the epmc_bb input to this function.
+    tmdsimpy.postprocess.continuation_post.linear_interp :
+        Method that can be used to interpolate `epmc_bb` to more points to get
+        a higher resolution output ROM.
+
     Notes
     -----
+    
+    EPMC is the Extended Periodic Motion Concept (EPMC). 
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
     The fraction of critical damping from an EPMC backbone can be calculated
     as `zeta = epmc_bb[:, -2] / (2*epmc_bb[:, -3])`.
     
@@ -128,7 +140,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     Only 1st harmonic forcing is considered.
     
     EPMC was proposed in [1]_ and a ROM without phase information is given in 
-    [2]_. Full derivation is available in [3]_.
+    [2]_. Full derivation is available in [3]_, [4]_.
     
     It is not possible to request specific forcing frequencies, rather the
     output is the forcing frequencies that are calculated directly to give
@@ -143,15 +155,29 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     
     References
     ----------
-    .. [1] Krack, Malte. "Nonlinear Modal Analysis of Nonconservative Systems: 
-        Extension of the Periodic Motion Concept." Computers & Structures 154 
-        (July 1, 2015): 59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
-    .. [2] S. Schwarz, L. Kohlmann, A. Hartung, J. Gross, M. Scheel, and
-       M. Krack. “Validation of a turbine blade component test with frictional 
-       contacts by phase-locked-loop and force-controlled measurements”. In:
-       Journal of Engineering for Gas Turbines and Power 142.5 (2020). 
+    .. [1] 
+       Krack, M. 2015. "Nonlinear Modal Analysis of Nonconservative Systems: 
+       Extension of the Periodic Motion Concept." Computers & Structures 
+       154:59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
+        
+    .. [2] 
+       Schwarz, S., L. Kohlmann, A. Hartung, J. Gross, M. Scheel, and
+       M. Krack. 2020. "Validation of a turbine blade component test with
+       frictional 
+       contacts by phase-locked-loop and force-controlled measurements".
+       Journal of Engineering for Gas Turbines and Power 142.5. 
        issn: 0742-4795. https://doi.org/10.1115/1.4044772.
-    .. [3] Justin H. Porter, PhD Thesis, Rice University, 2024.
+       
+    .. [3]
+       Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+       Reduction and Prediction of Superharmonic Resonances in Frictional and 
+       Hysteretic Systems." Mechanical Systems and Signal Processing.
+       arXiv:2405.15918.
+    
+    .. [4]
+       Porter, J. H. 2024. Modal Interactions and Jointed Structures. PhD Thesis.
+       Rice University.
+
     """
     
     # Sizes of the problem
@@ -286,37 +312,34 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
 def constant_displacement(epmc_bb, h, Flcos, Omega, control_point, 
                           control_amplitude, w=None, zeta=None):
     """
-    Extended Periodic Motion Concept (EPMC) based reduced order model (ROM)
-    for control to constant response amplitude by varying the external force 
-    scaling.
+    Reduced order model based on EPMC to capture constant vibration response
+    obtained via varying force levels.
 
     Parameters
     ----------
     epmc_bb : (M, Nhc*Ndof+3) numpy.ndarray
         Each row corresponds to an EPMC solution at a given amplitude level. 
         The first Nhc*Ndof entries of each row are the displacements of the 
-        harmonics in h (e.g., [U0, U1c, U1s] where U0 is static, U1c is the 
-        Ndof displacements corresponding to h=1 and cosine, U1c is for sine). 
+        harmonics in h 
+        (all of the first harmonic component, then all of next etc.). 
         The last three entries of each row are frequency (rad/s), 
         xi in EPMC formulation (coefficient in front of mass matrix to create
         a damping matrix), and log10(modal amplitude).
         Harmonic displacements must be multiplied by the modal amplitude to 
         get the physical displacements except for displacements corresponding
         to the zeroth harmonic.
-        Nhc is the number of harmonic components in h and can be caculated 
-        as `Nhc = harmonic_utils.Nhc(h)`.
-    h : numpy.ndarray
+    h : numpy.ndarray, sorted
         Array of the harmonics used to calculate `epmc_bb`, must be sorted.
     Flcos : (Ndof,) numpy.ndarray
         External constant excitation to be considered. Excitation is just
         applied to the first harmonic (at undetermined phase)
     Omega : (Mout,) numpy.ndarray
-        External forcing frequencies to calculate the force scaling at to 
+        External forcing frequencies to calculate the force scaling at to
         achieve constant amplitude.
     control_point : (Ndof,) numpy.ndarray
         Vector for extracting the degree of freedom that should be controlled
         to constant amplitude as `control_point @ U(t)` where `U(t)` is the 
-        Ndof displacement vector.
+        `Ndof` displacement vector.
     control_amplitude : float
         Desired amplitude that the control point should be controlled to.
         This is displacement amplitude (0th derivative of motion)
@@ -325,10 +348,12 @@ def constant_displacement(epmc_bb, h, Flcos, Omega, control_point,
         `epmc_bb`. If provided, it is also used in calculating the fraction of 
         critical damping (if `zeta` is not provided).
         Units should be rad/s.
+        If a `numpy.ndarray`, the order corresponds to entries in `epmc_bb`.
         The default is None.
     zeta : None, float, or (M,) numpy.ndarray, optional
         Alternative modal damping (fraction of critical) to use rather
-        than calculating it from the `epmc_bb`. 
+        than calculating it from the `epmc_bb`.
+        If a `numpy.ndarray`, the order corresponds to entries in `epmc_bb`.
         The default is None.
 
     Returns
@@ -338,34 +363,58 @@ def constant_displacement(epmc_bb, h, Flcos, Omega, control_point,
         the desired response amplitude according to the ROM.
     epmc_point : (Nhc*Ndof+3) numpy.ndarray
         The interpolated EPMC solution at the desired control amplitude level.
-        If w and or zeta are included, then the epmc_point is has the modified
+        If `w` and or `zeta` are included, then the `epmc_point` has the
+        modified
         values of these parameters (interpolated to the control amplitude).
 
     See Also
     --------
     constant_force: 
         EPMC based ROM for constant external force rather than displacement
-    vibration_system.VibrationSystem.epmc_res : 
+    tmdsimpy.VibrationSystem.epmc_res : 
         EPMC residual method that each line of epmc_bb solves as the Uwxa 
         input
-    vibration_system.VibrationSystem.hbm_amp_control_res : 
+    tmdsimpy.VibrationSystem.hbm_amp_control_res : 
         HBM residual method calculates something similar to a truth solution
         to compare this ROM to.
-    continuation.Continuation.continuation :
+    tmdsimpy.Continuation.continuation :
         Method of obtaining solutions to EPMC at multiple points to create
         the epmc_bb input to this function
      
     Notes
     -----
-    Theory for this method is derived in [1]_.
+    
+    Theory for this method is derived in [1]_, [2]_.
     
     Interpolation along the EPMC backbone is done using linear coordinates
     for the modal amplitude (e.g., `10**epmc_bb[:, -1]` rather than 
     `epmc_bb[:, -1]`).
     
+    EPMC is the Extended Periodic Motion Concept (EPMC). 
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    
+    The fraction of critical damping from an EPMC backbone can be calculated
+    as `zeta = epmc_bb[:, -2] / (2*epmc_bb[:, -3])`.
+    
+    The complex mode shape is represented as 
+    `psi = U1c + 1j*U1s` where U1c and U1s are the first harmonic cosine 
+    and sine respectively
+    
+    Only 1st harmonic forcing is considered.
+    
     References
     ----------
-    .. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
+    .. [1]
+       Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+       Reduction and Prediction of Superharmonic Resonances in Frictional and 
+       Hysteretic Systems." Mechanical Systems and Signal Processing.
+       arXiv:2405.15918.
+    
+    .. [2]
+       Porter, J. H. 2024. Modal Interactions and Jointed Structures. PhD Thesis.
+       Rice University.
+
     """
     
     # Book keeping variables

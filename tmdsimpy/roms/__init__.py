@@ -1,3 +1,11 @@
+"""
+Module of reduced order models (ROMs) based on nonlinear modal analysis type
+results.
+
+ROMs generally provide an efficient approach for analyzing frequency response
+behavior without running harmonic balance method.
+"""
+
 from . import epmc
 from . import vprnm
 
