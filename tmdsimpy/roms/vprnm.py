@@ -471,6 +471,9 @@ def _extract_harmonic_amplitude(U, h, hi, recov, is_epmc=False):
     -----
     
     Function is not directly tested and is intended to be private.
+    Further code development may move this function to harmonic utilities,
+    add tests, and make the function public.
+    
     """
     
     Ndof = recov.shape[0]

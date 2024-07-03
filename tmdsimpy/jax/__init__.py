@@ -11,12 +11,13 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 # Explicit modifications to '__all__'
+from .solvers import NonlinearSolverOMP
 
 # things imported here that should be in __all__
-add_to_all = []
+add_to_all = ['NonlinearSolverOMP']
 
 # files that have imported contents here, so should not be in __all__
-remove_from_all = []
+remove_from_all = ['solvers']
 
 # Generate a list of submodules
 import os
