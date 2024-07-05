@@ -10,7 +10,7 @@ import timeit
 
 # Imports of Custom Functions and Classes
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 # JAX version w/o vectorization
 from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce
@@ -85,6 +85,4 @@ print('JAX Time (after compile): {:.4e} sec'.format(jax_time/num_times))
 
 print('\nJIT Compile Time (Vector): {:.4e} sec'.format(vec_compile_time))
 print('Vector JAX Time (after compile): {:.4e} sec'.format(vec_jax_time/num_times))
-
-
 

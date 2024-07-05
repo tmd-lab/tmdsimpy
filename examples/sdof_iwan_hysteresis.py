@@ -20,7 +20,7 @@ from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 ###############################################################################
 ####### System parameters                                               #######
