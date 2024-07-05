@@ -122,7 +122,7 @@ class Continuation:
     VibrationSystem :
         Class with several residual functions that can be solved with 
         continuation.
-    continuation_utils : 
+    tmdsimpy.utils.continuation : 
         Module of functions to aid in continuation including callback
         functions.
     continuation : 

@@ -3,7 +3,7 @@
 import numpy as np
 
 # Harmonic Functions for AFT
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 from .jenkins_element import JenkinsForce 
 

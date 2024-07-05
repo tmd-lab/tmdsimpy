@@ -28,7 +28,7 @@ from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.nlforces.iwan4_element import Iwan4Force
 from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 

@@ -47,7 +47,7 @@ References
 
 import numpy as np
 
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 from ..postprocess import continuation as cpost # Interpolation
 from . import epmc # EPMC ROMs
 
@@ -78,7 +78,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         Array of the harmonics used to calculate `epmc_fund_bb`, must be sorted.
     epmc_rhi_bb : (Mrhi, Nhc_rhi*Ndof+3) numpy.ndarray
         EPMC solution for the mode that corresponds in superharmonic resonance.
-        `Nhc_rhi = harmonic_utils.Nhc(h_rhi)`.
+        `Nhc_rhi = utils.harmonic.Nhc(h_rhi)`.
     h_rhi : numpy.ndarray, sorted
         Array of the harmonics used to calculate `epmc_rhi_bb`, must be sorted.
     vprnm_bb : (Mvprnm, Nhc_v*Ndof+4) or (Mvprnm, Nhc_v*Ndof+2) numpy.ndarray
@@ -91,7 +91,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         If the second dimension is `Nhc_v*Ndof+2`, then the last 2 columns are
         frequency (rad/s) and force magnitude scaling 
         (amplitude and phase not controlled in VPRNM solution).
-        `Nhc_v = harmonic_utils.Nhc(h_vprnm)`.
+        `Nhc_v = utils.harmonic.Nhc(h_vprnm)`.
     h_vprnm : numpy.ndarray
         Array of the harmonics used to calculate `vprnm_bb`, must be sorted.
     rhi : int
@@ -138,7 +138,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         The first Nhc_out*Ndof columns are harmonic displacements in physical
         coordinates corresponding to the harmonics in `h_reconstruct`.
         The last column is the forcing frequency in rad/s.
-        `Nhc_out = harmonic_utils.Nhc(h_reconstruct)`.
+        `Nhc_out = utils.harmonic.Nhc(h_reconstruct)`.
     force_reconstruct : (Mout,) numpy.ndarray
         External excitation force magnitude (scaling for `Flcos`) to create
         the response. Phase information of this force is not calculated.

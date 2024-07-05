@@ -219,7 +219,7 @@ class VibrationSystem:
         coefficients for all nonlinear forces in system
         
         Nhc is the number of harmonic components in that h represents
-        can be calculated by harmonic_utils.Nhc(h)
+        can be calculated by tmdsimpy.harmonic.utils.Nhc(h)
         
         Parameters
         ----------
@@ -298,7 +298,7 @@ class VibrationSystem:
             Applied forcing harmonic coefficients
         h : numpy.ndarray of integers, sorted
             List of Harmonics. The total number of harmonic components is
-            Nhc = harmonic_utils.Nhc(h)
+            Nhc = tmdsimpy.utils.harmonic.Nhc(h)
         Nt : integer power of 2, optional
             Number of Time Steps for AFT, use powers of 2. The default is 128.
         aft_tol : float, optional
@@ -321,7 +321,7 @@ class VibrationSystem:
         
         See Also
         --------
-        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
+        tmdsimpy.utils.harmonic.predict_harmonic_solution : 
             Function for generating initial guesses to HBM type problems.
         hbm_res_dFl : 
             HBM residual with a different input/third output
@@ -380,7 +380,7 @@ class VibrationSystem:
             The zeroth harmonic of Fl is not scaled.
         h : numpy.ndarray of integers, sorted
             List of Harmonics. The total number of harmonic components is
-            Nhc = harmonic_utils.Nhc(h)
+            Nhc = tmdsimpy.utils.harmonic.Nhc(h)
         Nt : integer power of 2, optional
             Number of Time Steps for AFT, use powers of 2. The default is 128.
         aft_tol : float, optional
@@ -409,7 +409,7 @@ class VibrationSystem:
             Harmonic balance residual with a different input/output
             that allows for continuation with respect to frequency. 
             See documentation of this function for a full list of HBM variants.
-        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
+        tmdsimpy.utils.harmonic.predict_harmonic_solution : 
             Function for generating initial guesses to HBM type problems.
     
         """
@@ -1284,7 +1284,7 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants.
-        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+        tmdsimpy.utils.harmonic.predict_harmonic_solution :
             Function for generating initial guesses to HBM type problems.
         """
         
@@ -1415,7 +1415,7 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants.
-        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+        tmdsimpy.utils.harmonic.predict_harmonic_solution :
             Function for generating initial guesses to HBM type problems.
         """
         
@@ -1538,7 +1538,7 @@ class VibrationSystem:
         hbm_res : 
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants
-        tmdsimpy.harmonic_utils.predict_harmonic_solution :
+        tmdsimpy.utils.harmonic.predict_harmonic_solution :
             Function for generating initial guesses to HBM type problems.
         """
         
@@ -1641,7 +1641,7 @@ class VibrationSystem:
         vprnm_res : 
             VPRNM implementation without additional amplitude and phase 
             constraints (constant force excitation)
-        tmdsimpy.harmonic_utils.predict_harmonic_solution : 
+        tmdsimpy.utils.harmonic.predict_harmonic_solution : 
             Function for generating initial guesses to HBM type problems.
         """
                 

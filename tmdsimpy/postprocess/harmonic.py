@@ -4,7 +4,7 @@ Submodule for postprocessing  harmonic solutions.
 
 import numpy as np
 
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 def local_harmonic_forces(vibration_system, U, w, h, Nt=128, aft_tol=1e-7):
     """

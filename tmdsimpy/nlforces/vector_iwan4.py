@@ -4,7 +4,7 @@ import numpy as np
 # from .nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 from .iwan4_element import Iwan4Force 
 

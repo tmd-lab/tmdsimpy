@@ -89,7 +89,7 @@ def harmonic_stiffness(M, C, K, w, h, calc_grad=True, only_C=False):
     Notes
     -----
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The `only_C` flag is used for EPMC gradient calculations to improve 
     efficiency by eliminating unnecessary operations.  
@@ -194,7 +194,7 @@ def time_series_deriv(Nt, h, X0, order):
     Notes
     -----
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The normalized time instants between [0,1) for a cycle can be calculated as
     `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
@@ -290,7 +290,7 @@ def get_fourier_coeff(h, x_t):
     Notes
     -----
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The normalized time instants between [0,1) for a cycle can be calculated as
     `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
@@ -356,7 +356,7 @@ def harmonic_wise_conditioning(X, Ndof, h, delta=1e-4):
     -----
     
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     """
     
@@ -749,7 +749,7 @@ def rotate_subtract_phase(U_orig, Ndof, h, phase_angle, h_rotate):
     -----
     
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The phase angle is subtracted so if the input is
     `Uc * cos(Omega * t)`

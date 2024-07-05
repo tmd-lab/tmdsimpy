@@ -11,7 +11,7 @@ import timeit
 
 # Imports of Custom Functions and Classes
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 # JAX version w/o vectorization
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction

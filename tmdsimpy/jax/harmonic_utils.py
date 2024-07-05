@@ -1,5 +1,5 @@
 """
-Subset of `tmdsimpy.harmonic_utils` using JAX
+Subset of `tmdsimpy.utils.harmonic` using JAX
 
 Autodiff is applied mainly for AFT at this point, thus only some functions
 need to be converted to JAX. Other functions are not updated at this point to 
@@ -7,7 +7,7 @@ use JAX.
 
 See Also
 --------
-tmdsimpy.harmonic_utils :
+tmdsimpy.utils.harmonic :
     Baseline implementation of harmonic utility methods without JAX.
 
 """
@@ -49,7 +49,7 @@ def time_series_deriv(Nt, htuple, X0, order):
     
     See Also
     --------
-    tmdsimpy.harmonic_utils.time_series_deriv :
+    tmdsimpy.utils.harmonic.time_series_deriv :
         Implementation of this function without JAX.
     
     Notes
@@ -58,7 +58,7 @@ def time_series_deriv(Nt, htuple, X0, order):
     to have `htuple` and `Nt` set to static.
     
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The normalized time instants between [0,1) for a cycle can be calculated as
     `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
@@ -175,13 +175,13 @@ def get_fourier_coeff(htuple, x_t):
 
     See Also
     --------
-    tmdsimpy.harmonic_utils.get_fourier_coeff :
+    tmdsimpy.utils.harmonic.get_fourier_coeff :
         Implementation without JAX support.
     
     Notes
     -----
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The normalized time instants between [0,1) for a cycle can be calculated as
     `tau = numpy.linspace(0,1,Nt+1)[:-1]`.

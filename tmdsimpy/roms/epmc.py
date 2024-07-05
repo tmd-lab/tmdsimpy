@@ -31,7 +31,7 @@ References
 
 import numpy as np
 
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 from ..postprocess import continuation as cpost
 
 
@@ -128,7 +128,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     
     EPMC is the Extended Periodic Motion Concept (EPMC). 
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The fraction of critical damping from an EPMC backbone can be calculated
     as `zeta = epmc_bb[:, -2] / (2*epmc_bb[:, -3])`.
@@ -392,7 +392,7 @@ def constant_displacement(epmc_bb, h, Flcos, Omega, control_point,
     
     EPMC is the Extended Periodic Motion Concept (EPMC). 
     The number of harmonic components is 
-    `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
     
     The fraction of critical damping from an EPMC backbone can be calculated
     as `zeta = epmc_bb[:, -2] / (2*epmc_bb[:, -3])`.

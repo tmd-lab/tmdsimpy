@@ -11,7 +11,7 @@ from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 import matplotlib as mpl

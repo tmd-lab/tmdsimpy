@@ -1,5 +1,5 @@
 import numpy as np
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 class NonlinearForce:
     """
