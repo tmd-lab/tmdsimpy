@@ -2,6 +2,7 @@
 Module for postprocessing solutions to nonlinear vibration equations.
 """
 
+from . import continuation
 from . import harmonic
 from . import shooting
 
