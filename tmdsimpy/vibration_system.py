@@ -821,27 +821,53 @@ class VibrationSystem:
 
         Parameters
         ----------
-        Uw : Vector of statespace initial states - all displacements, 
-                                                    then all velocities
-                                                    then frequency (rad/s)
-                                                    size: (2*Ndof+1,)
-        Fl : Forcing vector of size 2*Ndofs - first Ndofs are cos forcing. 
-             Second Ndofs are sin forcing
-             size: (2*Ndof,)
-        Nt : Number of time steps to use.
-            DESCRIPTION. The default is 128.
-        return_aux : flag to return extra outputs (e.g., timeseries and Jacobian)
-
+        Uw : (2*N+1,) numpy.ndarray
+            Test solution point to the shooting residual.
+            Has `N` displacements, then `N` velocities, then frequency in rad/s.
+        Fl : (2*N) numpy.ndarray
+            First `N` entries are cosine forcing at frequency `XlamP_shoot[-1]`.
+            The second `N` are the sine forcing terms.
+        Nt : int, optional
+            Number of time steps to use in shooting calculations.
+            The default is 128.
+        return_aux : bool, optional
+            Flag to return extra output variables 
+            (time series, Monodromy matrix etc.).
+            The default is False.
+        
         Returns
         -------
         None.
         
-        Notes: 
-            1. Only supports instantaneous nonlinear forces.
-            2. Implementation also does not support cubic damping
-            3. WARNING: Most instantaneous nonlinear force calculations are 
-                untested since unit tests focused on HBM/AFT.
-
+        See Also
+        --------
+        tmdsimpy.postprocess.shooting.time_stability :
+            Function for post processing the time series and stability from
+            a solution point to these equations.
+        
+        Notes
+        -----
+        
+        For theory about shooting and stability analysis, see Section 3
+        of [1]_.
+        
+        Implementation currently only supports instantaneous nonlinear forces,
+        but does not support cubic damping.
+        
+        Most instantaneous forces are tested focusing only on HBM/AFT rather
+        than the instant force that is used here.
+        
+        References
+        ----------
+        
+        .. [1] 
+            Peeters, M., R. Viguie, G. Sérandour, G. Kerschen, 
+            and J. -C. Golinval. 2009. "Nonlinear Normal Modes, Part II: Toward a
+            Practical Computation Using Numerical Continuation Techniques."
+            Mechanical Systems and Signal Processing, 
+            Special Issue: Non-linear Structural Dynamics, 23 (1): 195–216.
+            https://doi.org/10.1016/j.ymssp.2008.04.003.
+    
         """
         
         Ndof = self.M.shape[0]
