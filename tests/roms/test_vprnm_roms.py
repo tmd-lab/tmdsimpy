@@ -13,7 +13,7 @@ from tmdsimpy.roms import vprnm as rom_vprnm
 from tmdsimpy import harmonic_utils as hutils
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
-from tmdsimpy.postprocess import continuation_post as cpost
+from tmdsimpy.postprocess import continuation as cpost
 
 class TestVprnmRoms(unittest.TestCase):
     

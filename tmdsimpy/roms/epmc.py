@@ -32,7 +32,7 @@ References
 import numpy as np
 
 from .. import harmonic_utils as hutils
-from ..postprocess import continuation_post as cpost
+from ..postprocess import continuation as cpost
 
 
 def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None, 
@@ -119,7 +119,7 @@ def constant_force(epmc_bb, Ndof, h, Fl=None, w=None, zeta=None,
     tmdsimpy.Continuation.continuation :
         Method of obtaining solutions to EPMC at multiple points to create
         the epmc_bb input to this function.
-    tmdsimpy.postprocess.continuation_post.linear_interp :
+    tmdsimpy.postprocess.continuation.linear_interp :
         Method that can be used to interpolate `epmc_bb` to more points to get
         a higher resolution output ROM.
 

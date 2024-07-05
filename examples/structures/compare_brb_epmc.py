@@ -24,7 +24,7 @@ import argparse # parse command line arguments
 import matplotlib.pyplot as plt
 
 sys.path.append('../..')
-import tmdsimpy.postprocess.continuation_post as cpost
+import tmdsimpy.postprocess.continuation as cpost
 
 
 ###############################################################################

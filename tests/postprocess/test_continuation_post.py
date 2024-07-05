@@ -7,7 +7,7 @@ import numpy as np
 import unittest
 
 sys.path.append('../..')
-import tmdsimpy.postprocess.continuation_post as cpost
+import tmdsimpy.postprocess.continuation as cpost
 
 
 

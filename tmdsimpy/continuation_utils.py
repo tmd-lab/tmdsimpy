@@ -5,7 +5,7 @@ See Also
 --------
 tmdsimpy.Continuation : 
     Class for solving continuation problems
-tmdsimpy.postprocess.continuation_post : 
+tmdsimpy.postprocess.continuation :
     Module for post-processing functions from continuation solutions
 """
 

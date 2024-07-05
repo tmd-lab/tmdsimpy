@@ -1,6 +1,5 @@
 """
-Functions for postprocessing continuation results including interpolation 
-methods. 
+Submodule for postprocessing continuation results including interpolating.
 """
 
 import numpy as np

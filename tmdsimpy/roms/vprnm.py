@@ -48,7 +48,7 @@ References
 import numpy as np
 
 from .. import harmonic_utils as hutils
-from ..postprocess import continuation_post as cpost # Interpolation
+from ..postprocess import continuation as cpost # Interpolation
 from . import epmc # EPMC ROMs
 
 def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi, 

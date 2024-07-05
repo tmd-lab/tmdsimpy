@@ -1,3 +1,7 @@
+"""
+Submodule for postprocessing shooting results.
+"""
+
 import numpy as np
 
 # from .. import VibrationSystem
