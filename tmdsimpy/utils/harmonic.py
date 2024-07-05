@@ -10,7 +10,6 @@ tmdsimpy.jax.harmonic_utils :
 
 import numpy as np
 
-
 def Nhc(h):
     """
     Function to calculate the number of harmonic components.

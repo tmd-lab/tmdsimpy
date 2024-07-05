@@ -11,7 +11,7 @@ tmdsimpy.postprocess.continuation :
 
 from os.path import exists
 import numpy as np
-from . import harmonic_utils as hutils
+from . import harmonic as hutils
 
 def combine_callback_funs(funs_list, XlamP, dirP_prev):
     """

@@ -1,5 +1,5 @@
 import numpy as np
-from . import harmonic_utils as hutils
+from .utils import harmonic as hutils
 from scipy.integrate import solve_ivp
 
 import warnings
