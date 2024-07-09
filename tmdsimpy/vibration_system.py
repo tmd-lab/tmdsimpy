@@ -565,24 +565,48 @@ class VibrationSystem:
         
     def linear_frf(self, w, Fl, solver, neigs=3, Flsin=None):
         """
-        Returns response to single harmonic (cosine) forcing in shape of Fl at 
-        frequencies w
+        Calculates linear frequency response function (FRF) of system.
 
         Parameters
         ----------
-        w : TYPE
-            DESCRIPTION.
-        Fl : Cosine only terms
-        solver : TYPE
-            DESCRIPTION.
-        neigs : Number of modes to calculate for use in construction of the FRF
-            DESCRIPTION. The default is 3.
+        w : (M,) numpy.ndarray
+            Forcing frequencies, single harmonic (rad/s).
+            May also work for a single forcing frequency with a float input.
+        Fl : (N,) numpy.ndarray
+            Applied external forcing cosine coefficients applied to DOFs.
+        solver : tmdsimpy.NonlinearSolver or similar 
+            Object with routines for linear and nonlinear solutions,
+            specifically containing support for eigen-analysis.
+        neigs : int, optional
+            Number of modes to calculate for use in construction of the FRF.
+            A warning is raised if this exceeds `N`, and `N` is used in that
+            case.
+            The default is 3.
+        Flsin : None of (N,) numpy.ndarray, optional
+            Applied external forcing sine coefficients applied to DOFs.
+            If None, then only the cosine forcing is applied.
+            The default is None.
 
         Returns
         -------
-        Xw : Rows represent response amplitudes and then frequency at a single 
-            frequency. 
-            Xw[i] = [X1cos, X2cos,..., Xncos, X1sin, X2sin,..., Xnsin, w[i]]
+        Xw : (M,2*N+1) numpy.ndarray
+            Row indices correspond to `w` forcing freuqencies.
+            First `N` columns are the cosine response at the forcing frequency.
+            Second `N` columns are the sine response at the forcing frequency.
+            Final column is the forcing frequency.
+
+        Notes
+        -----
+
+        This method requires that the vibration system be initialized with
+        proportional damping.
+
+        This method does not consider any contributions of the nonlinear forces
+        even if the linearized nonlinear forces would contribute to the
+        stiffness.
+        If that is of interest, one can calculate the linearized stiffness with
+        `static_res` and then create a new purely linear vibration system
+        with that stiffness to do linear FRF analysis on.
 
         """
         
@@ -668,12 +692,23 @@ class VibrationSystem:
 
         Notes
         -----
+
+        EPMC was proposed by [1]_. 
+
         The number of harmonic components is
         `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
 
         Mass normalization constraint for amplitude is applied to
         harmonic 1 here. If you need subharmonic components, then some
         restructuring is likely needed.
+
+        References
+        ----------
+        .. [1] 
+           Krack, M. 2015. "Nonlinear Modal Analysis of Nonconservative Systems: 
+           Extension of the Periodic Motion Concept." Computers & Structures 
+           154:59–71. https://doi.org/10.1016/j.compstruc.2015.03.008.
+
 
         """
         
@@ -795,36 +830,57 @@ class VibrationSystem:
     
     def hbm_base_res(self, Uw, Ub, base_flag, h, Nt=128, aft_tol=1e-7):
         """
-        Residual for Harmonic Balance Method with applied base excitation
-
-        system has n free DOFs and nbase DOFs with prescribed displacements
-        
-        Assumes no harmonic forcing other than the base excitation
+        Residual for Harmonic Balance Method (HBM) with applied base
+        excitation.
 
         Parameters
         ----------
-        Uw : Harmonic DOFs followed by frequency, (n * Nhc + 1) x 1
-        Ub : Applied Harmonic Displacements to base DOFS, (nbase * Nhc) x 1
-        base_flag : vector of length (n+nbase) with True for base DOFs
-        h : List of Harmonics
-        Nt : Number of Time Steps for AFT, use powers of 2. The default is 128.
-        aft_tol : Tolerance for AFT. The default is 1e-7.
+        Uw : (Nfree*Nhc+1,) numpy.ndarray
+            Global harmonic degrees of freedom, free DOFs for each harmonic
+            component and then the next harmonic component in `h`.
+            These are followed by the frequency in rad/s of first harmonic.
+        Ub : (Nbase*Nhc,) numpy.ndarray
+            Global harmonic degrees of freedom, base DOFs for each harmonic
+            component and then the next harmonic component in `h`.
+            These are the prescribed displacements for the base DOFs.
+        base_flag : (N,) numpy.ndarray of bool
+            Vector has `True` for DOFs that are the part of the base and get
+            the prescribed base motion from `Ub`.
+        h : 1D np.array, sorted
+            List of included harmonics, sorted and without repeats.
+            Harmonics should be positive integers or zero.
+        Nt : int, power of 2, optional
+            Number of time steps for AFT.
+            The default is 128.
+        aft_tol : float, optional
+            Tolerance for AFT.
+            The default is 1e-7.
 
         Returns
         -------
-        R : Residual (n * Nhc)
-        dRdU : Jacobian of residual w.r.t. Harmonic DOFs (n * Nhc x n * Nhc)
-        dRdw : Derivative of residual w.r.t. frequency (n * Nhc)
-        
+        R : (Nfree*Nhc,) numpy.ndarray
+            Evaluated residual for HBM analysis at the free DOFs.
+        dRdU : (Nfree*Nhc,Nfree*Nhc) numpy.ndarray
+            Derivative of `R` with respect to `U = Uw[:-1]`.
+        dRdw : (Nfree*Nhc,) numpy.ndarray
+            Derivative of `R` with respect to `w = Uw[-1]`.
+
         See Also
         --------
-        hbm_res : 
+        hbm_res :
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants
-        linear_frf_base : 
-            Update this docstring to have the correct linear FRF method for 
-            base excitation here.
+        linear_frf_base :
+            Linear frequency response calculation for base excitation.
         
+        Notes
+        -----
+
+        The system has `Nfree` free DOFs, `Nbase` base excited DOFs, and `N`
+        total DOFs.
+
+        No harmonic excitation is included other than the base excitation.
+
         """
         
         # Mask of which DOFs are base excitation
@@ -857,28 +913,64 @@ class VibrationSystem:
     
     def linear_frf_base(self, w, Ub, base_flag, solver, neigs=3):
         """
-        Returns response to single harmonic base excitation at frequencies w
-        
-        While this is structured to allow multiple base DOFs, the analytical 
-        calculation implicitly assumes that all base DOFs move together
+        Calculates linear frequency response function (FRF) of system with base
+        excitation.
 
         Parameters
         ----------
-        w : Frequencies of interest
-        Ub : Vector of cosine base displacements followed by sine (length 2)
-        solver : TYPE
-            DESCRIPTION.
-        neigs : Number of modes to calculate for use in construction of the FRF
-            DESCRIPTION. The default is 3.
+        w : (M,) numpy.ndarray
+            Forcing frequencies, single harmonic (rad/s).
+            May also work for a single forcing frequency with a float input.
+        Ub : (2,) numpy.ndarray
+            Prescribed motion for the base DOF of the system.
+            The first entry is the cosine motion, the second entry is the sine
+            motion.
+        base_flag : (N,) numpy.ndarray of bool
+            Vector has `True` for DOFs that are the part of the base and get
+            the prescribed base motion from `Ub`.
+        solver : tmdsimpy.NonlinearSolver or similar 
+            Object with routines for linear and nonlinear solutions,
+            specifically containing support for eigen-analysis.
+        neigs : int, optional
+            Number of modes to calculate for use in construction of the FRF.
+            A warning is raised if this exceeds `Nfree`, and `Nfree` is used
+            in that case.
+            The default is 3.
 
         Returns
         -------
-        Xw : Rows represent response amplitudes and then frequency at a single 
-            frequency. 
-            Xw[i] = [X1cos, X2cos,..., Xncos, X1sin, X2sin,..., Xnsin, w[i]]
+        Xw : (M,2*Nfree+1) numpy.ndarray
+            Row indices correspond to `w` forcing freuqencies.
+            First `Nfree` columns are the cosine response at the forcing
+            frequency.
+            Second `Nfree` columns are the sine response at the forcing
+            frequency.
+            These entries correspond to where `base_flag` is False.
+            Final column is the forcing frequency.
+
+        Notes
+        -----
+
+        While this is structured to allow multiple base DOFs, the analytical 
+        calculation implicitly assumes that all base DOFs move together.
+        Therefore only one cosine and one sine input are allowed for the
+        base motion.
+
+        This method requires that the vibration system be initialized with
+        proportional damping, but may not throw an error if this is not the
+        case.
+
+        This method does not consider any contributions of the nonlinear forces
+        even if the linearized nonlinear forces would contribute to the
+        stiffness.
+        If that is of interest, one can calculate the linearized stiffness with
+        `static_res` and then create a new purely linear vibration system
+        with that stiffness to do linear FRF analysis on.
+
+        The system has `Nfree` free DOFs, `Nbase` base excited DOFs
+        (moving together), and `N` total DOFs.
 
         """
-        
         
         if neigs > self.M.shape[0]-base_flag.sum():
             neigs = self.M.shape[0]-base_flag.sum()
@@ -1551,78 +1643,85 @@ class VibrationSystem:
     def hbm_amp_phase_control_res(self, UFcFsw, Fl, h, recov, amp, order, 
                             Nt=128, aft_tol=1e-7, calc_grad=True):
         """
-        Amplitude Control with Harmonic Balance Method (HBM) rather than fixing
-        force at a constant value and/or phase. 
-        The phase at the response point is controlled to be only cosine by 
-        varying the phase of the forcing.
+        Residual for harmonic balance method (HBM) with amplitude and phase
+        control.
         
-        Control is applied exclusively to the 1st harmonic
-        
-        For documentation: Nhc is the number of harmonics
-        and
-        Ndof is the number of Degree of Freedoms
+        Control is applied exclusively to the 1st harmonic.
 
         Parameters
         ----------
-        UFcFsw : (Nhc*Ndof+3,) numpy.ndarray
-            Harmonic Displacements, Force Scaling Cosine, Force Scaling
-            Sine, Frequency.
-            Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
-        Fl : (Nhc*Ndof,) numpy.ndarray
-            Forcing Vector without scaling for all harmonics 
-            Static force is correctly scaled already (if included).
+        UFcFsw : (N*Nhc+3,) numpy.ndarray
+            Global harmonic degrees of freedom, all DOFs for each harmonic
+            component and then the next harmonic component in `h`.
+            These are followed by
+            the scaling for the cosine forcing terms,
+            the scaling for the sine forcing terms, and
+            the frequency in rad/s of first harmonic.
+        Fl : (N*Nhc,) numpy.ndarray
+            Applied external forcing harmonic coefficients in the same ordering
+            as displacements in `Uw`.
+            Zeroth harmonic (static) forces are applied directly from this
+            vector.
             Forcing of the first harmonic is of the form
-            UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)
-            where Fl_cos1 is the first harmonic cosine terms in Fl.
+            `UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)`
+            with `w = UFcFsw[-1]` and `Fl_cos1` is the first harmonic
+            cosine terms in `Fl`.
             Forcing on all other harmonics is ignored. Forcing input for
             sine terms of the first harmonic is currently ignored. 
-        h : 1D numpy.ndarray, sorted
-            List of harmonics used, must be sorted and include 1st harmonic.
-        recov : (Ndof,) numpy.ndarray
-            Recovery matrix for the DOF that has amplitude and phase control 
+        h : 1D np.array, sorted
+            List of included harmonics, sorted and without repeats.
+            Harmonics should be positive integers or zero.
+        recov : (N,) numpy.ndarray
+            Recovery matrix to extract the DOF that has amplitude
+            and phase control.
         amp : float
             Amplitude that the recovered DOF is controlled to 
+            (defined by `recov` and `order`).
         order : int, positive or zero
-            Order of derivative of interest, but this is just used as an 
-            exponent on the frequency 
-            (e.g., negative signs from taking 2 derivatives of cos/sine are 
-            ignored in phase constraint). 
-            Control is always applied to have response amplitude at recovery 
-            DOF that is purely cosine and the same sign as amp.
-        Nt : int, power of 2
-            Number of time steps for AFT. 
+            Exponent on frequency to multiply the controlled displacement by.
+            This allows for control of 0=displacement, 1=velocity, 
+            or 2=acceleration.
+            Control does not consider sign changes due to derivatives when
+            controlling `order != 0`.
+        Nt : int, power of 2, optional
+            Number of time steps for AFT.
             The default is 128.
-        aft_tol : float
-            Tolerance for AFT evaluations. 
+        aft_tol : float, optional
+            Tolerance for AFT.
             The default is 1e-7.
-        calc_grad : boolean
-            Flag where True indicates that the gradients should be calculated 
-            and returned. If False, then returns only (R,) as a tuple. 
-            False should only be passed if all nonlinear forces have aft 
-            methods that accept the calc_grad keyword.
-            The default is True.
+        calc_grad : bool
+            Flag where `True` indicates that the gradients should be calculated
+            and returned. If `False`, then returns only `(R,)` as a tuple.
+            `False` should only be passed if all nonlinear forces have AFT
+            methods that accept the `calc_grad` keyword.
+            If `True`, the argument is not passed to nonlinear forces.
+            The default is `True`.
 
         Returns
         -------
-        R : (Nhc*Ndof+2,) numpy.ndarray
-            Residual vector, always returned as first entry of a tuple.
-            First Nhc*Ndof entries correspond to HBM solution.
-            Second to last is cosine amplitude being equal to desired value.
-            Last is sine amplitude equal to zero.
-        dRdUFcFs : (Nhc*Ndof+2,Nhc*Ndof+2) numpy.ndarray
-            Derivative of the residual w.r.t. UFcFs. 
-            Only returned if calc_grad=True (default behavior).
-        dRdw : (Nhc*Ndof+2,) numpy.ndarray
-            Derivative w.r.t. frequency.
-            Only returned if calc_grad=True (default behavior).
+        R : (N*Nhc+2,) numpy.ndarray
+            Evaluated residual for HBM analysis with amplitude and
+            phase control.
+            `-2` entry is amplitude constraint on cosine response.
+            `-1` entry is phase constraint to be zero sine repsonse.
+        dRdUFcFs : (N*Nhc+2,N*Nhc+2) numpy.ndarray
+            Derivative of `R` with respect to `UFcFs = UFcFsw[:-1]`.
+        dRdw : (N*Nhc+2,) numpy.ndarray
+            Derivative of `R` with respect to `w = UFcFsw[-1]`.
 
         See Also
         --------
-        hbm_res : 
+        hbm_res :
             Harmonic balance residual for constant force input to the system.
             See documentation of this function for a full list of HBM variants.
         tmdsimpy.utils.harmonic.predict_harmonic_solution :
             Function for generating initial guesses to HBM type problems.
+
+        Notes
+        -----
+        The number of harmonic components is
+        `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
+
         """
         
         # Size of Problem
@@ -1671,81 +1770,87 @@ class VibrationSystem:
     def hbm_amp_phase_control_dA_res(self, UFcFsA, Fl, h, recov, w, order, 
                             Nt=128, aft_tol=1e-7, calc_grad=True):
         """
-        Amplitude Control with Harmonic Balance Method (HBM) rather than fixing
-        force at a constant value and/or phase. 
-        The phase at the response point is controlled to be only cosine by 
-        varying the phase of the forcing.
+        Residual for harmonic balance method (HBM) with amplitude and phase
+        control for continuation with respect to amplitude.
         
-        This version has outputs for continuation w.r.t. amplitude at constant 
-        frequency
-        
-        Control is applied exclusively to the 1st harmonic
-        
-        For documentation: Nhc is the number of harmonics
-        and
-        Ndof is the number of Degree of Freedoms
+        Control is applied exclusively to the 1st harmonic.
 
         Parameters
         ----------
-        UFcFsA : (Nhc*Ndof+3,) numpy.ndarray
-            Harmonic Displacements, Force Scaling Cosine, Force Scaling
-            Sine, Amplitude Level.
-            Harmonic Displacements are all of zeroth, 1c, 1s, 2c, 2s etc.
-        Fl : (Nhc*Ndof,) numpy.ndarray
-            Forcing Vector without scaling for all harmonics 
-            Static force is correctly scaled already (if included).
+        UFcFsA : (N*Nhc+3,) numpy.ndarray
+            Global harmonic degrees of freedom, all DOFs for each harmonic
+            component and then the next harmonic component in `h`.
+            These are followed by
+            the scaling for the cosine forcing terms,
+            the scaling for the sine forcing terms, and
+            the amplitude that the recovered DOF is controlled to
+            (defined by `recov` and `order`) that is used in constraint
+            equation.
+        Fl : (N*Nhc,) numpy.ndarray
+            Applied external forcing harmonic coefficients in the same ordering
+            as displacements in `Uw`.
+            Zeroth harmonic (static) forces are applied directly from this
+            vector.
             Forcing of the first harmonic is of the form
-            UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)
-            where Fl_cos1 is the first harmonic cosine terms in Fl.
+            `UFcFsw[-3]*Fl_cos1*cos(w*t) + UFcFsw[-2]*Fl_cos1*sin(w*t)`
+            with `w = UFcFsw[-1]` and `Fl_cos1` is the first harmonic
+            cosine terms in `Fl`.
             Forcing on all other harmonics is ignored. Forcing input for
             sine terms of the first harmonic is currently ignored. 
-        h : 1D numpy.ndarray, sorted
-            List of harmonics used, must be sorted and include 1st harmonic.
-        recov : (Ndof,) numpy.ndarray
-            Recovery matrix for the DOF that has amplitude and phase control 
+        h : 1D np.array, sorted
+            List of included harmonics, sorted and without repeats.
+            Harmonics should be positive integers or zero.
+        recov : (N,) numpy.ndarray
+            Recovery matrix to extract the DOF that has amplitude
+            and phase control.
         w : float
-            Frequency for HBM, rad/s.
+            Frequency (rad/s) of first harmonic.
         order : int, positive or zero
-            Order of derivative of interest, but this is just used as an 
-            exponent on the frequency 
-            (e.g., negative signs from taking 2 derivatives of cos/sine are 
-            ignored in phase constraint). 
-            Control is always applied to have response amplitude at recovery 
-            DOF that is purely cosine and the same sign as amp.
-        Nt : int, power of 2
-            Number of time steps for AFT. 
+            Exponent on frequency to multiply the controlled displacement by.
+            This allows for control of 0=displacement, 1=velocity, 
+            or 2=acceleration.
+            Control does not consider sign changes due to derivatives when
+            controlling `order != 0`.
+        Nt : int, power of 2, optional
+            Number of time steps for AFT.
             The default is 128.
-        aft_tol : float
-            Tolerance for AFT evaluations. 
+        aft_tol : float, optional
+            Tolerance for AFT.
             The default is 1e-7.
-        calc_grad : boolean
-            Flag where True indicates that the gradients should be calculated 
-            and returned. If False, then returns only (R,) as a tuple. 
-            False should only be passed if all nonlinear forces have aft 
-            methods that accept the calc_grad keyword.
-            The default is True.
+        calc_grad : bool
+            Flag where `True` indicates that the gradients should be calculated
+            and returned. If `False`, then returns only `(R,)` as a tuple.
+            `False` should only be passed if all nonlinear forces have AFT
+            methods that accept the `calc_grad` keyword.
+            If `True`, the argument is not passed to nonlinear forces.
+            The default is `True`.
 
         Returns
         -------
-        R : (Nhc*Ndof+2,) numpy.ndarray
-            Residual vector, always returned as first entry of a tuple.
-            First Nhc*Ndof entries correspond to HBM solution.
-            Second to last is cosine amplitude being equal to desired value.
-            Last is sine amplitude equal to zero.
-        dRdUFcFs : (Nhc*Ndof+2,Nhc*Ndof+2) numpy.ndarray
-            Derivative of the residual w.r.t. UFcFs. 
-            Only returned if calc_grad=True (default behavior).
-        dRdA : (Nhc*Ndof+2,) numpy.ndarray
-            Derivative w.r.t. amplitude.
-            Only returned if calc_grad=True (default behavior).
+        R : (N*Nhc+2,) numpy.ndarray
+            Evaluated residual for HBM analysis with amplitude and
+            phase control.
+            `-2` entry is amplitude constraint on cosine response,
+            which should be equal to `A = UFcFsA[-1]`.
+            `-1` entry is phase constraint to be zero sine repsonse.
+        dRdUFcFs : (N*Nhc+2,N*Nhc+2) numpy.ndarray
+            Derivative of `R` with respect to `UFcFs = UFcFsA[:-1]`.
+        dRdA : (N*Nhc+2,) numpy.ndarray
+            Derivative of `R` with respect to `A = UFcFsA[-1]`.
 
         See Also
         --------
-        hbm_res : 
+        hbm_res :
             Harmonic balance residual for constant force input to the system.
-            See documentation of this function for a full list of HBM variants
+            See documentation of this function for a full list of HBM variants.
         tmdsimpy.utils.harmonic.predict_harmonic_solution :
             Function for generating initial guesses to HBM type problems.
+
+        Notes
+        -----
+        The number of harmonic components is
+        `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
+
         """
         
         R_dRdUFcFs_dRdw = self.hbm_amp_phase_control_res(
@@ -1768,19 +1873,19 @@ class VibrationSystem:
                             calc_grad=True, superharmonic_filter=None,
                             constraint_scale=1.0):
         """
-        Residual for the Variable Phase Resonance 
+        Residual for the Variable Phase Resonance
         Nonlinear Modes (VPRNM) with extra constraints.
-        
+
         Method adds a constraint to HBM to follow a superharmonic resonance
         and constraints on amplitude and phase of the response to make it
         easier to solve the set of equations.
-        
+
         Parameters
         ----------
         UFcFswA : (N*Nhc+4,) numpy.ndarray
             Global harmonic degrees of freedom, all DOFs for each harmonic
             component and then the next harmonic component in `h`.
-            These are followed by 
+            These are followed by
             the force scaling for first harmonic cosine external force,
             the force scaling for first harmonic sine external force,
             the frequency in rad/s of first harmonic,
@@ -1796,11 +1901,11 @@ class VibrationSystem:
             List of included harmonics, sorted and without repeats.
             Harmonics should be positive integers or zero.
         rhi : int
-            Superharmonic resonance harmonic number of interest, 
+            Superharmonic resonance harmonic number of interest,
             must be included in `h`.
         recov : (N,) numpy.ndarray
-            Recovery matrix to extract the DOF that has amplitude 
-            and phase control.           
+            Recovery matrix to extract the DOF that has amplitude
+            and phase control.
         order : int, positive or zero
             Exponent on frequency to multiply the controlled displacement by.
             This allows for control of 0=displacement, 1=velocity, 
@@ -1808,20 +1913,20 @@ class VibrationSystem:
             Control does not consider sign changes due to derivatives when
             controlling `order != 0`.
         Nt : int, power of 2, optional
-            Number of time steps for AFT. 
+            Number of time steps for AFT.
             The default is 128.
         aft_tol : float, optional
-            Tolerance for AFT. 
+            Tolerance for AFT.
             The default is 1e-7.
         calc_grad : bool
             Flag where `True` indicates that the gradients should be calculated
             and returned. If `False`, then returns only `(R,)` as a tuple.
-            `False` should only be passed if all nonlinear forces have AFT 
+            `False` should only be passed if all nonlinear forces have AFT
             methods that accept the `calc_grad` keyword.
             If `True`, the argument is not passed to nonlinear forces.
             The default is `True`.
         superharmonic_filter : None or (N,) numpy.ndarray, optional
-            If None, VPRNM is calculated without a modal filter. 
+            If None, VPRNM is calculated without a modal filter.
             If a `numpy.ndarray`, then VPRNM is modally filtered with the
             array.
             The modal filter is applied to the superharmonic resonance to 
@@ -1834,7 +1939,7 @@ class VibrationSystem:
             the constraint. It may need to be dynamically updated between 
             solutions along continuation to avoid problems.
             The default is 1.0.
-            
+
         Returns
         -------
         R : (N*Nhc+3,) numpy.ndarray
@@ -1843,7 +1948,7 @@ class VibrationSystem:
             Derivative of `R` with respect to `UFcFsw = UFcFswA[:-1]`.
         dRdA : (N*Nhc+3,) numpy.ndarray
             Derivative of `R` with respect to `A = UFcFswA[-1]`.
-        
+
         See Also
         --------
         hbm_res : 
@@ -1855,13 +1960,12 @@ class VibrationSystem:
             constraints (constant force excitation)
         tmdsimpy.utils.harmonic.predict_harmonic_solution : 
             Function for generating initial guesses to HBM type problems.
-        
-        
+
         Notes
         -----
-        The number of harmonic components is 
+        The number of harmonic components is
         `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`.
-        
+
         Theory for VPRNM is developed in [1]_, [2]_, [3]_.
 
         References
@@ -1870,13 +1974,13 @@ class VibrationSystem:
         .. [1]
            Porter, J. H., and M. R. W. Brake. 2024. "Tracking Superharmonic
            Resonances for Nonlinear Vibration of Conservative and Hysteretic
-           Single 
-           Degree of Freedom Systems." Mechanical Systems and Signal Processing 
+           Single
+           Degree of Freedom Systems." Mechanical Systems and Signal Processing
            215:111410. https://doi.org/10.1016/j.ymssp.2024.111410.
            arXiv:2401.08790
-           
+
         .. [2]
-           Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+           Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model
            Reduction and Prediction of Superharmonic Resonances in Frictional
            and Hysteretic Systems." Mechanical Systems and Signal Processing.
            arXiv:2405.15918.
@@ -1926,14 +2030,38 @@ def _shooting_state_space(t, UV_dUVdUV0, vib_sys, Fl, omega):
 
     Parameters
     ----------
-    vib_sys : TYPE
-        DESCRIPTION.
-    U : TYPE
-        DESCRIPTION.
+    t : float
+        Current time instant used for calculating current external forcing
+        magnitude
+    UV_dUVdUV0 : (4*N*+4*N**2,) numpy.ndarray
+        First `N` are the displacements.
+        Second `N` are the velocities.
+        `UV_dUVdUV0[2*N:-2*N].reshape(2*N, 2*N)` is the derivative
+        of the first `2*N` entries with respect to the initial conditions for
+        those entries.
+        `UV_dUVdUV0[-2*N:]` is the derivative of the first `2*N` entries
+        with respect to frequency.
+    vib_sys : tmdsimpy.VibrationSystem
+        Vibration system that is undergoing vibration analysis.
+    Fl : (2*N,) numpy.ndarray
+        External forcing vector with magnitude.
+        The first `N` entries are the cosine forcing coefficients at
+        frequency `omega`.
+        The second `N` entries are the sine forcing coefficients at frequency
+        `omega`.
+    omega : float
+        External forcing frequency (rad/s).
 
     Returns
     -------
-    None.
+    UV_dUVdUV0_dot : (4*N*+4*N**2,) numpy.ndarray
+        Time derivative of `UV_dUVdUV0`.
+
+    Notes
+    -----
+
+    Relies on instantaneous forces and a requirement that no forces
+    require history updates between time steps.
 
     """
 

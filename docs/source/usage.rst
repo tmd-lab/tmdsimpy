@@ -23,6 +23,7 @@ Conventions and Common Variables
 --------------------------------
 
 U,h - list of harmonic DOFs, list of harmonics. Each global DOF is included multiple times for different harmonic components. First all of the DOFs for the first harmonic component are listed, then the next etc.
+`h` should include only zero and positive integers. If interested in subharmonic motion, apply forcing at a harmonic greater than 1. Be aware that not all methods support such analyses.
 
 Nhc - number of harmonic components. Can be calculated as `Nhc = tmdsimpy.harmonic_utils.Nhc(h)`
 
