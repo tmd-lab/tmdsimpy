@@ -5,6 +5,7 @@ differentiation.
 
 # Import nonlinear forces written with JAX
 from .elastic_dry_fric_2d import ElasticDryFriction2D
+from .elastic_dry_fric_3d import ElasticDryFriction3D
 from .jenkins_element import JenkinsForce
 from .roughcontact.rough_contact import RoughContactFriction
 from .vector_jenkins import VectorJenkins
