@@ -1,6 +1,5 @@
 """
-Functions for postprocessing continuation results including interpolation 
-methods. 
+Submodule for postprocessing continuation results including interpolating.
 """
 
 import numpy as np
@@ -10,38 +9,50 @@ import scipy.interpolate
 def hermite_upsample(XlamP_full, XlamP_grad_full, upsample_freq=10, 
                      new_lams=None):
     """
-    Function for upsampling continuation results using cubic hermite spline
-    interpolation. 
-    Continuation has taken M individual steps to solve the problem with
-    N degrees of freedom. 
+    Use cubic hermite splines to interpolate to more points.
 
     Parameters
     ----------
     XlamP_full : (M, N) numpy.ndarray
         Solution points calculated with continuation. First dimension 
-        corresponds to individual solutions. Second dimension corresponds
-        to degrees of freedom at each solution point.
-        The last column corresponds to the continuation control parameter lam
+        corresponds to `M` individual solutions. Second dimension corresponds
+        to degrees of freedom at each solution point (`N`).
+        The last column corresponds to the continuation control parameter `lam`
         and must be monotonically increasing for this function.
     XlamP_grad_full : (M, N) numpy.ndarray
         Gradients (prediction directions) at each of the continuation steps.
-        The last column corresponds to the continuation control parameter lam
+        The last column corresponds to the continuation control parameter `lam`
         and must be strictly greater than 0 for this function.
     upsample_freq : int, optional
         Factor of how many points should be included between each step. For the 
-        default of 10, 9 points are added between each step resulting in 10x
-        frequency. This argument is ignored if new_points is not None
+        default of 10, 9 points are added between each step resulting in 10
+        times the number of output points.
+        This argument is ignored if `new_points` is not None
         The default is 10.
-    new_lams : 1D numpy.ndarray, optional
-        Array of new values of lam to interpolate to. If None, then the 
-        upsample_freq is used instead.
+    new_lams : 1D numpy.ndarray or None, optional
+        Array of new values of `lam` to interpolate to. If None, then the 
+        `upsample_freq` is used instead.
         The default is None.
 
     Returns
     -------
     XlamP_interp : (Minterp, N) numpy.ndarray
-        Solutions at interpolated points where Minterp=M*upsample_freq or
-        Minterp=new_points.shape[0]. 
+        Solutions at interpolated points where `Minterp=(M-1)*upsample_freq+1`
+        or
+        `Minterp=new_points.shape[0]`.
+
+    See Also
+    --------
+    hermite_interp :
+        Cubic Hermite Spline interpolation function with similar format.
+    linear_interp :
+        Linear interpolation function with similar format.
+    
+    Notes
+    -----
+    
+    The use of cubic spline interpolation may result in artificial effects
+    if the interpolated function is not smooth and well behaved.
 
     """
     
@@ -61,28 +72,43 @@ def hermite_upsample(XlamP_full, XlamP_grad_full, upsample_freq=10,
 
 def hermite_interp(XlamP_full, XlamP_grad_full, lams):
     """
-    Interpolate continuation solutions to specific values of the control
-    parameter (lam, corresponding to the last column)
+    Use cubic Hermite splines to interpolate solutions to new points.
 
     Parameters
     ----------
     XlamP_full : (M, N) numpy.ndarray
         Solution points calculated with continuation. First dimension 
-        corresponds to individual solutions. Second dimension corresponds
-        to degrees of freedom at each solution point.
-        The last column must monotonically increase.
+        corresponds to `M` individual solutions. Second dimension corresponds
+        to degrees of freedom at each solution point (`N`).
+        The last column corresponds to the continuation control parameter `lam`
+        and must be monotonically increasing for this function.
     XlamP_grad_full : (M, N) numpy.ndarray
         Gradients (prediction directions) at each of the continuation steps.
-        The last column must be strictly greater than 0.
+        The last column corresponds to the continuation control parameter `lam`
+        and must be strictly greater than 0 for this function.
     lams : (Minterp,) numpy.ndarray
-        Values of the last variable of XlamP to interpolate solutions to. 
-        In other words, XlamP_interp[:, -1] = lams.
+        Values of the last variable of `XlamP` to interpolate solutions to. 
+        In other words, `XlamP_interp[:, -1] = lams`.
 
     Returns
     -------
     XlamP_interp : (Minterp, N) numpy.ndarray
         Solutions at interpolated points.
     
+
+    See Also
+    --------
+    hermite_upsample :
+        Cubic Hermite Spline interpolation function that adds more points.
+    linear_interp :
+        Linear interpolation function with similar format.
+    
+    Notes
+    -----
+    
+    The use of cubic spline interpolation may result in artificial effects
+    if the interpolated function is not smooth and well behaved.
+
     """
     
     assert np.all(np.diff(XlamP_full[:, -1]) > 0), \
@@ -115,15 +141,17 @@ def hermite_interp(XlamP_full, XlamP_grad_full, lams):
 
 def linear_interp(XlamP_full, new_values, reference_values=None):
     """
-    Interpolates each column of the first argument to a new set of values
+    Linearly interpolate solutions to new points.
 
     Parameters
     ----------
-    XlamP_full : (N, K) numpy.ndarray
-        Input set of solutions that are to be interpolated to new values.
-    new_values : (M,)
+    XlamP_full : (M, N) numpy.ndarray
+        Solution points calculated with continuation. First dimension 
+        corresponds to `M` individual solutions. Second dimension corresponds
+        to degrees of freedom at each solution point (`N`).
+    new_values : (Minterp,)
         New values that `XlamP_full` should be interpolated to.
-    reference_values : (N,) numpy.ndarray or None, optional
+    reference_values : (M,) numpy.ndarray or None, optional
         Reference values to compare `new_values` to corresponding to each
         row of `XlamP_full`. If None, then the last column of `XlamP_full` is
         used instead.
@@ -131,10 +159,17 @@ def linear_interp(XlamP_full, new_values, reference_values=None):
 
     Returns
     -------
-    XlamP_interp : (M,K) numpy.ndarray
+    XlamP_interp : (Minterp,N) numpy.ndarray
         Interpolated values. Returns np.nan for rows where `new_values` is 
         outside of the bounds of `reference_values`.
 
+    See Also
+    --------
+    hermite_interp :
+        Cubic Hermite Spline interpolation function with similar format.
+    hermite_upsample :
+        Cubic Hermite Spline interpolation function that adds more points.
+    
     """
     
     if reference_values is None:

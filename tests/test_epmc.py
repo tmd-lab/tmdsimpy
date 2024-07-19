@@ -21,7 +21,7 @@ sys.path.append('..')
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins

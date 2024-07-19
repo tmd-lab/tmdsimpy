@@ -13,7 +13,7 @@ sys.path.append('..')
 from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 
 from tmdsimpy.vibration_system import VibrationSystem
-from tmdsimpy import harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 class TestHBMPhaseAmp(unittest.TestCase):

@@ -23,7 +23,7 @@ from tmdsimpy.continuation import Continuation
 
 from tmdsimpy.solvers import NonlinearSolver
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 from tmdsimpy import roms
 

@@ -16,7 +16,7 @@ import unittest
 
 # Python Utilities
 sys.path.append('..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 # to import MATLAB files to compare to old versions
 from scipy import io as sio
@@ -257,7 +257,7 @@ class TestHarmonicUtils(unittest.TestCase):
             
     def test_rotate_subtract_phase(self):
         """
-        Tests the 'harmonic_utils.rotate_subtract_phase' function
+        Tests the 'utils.harmonic.rotate_subtract_phase' function
         for some simple examples. Function is further tested by ROM tests
         """
         

@@ -1,6 +1,6 @@
 import numpy as np
 from ..nlforces.nonlinear_force import InstantaneousForce
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 class GenPolyForce(InstantaneousForce):
     """

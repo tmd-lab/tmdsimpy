@@ -38,7 +38,12 @@ from .solvers import NonlinearSolver
 add_to_all = ['Continuation', 'NonlinearSolver', 'VibrationSystem']
 
 # files that have imported contents here, so should not be in __all__
-remove_from_all = ['continuation', 'vibration_system', 'solvers']
+remove_from_all = ['continuation',
+                   'vibration_system',
+                   'solvers',
+                   'harmonic_utils', # depricated file
+                   'continuation_utils' # depricated file
+                   ]
 
 
 # Generate a list of submodules

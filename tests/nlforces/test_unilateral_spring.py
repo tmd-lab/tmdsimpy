@@ -12,7 +12,7 @@ sys.path.append('..')
 import verification_utils as vutils
 
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 from tmdsimpy.nlforces.unilateral_spring import UnilateralSpring
 from tmdsimpy.vibration_system import VibrationSystem
 

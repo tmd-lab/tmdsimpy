@@ -25,8 +25,8 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
-import tmdsimpy.shooting_utils as sutils
+import tmdsimpy.utils.harmonic as hutils
+from tmdsimpy import postprocess
 
 
 ###############################################################################
@@ -180,7 +180,8 @@ if run_shooting:
     XlamP_shoot = cont_solver.continuation(fun, Uw0_shoot2, lam0_shoot, lam1)
 
     print('Post processing shooting results.')
-    y_shoot, ydot_shoot, stable, max_eig = sutils.postproc_shooting(vib_sys, 
+    y_shoot, ydot_shoot, stable, max_eig \
+        = postprocess.shooting.time_stability(vib_sys, 
                                                 XlamP_shoot, Fl_shoot, Nt=128)
 
     print('Finished post processing shooting.')
@@ -228,10 +229,10 @@ Xmax = np.max(np.abs(Xt), axis=0)
 plt.plot(XlamP_full[:, -1], Xmax, label='Total Max')
 
 if run_shooting:
-    y_max_stable = y_shoot.max(axis=0)
+    y_max_stable = y_shoot[0, :, :].max(axis=0)
     y_max_stable[np.logical_not(stable)] = np.nan
 
-    y_max_unstable = y_shoot.max(axis=0)
+    y_max_unstable = y_shoot[0, :, :].max(axis=0)
     y_max_unstable[stable] = np.nan
 
     plt.plot(XlamP_shoot[:, -1], y_max_stable, '--',

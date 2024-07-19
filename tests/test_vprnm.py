@@ -23,7 +23,7 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.nlforces.cubic_damping import CubicDamping
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 sys.path.append('../DEPENDENCIES/tmdsimpy/tests/')
 import verification_utils as vutils

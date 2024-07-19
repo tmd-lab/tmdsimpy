@@ -1,3 +1,11 @@
+"""
+Module for postprocessing solutions to nonlinear vibration equations.
+"""
+
+from . import continuation
+from . import harmonic
+from . import shooting
+
 # Explicit modifications to '__all__'
 
 # things imported here that should be in __all__

@@ -5,9 +5,6 @@ This model is a python implementation of the work in:
     J. H. Porter and M. R. W. Brake, 2023, Towards a predictive, physics-based 
     friction model for the dynamics of jointed structures, Mechanical Systems 
     and Signal Processing
-    
-This model only considers the simplest tangent model and plasticity in the 
-normal direction
 
 Code for the MATLAB version is available on GitHub: 
     https://github.com/tmd-lab/microslip-rough-contact
@@ -26,7 +23,7 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from .... import harmonic_utils as hutils
+from ....utils import harmonic as hutils
 from ....jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ....nlforces.nonlinear_force import NonlinearForce
 
@@ -39,35 +36,39 @@ from . import _asperity_functions as asp_funs
 
 class RoughContactFriction(NonlinearForce):
     """
-    Rough Contact friction Slider Element Nonlinearity with JAX for automatic 
-    differentiation
+    Rough contact friction element nonlinearity with microslip.
 
     Parameters
     ----------
-    Q : (Nnl, N) numpy.ndarray
-        Transformation matrix from system DOFs (N) to nonlinear DOFs (Nn=3)
-    T : (N, Nnl) numpy.ndarray
-        Transformation matrix from local nonlinear forces to global 
-        nonlinear forces
+    Q : (3, N) numpy.ndarray
+        Transformation matrix from system DOFs (`N`) to nonlinear DOFs (`3`).
+    T : (N, 3) numpy.ndarray
+        Transformation matrix from local nonlinear forces to global
+        nonlinear forces.
     ElasticMod : float
-        Elastic Modulus
+        Elastic modulus (in Pa) for contacting asperities.
     PoissonRatio : float
-        Poisson's Ratio
+        Poisson's ratio for contacting asperities.
     Radius : float
-        Initial Undeformed Effective Asperity Radius 
-        (Half of real radius of one asperity in general [1]_)
+        Initial undeformed effective asperity radius in meters 
+        (half of real radius of one asperity in general [1]_).
     TangentMod : float
-        Plasticity Hardening Modulus
+        Plasticity hardening modulus  (in Pa) of asperities in contact.
     YieldStress : float
-        Yield Strength / Yield Stress
+        Yield strength / yield stress (in Pa) for contacting asperities 
+        (before plastic hardening).
     mu : float
-        Friction Coefficient
-    u0 : float, optional
-        Unused option for setting initialization of friction.
-        Should use method `set_aft_initialize` to set the AFT friction
-        initialization point.
+        Friction coefficient for tangential force limit proportional to normal
+        force.
+    u0 : float, (2,) numpy.ndarray, or (3,) numpy.ndarray, optional
+        Sets the starting position for AFT friction evaluations.
+        If float, then both tangential directions take that value. 
+        If a `(2,) numpy.ndarray`, then it sets the two tangential directions
+        with these two values. 
+        If a `(3,) numpy.ndarray`, then it sets all three directions with the
+        given values (but the normal direction should be irrelevant).
         The default is 0.
-    meso_gap: float, optional
+    meso_gap : float, optional
         Initial gap between contact due to other (e.g. mesoscale) topology.
         This gap is added to the gaps of all asperities in the integral.
         The default is 0.
@@ -86,21 +87,37 @@ class RoughContactFriction(NonlinearForce):
     N_radial_quad : int, optional
         Number of radial quadrature points to use for each contact asperity 
         when using the `tangent_model == 'MIF'`.
+        The default is 100.
         
         
     Notes
     -----
     
-    Implementation currently assumes that Nnl=3 (three nonlinear DOFs)
+    This class implements two rough contact models from [1]_ for use in [2]_.
+    The Mindlin Iwan Fit (MIF) model is implemented in frequency domain for
+    the first time here and was used in frequency domain with plasticity
+    normal contact for the first time in [2]_.
+    
+    Implementation currently requires exactly three nonlinear DOFs
+    corresponding to a single location.
     The Nonlinear DOFs must first be both tangential displacement then 
-    normal displacement
+    normal displacement.
+    
+    Implementation uses automatic differentiation with JAX.
     
     References
     ----------
-    .. [1] J. H. Porter and M. R. W. Brake, 2023, Towards a predictive, 
-       physics-based friction model for the dynamics of jointed structures,
-       Mechanical Systems and Signal Processing
-  
+    .. [1] Porter, J. H., and M. R. W. Brake, 2023, "Towards a predictive, 
+       physics-based friction model for the dynamics of jointed structures"",
+       Mechanical Systems and Signal Processing. 192:110210.
+       https://doi.org/10.1016/j.ymssp.2023.110210
+
+    .. [2]
+       Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+       Reduction and Prediction of Superharmonic Resonances in Frictional and
+       Hysteretic Systems." Mechanical Systems and Signal Processing.
+       arXiv:2405.15918.
+
     """
 
     def __init__(self, Q, T, ElasticMod, PoissonRatio, Radius, TangentMod, 
@@ -129,8 +146,6 @@ class RoughContactFriction(NonlinearForce):
         self.real_mu = mu # Save real friction coefficient
         self.prestress_mu = 0.0 # Prestress should use zero friction coefficient
         
-        self.u0 = u0
-        
         # Calculated Initial Parameters
         self.Estar = ElasticMod / 2.0 / (1.0 - PoissonRatio**2)
         
@@ -152,12 +167,14 @@ class RoughContactFriction(NonlinearForce):
         if gaps is None:
             # self.gaps = 
             # self.gap_weights = 
-            assert False, "Need to implement case without specifying gap weights directly."
+            assert False, \
+                "Need to implement case without specifying gap weights directly."
         else:
             self.gaps = gaps
             self.gap_weights = gap_weights
             
-            assert gap_weights is not None, "Need to specify gap weights if specifying gap values."
+            assert gap_weights is not None, \
+                "Need to specify gap weights if specifying gap values."
             
         # Tangential model details
         self.tangent_model = tangent_model.upper()
@@ -178,18 +195,61 @@ class RoughContactFriction(NonlinearForce):
             
             
         # Just consider default of starting sliders at origin for AFT
-        self.uxyn_initialize = np.array([0.0, 0.0, 0.0])
-            
+        self.u0 = np.array([0.0, 0.0, 0.0])
+        if isinstance(u0, np.ndarray):
+            if u0.shape[0] == 1 or u0.shape[0] == 2:
+                self.u0[:2] = u0
+            elif u0.shape[0] == 3:
+                # setting all coordinates
+                self.u0 = u0
+            else:
+                assert False, \
+                    'Shape of numpy.ndarray u0 is expected to be '\
+                    + '(1,), (2,) or (3,)'
+        else:
+            # assume that it is a scalar float to set the two tangential
+            # directions
+            self.u0[:2] = u0
+        
         # Initialize History Variables
         self.init_history()
 
     def nl_force_type(self):
         """
-        Marks as a hysteretic force.
+        Method to identify the force type as hysteretic. 
+        
+        Returns
+        -------
+        int
+            1, indicating hysteretic force type.
+
         """
+        
         return 1 
     
     def init_history(self):
+        """
+        Method to initialize history variables to zero force and displacement.
+
+        Returns
+        -------
+        None.
+        
+        See Also
+        --------
+        set_aft_initialize :
+            Method for initializing history states for AFT analysis.
+        
+        Notes
+        -----
+        This sets force history for evaluations with `force` method for static
+        calculations.
+        
+        Tangential forces and displacements are set to zero for all 
+        sliders. Maximum previous normal displacement is set to zero 
+        (for normal plasticity).
+        
+        """
         
         self.unmax = 0
         self.Fm_prev = np.zeros_like(self.gap_weights)
@@ -211,6 +271,31 @@ class RoughContactFriction(NonlinearForce):
 
     
     def update_history(self, uxyn, Fm_curr, fxy_curr, quad_radii_curr):
+        """
+        Updates hysteretic states to be the input displacement and force.
+
+        Parameters
+        ----------
+        uxyn : (3,) numpy.ndarray
+            Local displacements in two tangent and then one normal direction
+            for the given location.
+        Fm_curr : (Nasp,) numpy.ndarray
+            Maximum normal force for each asperity at the current instant
+            or any previous instant.
+        fxy_curr : (Nasp,2) numpy.ndarray or (Nasp,Nrad,2) numpy.ndarray
+            Sizes are for the 'TAN' and 'MIF' models respectively. 
+            Forces at each integrated location for history for the next 
+            force evaluation.
+        quad_radii_curr : (Nasp,Nrad) numpy.ndarray
+            Quadrature radial positions for each asperity (rows) and discrete
+            radial locations (columns). For 'TAN' model, it is saved here,
+            but does not effect any results for any calculations.
+
+        Returns
+        -------
+        None.
+
+        """
         
         self.unmax = np.maximum(uxyn[-1], self.unmax)
         self.Fm_prev = Fm_curr
@@ -220,36 +305,53 @@ class RoughContactFriction(NonlinearForce):
         
     def set_prestress_mu(self):
         """
-        Set friction coefficient to a different value (generally 0.0) for
-        prestress analysis
+        Sets friction coefficient to zero while saving initial value in a 
+        different variable. Useful for prestress analysis.
+        
+        Returns
+        -------
+        None
+
         """
+
         self.mu = self.prestress_mu
         
     def reset_real_mu(self): 
         """
-        Reset friction coefficient to a real value (generally not 0.0) for
-        dynamic analysis
+        Resets friction coefficient to initial value. 
+        Useful for after prestress analysis with zero friction coefficient.
+        
+        Returns
+        -------
+        None
+
         """
+
         self.mu = self.real_mu
         
     def set_aft_initialize(self, X):
         """
-        Set a center for frictional sliders to be initialized at zero force
-        for AFT routines. 
+        Set an initial slider position with zero force for AFT calculation.
 
         Parameters
         ----------
-        X : np.array, size (Ndof,)
-            Solution to a static solution or other desired set of displacements
-            that will be used as the baseline position of frictional sliders.
+        X : (N,) numpy.ndarray
+            Global displacements to be used with `self.Q` to calculate
+            local slider positions for initializing AFT.
+            Generally, a solution to a static problem.
 
         Returns
         -------
         None.
+        
+        See Also
+        --------
+        init_history :
+            Method for initializing history states for static analysis.
 
         """
         
-        self.uxyn_initialize = self.Q @ X
+        self.u0 = self.Q @ X
         
         return
     
@@ -259,26 +361,41 @@ class RoughContactFriction(NonlinearForce):
 
         Parameters
         ----------
-        X : (Ndof,) numpy.ndarray
+        X : (N,) numpy.ndarray
             Physical displacements for all DOFs of the system.
         update_hist : bool, optional
             Flag to update displacement and force history.
             The default is False.
         return_aux : bool, optional
-            Flag to return extra results about the simulation (aux)
+            Flag to return extra results about the simulation (`aux`)
             The default is False.
 
         Returns
         -------
-        F : (Ndof,) numpy.ndarray
+        F : (N,) numpy.ndarray
             Forces corresponding to physical DOFs.
-        dFdX : (Ndof,Ndof) numpy.ndarray
-            Derivatives of forces with respect to displacements.
+        dFdX : (N,N) numpy.ndarray
+            Derivatives of forces `F` with respect to displacements `X`.
         aux : Tuple of extra results includes (Fm_prev, deltabar, Rebar, a)
-                Fm_prev : previous maximum normal force per asperity
-                deltabar : permanent deformation displacement of each asperity
-                Rebar : flattened (new) radius of each asperity
-                a : radius of contact area of each asperity.
+        
+                Fm_prev : (Nasp,) numpy.ndarray
+                    Maximum normal force for each asperity at the current
+                    instant or any previous instant.
+                fxy_curr : (Nasp,2) numpy.ndarray or (Nasp,Nrad,2) numpy.ndarray
+                    Sizes are for the 'TAN' and 'MIF' models respectively. 
+                    Forces for 'TAN' or tractions for 'MIF' model at each
+                    integrated location.
+                deltabar : (Nasp,) numpy.ndarray
+                    Permanent deformation displacement of each asperity.
+                Rebar : (Nasp,) numpy.ndarray
+                    Flattened (new) radius of each asperity.
+                a : (Nasp,) numpy.ndarray
+                    Radius of contact area of each asperity.
+                quad_radii_curr : (Nasp,Nrad) numpy.ndarray
+                    Quadrature radial positions for each asperity (rows) and 
+                    discrete radial locations (columns).
+                    Output is only relevant for the 'MIF' model and is 
+                    irrelevant for the 'TAN' model.
 
         Notes
         -----
@@ -289,7 +406,7 @@ class RoughContactFriction(NonlinearForce):
         is discontinuous.
         This can potentially cause a large jump in tangential force based on 
         slight normal displacement variations and break solvers. 
-        This is not a problem for frequency domain approaches (e.g., aft)
+        This is not a problem for frequency domain approaches (e.g., `aft`)
         because the maximum displacement is known and all times can operate
         on the elastic unloading curve.
         
@@ -333,27 +450,55 @@ class RoughContactFriction(NonlinearForce):
     def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
                             atol=1e-10, rtol=1e-10):
         """
-        Calculates local force history for a single element of the rough 
-        contact model given the local nonlinear displacements over a cycle.
+        Evaluate the local forces for steady-state harmonic motion used in AFT.
 
         Parameters
         ----------
         unlt : (Nt, 3) numpy.ndarray
-            Displacement history for a single cycle.
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
         unltdot : (Nt, 3) numpy.ndarray
-            Velocity history for the cycle (ignored)
-        h : list of harmonics used (ignored)
-        cst : (ignored)
-        unlth0 : Initialization displacements for the sliders 
-        max_repeats : Number of times to repeat the cycle of displacements
-                      to converge the hysteresis loops to steady-state
-        atol : Ignored
-        rtol : Ignored
+            Ignored here, included for compatibility of interface.
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            Ignored here, included for compatibility of interface.
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst : (Nt,Nhc) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (3,) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Zeroth harmonic contributions to a time series of displacements.
+            Use `set_aft_initialize` instead.
+        max_repeats : int, optional
+            Number of cycles of force evaluations to calculate.
+            The default is 2.
+        atol : float, optional
+            Ignored here, included for compatibility of interface.
+        rtol : float, optional
+            Ignored here, included for compatibility of interface.
 
         Returns
         -------
         fxyn_t : Tuple of (Nt, 3) numpy.ndarray
-            Force history for the element. Returned as tuple
+            Force history for the element. Returned as tuple.
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF. This is returned as the first
+            entry in a tuple.
+
+        Notes
+        -----
+        This method is for the post-processing of force displacement
+        relationships of the model from harmonic solutions.
+        
+        This method is not directly called by AFT.
+        Rather this just provides a public interface to the 
+        same private JAX function that AFT uses. As such, only the forces and
+        not the derivatives are returned.
 
         """
         
@@ -377,50 +522,61 @@ class RoughContactFriction(NonlinearForce):
     def aft(self, U, w, h, Nt=128, tol=1e-7, max_repeats=2, return_local=False,
             calc_grad=True):
         """
-        
-        Tolerances are ignored since slider representation should converge
-        with two repeated cycles (done by default). 
-        two cycles of the hysteresis loop, so that is done by default. 
+        Implementation of the alternating frequency-time (AFT) method to 
+        extract harmonic nonlinear force coefficients.
 
         Parameters
         ----------
-        U : np.array, size (Nhc*nd,)
-            Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-        w : double (scalar)
-            Frequency
-        h : np.array, sorted
-            List of harmonics that are considered, zeroth must be first
-        Nt : Integer power of 2
-             Number of time points to evaluate at. 
-             The default is 128.
-        tol : scalar
-            Optional argument ignored, kept to match compatability with general
-            AFT. 
-        max_repeats : integer
-                      number of hysteresis loops to calculate to reach steady
-                      state. Maximum value allowed. 
-                      The default is 2
-        return_local : Boolean
-                        If False, it uses self.Q and self.T to convert forces 
-                        and gradients back to global domain.  If True, it does
-                        not apply these transforms to the results.
-                        default is False
-        calc_grad : boolean
+        U : (N*Nhc,) numpy.ndarray
+            Displacement harmonic DOFs (global)
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored, and is included for compatability of 
+            interface. 
+            The default is 1e-7.
+        max_repeats : int, optional
+            Number of hysteresis loops to calculate to reach steady
+            state. Maximum value allowed. 
+            The default is 2.
+        return_local : bool, optional
+            If False, it uses self.Q and self.T to convert forces 
+            and gradients back to global domain. If True, it does
+            not apply these transforms to the results.
+            This should mainly be used for post-processing analysis of
+            harmonic solutions.
+            The default is False.
+        calc_grad : bool, optional
             Flag where True indicates that the gradients should be calculated 
-            and returned. If False, then returns only (Fnl,) as a tuple. 
-            The default is True
-
+            and returned. If False, then returns only `(Fnl,)` as a tuple. 
+            The default is True.
+        
         Returns
         -------
-        Fnl : np.array, size (Nhc*nd,)
-            Vector of nonlinear forces in frequency domain
-        dFnldU : np.array, size (Nhc*nd,Nhc*nd)
-            Gradient of nonlinear forces w.r.t. U
-        dFnldw : np.array, size (Nhc*nd,)
-            Gradient w.r.t. w
-
-        """
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients in frequency domain.
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
         
+        Notes
+        -----
+        The tolerance `tol` is ignored because slider model is expected to
+        converge
+        to steady-state with two cycles of the hysteresis loop.
+        `max_repeats` is followed if more cycles are desired.
+
+        A numpy `kron` operation is utilized to convert forces back to physical
+        domain. This operation may result in many unnecessary calculations that
+        could be eliminated to speed up AFT.
+        """
         #########################
         # Memory Initialization 
         
@@ -446,7 +602,7 @@ class RoughContactFriction(NonlinearForce):
         
         if calc_grad:
             # Case with gradient and local force
-            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.uxyn_initialize, 
+            dFdUwlocal, Flocal = _local_aft_grad(Uwlocal, self.u0, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights,
                                     self.quad_radii, self.weight_radii, 
@@ -456,7 +612,7 @@ class RoughContactFriction(NonlinearForce):
                                     tuple(h), Nt, repeats=max_repeats,
                                     tangent_model=self.tangent_model)
         else:
-            Flocal,_ = _local_aft(Uwlocal, self.uxyn_initialize, 
+            Flocal,_ = _local_aft(Uwlocal, self.u0, 
                                     self.mu, self.meso_gap, self.gaps, 
                                     self.gap_weights,
                                     self.quad_radii, self.weight_radii, 

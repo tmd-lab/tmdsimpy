@@ -122,7 +122,7 @@ class Continuation:
     VibrationSystem :
         Class with several residual functions that can be solved with 
         continuation.
-    continuation_utils : 
+    tmdsimpy.utils.continuation : 
         Module of functions to aid in continuation including callback
         functions.
     continuation : 
@@ -587,7 +587,7 @@ class Continuation:
             
         See Also
         --------
-        postprocess.continuation_post : 
+        postprocess.continuation :
             Functions for interpolating and postporcessing continuation 
             results. 
             
@@ -919,3 +919,4 @@ def _initial_wrapper_fun(fun, X, lam0, calc_grad=True):
         return fun( np.hstack((X, lam0)) )[0:2]
     else:
         return fun( np.hstack((X, lam0)), calc_grad=False)[0:1]
+

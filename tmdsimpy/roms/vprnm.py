@@ -1,36 +1,54 @@
 """
-This module contains a reduced order model (ROM) based on Variable Phase 
-Resonance Nonlinear Modes (VPRNM) and the Extended Periodic Motion Concept
-(EPMC) to capture a superharmonic resonance in a nonlinear vibration system.
+Module for reduced order models (ROMs) based on Variable Phase Resonance
+Nonlinear Modes (VPRNM) for capturing superharmonic resonances.
+
 This module utilizes precalculated VPRNM and EPMC solutions.
 
 See Also
 --------
-vibration_system.VibrationSystem.epmc_res : 
-    EPMC residual method that can be used to solve the set of EPMC equations
-vibration_system.VibrationSystem.vprnm_res : 
+tmdsimpy.VibrationSystem.epmc_res : 
+    EPMC residual method that can be used to solve the set of EPMC equations.
+tmdsimpy.VibrationSystem.vprnm_res : 
+    VPRNM residual method that can be used to solve the set of VPRNM equations.
+tmdsimpy.VibrationSystem.vprnm_amp_phase_res : 
     VPRNM residual method that can be used to solve the set of VPRNM equations
-vibration_system.VibrationSystem.vprnm_amp_phase_res : 
-    VPRNM residual method that can be used to solve the set of VPRNM equations
-    with some extra constraints to allow for easier convergence
-continuation.Continuation.continuation :
+    with some extra constraints to allow for easier convergence.
+tmdsimpy.VibrationSystem.hbm_res :
+    Harmonic balance method residual function for calculating truth solutions.
+tmdsimpy.Continuation.continuation :
     Method of obtaining solutions to EPMC/VPRNM at multiple points with 
-    continuation
+    continuation.
     
 Notes
 -----
-The formulation of VPRNM and VPRNM based ROMs are described in [1]_.
+The formulation of VPRNM and VPRNM based ROMs are described in [1]_, [2]_, [3]_.
 
 References
 ----------
-.. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
+
+.. [1]
+   Porter, J. H., and M. R. W. Brake. 2024. "Tracking Superharmonic
+   Resonances for Nonlinear Vibration of Conservative and Hysteretic Single 
+   Degree of Freedom Systems." Mechanical Systems and Signal Processing 
+   215:111410. https://doi.org/10.1016/j.ymssp.2024.111410.
+   arXiv:2401.08790
+   
+.. [2]
+   Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+   Reduction and Prediction of Superharmonic Resonances in Frictional and 
+   Hysteretic Systems." Mechanical Systems and Signal Processing.
+   arXiv:2405.15918.
+
+.. [3]
+   Porter, J. H. 2024. Modal Interactions and Jointed Structures. PhD Thesis.
+   Rice University.
 
 """
 
 import numpy as np
 
-from .. import harmonic_utils as hutils
-from ..postprocess import continuation_post as cpost # Interpolation
+from ..utils import harmonic as hutils
+from ..postprocess import continuation as cpost # Interpolation
 from . import epmc # EPMC ROMs
 
 def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi, 
@@ -45,27 +63,26 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     Parameters
     ----------
     epmc_fund_bb : (Mfund, Nhc_fund*Ndof+3) numpy.ndarray
-        Each row corresponds to an EPMC solution at a given amplitude level. 
+        Each row corresponds to an EPMC solution at a given amplitude level
+        for the mode that response at the forcing frequency (fundamental). 
         The first Nhc*Ndof entries of each row are the displacements of the 
-        harmonics in h (e.g., [U0, U1c, U1s] where U0 is static, U1c is the 
-        Ndof displacements corresponding to h=1 and cosine, U1c is for sine). 
+        harmonics in h 
+        (all of the first harmonic component, then all of next etc.). 
         The last three entries of each row are frequency (rad/s), 
         xi in EPMC formulation (coefficient in front of mass matrix to create
         a damping matrix), and log10(modal amplitude).
         Harmonic displacements must be multiplied by the modal amplitude to 
         get the physical displacements except for displacements corresponding
         to the zeroth harmonic.
-        Nhc is the number of harmonic components in h and can be caculated 
-        as `Nhc_fund = harmonic_utils.Nhc(h_fund)`.
-    h_fund : numpy.ndarray
+    h_fund : numpy.ndarray, sorted
         Array of the harmonics used to calculate `epmc_fund_bb`, must be sorted.
     epmc_rhi_bb : (Mrhi, Nhc_rhi*Ndof+3) numpy.ndarray
         EPMC solution for the mode that corresponds in superharmonic resonance.
-        `Nhc_rhi = harmonic_utils.Nhc(h_rhi)`.
-    h_rhi : numpy.ndarray
+        `Nhc_rhi = utils.harmonic.Nhc(h_rhi)`.
+    h_rhi : numpy.ndarray, sorted
         Array of the harmonics used to calculate `epmc_rhi_bb`, must be sorted.
     vprnm_bb : (Mvprnm, Nhc_v*Ndof+4) or (Mvprnm, Nhc_v*Ndof+2) numpy.ndarray
-        VPRNM solution points. The first Nhc_vprnm*Ndof columns correspond
+        VPRNM solution points. The first `Nhc_vprnm*Ndof` columns correspond
         to harmonic displacements in physical coordinates.
         If the second dimension is `Nhc_v*Ndof+4`, then the last 4 columns are
         force scaling for cosine, force scaling for sine, frequency (rad/s), 
@@ -74,11 +91,12 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         If the second dimension is `Nhc_v*Ndof+2`, then the last 2 columns are
         frequency (rad/s) and force magnitude scaling 
         (amplitude and phase not controlled in VPRNM solution).
-        `Nhc_v = harmonic_utils.Nhc(h_vprnm)`.
+        `Nhc_v = utils.harmonic.Nhc(h_vprnm)`.
     h_vprnm : numpy.ndarray
         Array of the harmonics used to calculate `vprnm_bb`, must be sorted.
     rhi : int
-        The resonant superharmonic of interest.
+        The resonant superharmonic of interest
+        (multiple that multiplies forcing frequency).
     control_point_h1 : (Ndof,) numpy.ndarray
         Vector for extracting the degree of freedom that should be controlled
         to constant amplitude as `control_point @ U(t)` where `U(t)` is the 
@@ -120,9 +138,9 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
         The first Nhc_out*Ndof columns are harmonic displacements in physical
         coordinates corresponding to the harmonics in `h_reconstruct`.
         The last column is the forcing frequency in rad/s.
-        `Nhc_out = harmonic_utils.Nhc(h_reconstruct)`.
+        `Nhc_out = utils.harmonic.Nhc(h_reconstruct)`.
     force_reconstruct : (Mout,) numpy.ndarray
-        External excitation force magnitude (scaling for Flcos) to create
+        External excitation force magnitude (scaling for `Flcos`) to create
         the response. Phase information of this force is not calculated.
     h_reconstruct : numpy.ndarray
         List of sorted harmonics for the output.
@@ -130,17 +148,27 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     See Also
     --------
-    vprnm :
+    tmdsimpy.roms.vprnm :
         Module includes more details and discussion on VPRNM based ROMs
-    epmc.constant_force : 
+    tmdsimpy.roms.epmc.constant_force : 
         Constant force EPMC based ROM for a single mode
-    epmc.constant_displacement :
+    tmdsimpy.roms.epmc.constant_displacement :
         Constant amplitude EPMC based ROM for a single mode.
+    tmdsimpy.VibrationSystem.epmc_res : 
+        EPMC residual method for finding EPMC backbones.
+    tmdsimpy.VibrationSystem.vprnm_res : 
+        VPRNM residual method for finding VPRNM backbone.
+    tmdsimpy.VibrationSystem.hbm_amp_control_res : 
+        HBM residual method calculates something similar to a truth solution
+        to compare this ROM to.
+    tmdsimpy.Continuation.continuation :
+        Method of obtaining solutions to EPMC and VPRNM at multiple points
+        to create inputs to this function
     
     Notes
     -----
     
-    Formulation of this ROM is derived and explained in detail in [1]_.
+    Formulation of this ROM is derived and explained in detail in [1]_, [2]_.
     
     `control_point_h1` and `control_point_rhi` need not be the same, but can 
     be the same. Depending on mode shapes it may make sense to use different
@@ -152,7 +180,7 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     Static (harmonic 0) displacements in `Uw_reconstruct` are taken solely from
     the VPRNM solution. If vprnm is calculated without a zeroth harmonic and
     a zeroth harmonic is included in one or both of the EPMC solutions, then
-    zeros are returned for the static displacements ignoring statit components
+    zeros are returned for the static displacements ignoring static components
     of the EPMC solutions.
     
     In general, specific response frequencies cannot be requested because
@@ -181,7 +209,15 @@ def constant_h1_displacement(epmc_fund_bb, h_fund, epmc_rhi_bb, h_rhi,
     
     References
     ----------
-    .. [1] Justin H. Porter, PhD Thesis, Rice University, 2024.
+    .. [1]
+       Porter, J. H., and M. R. W. Brake. Under Review. "Efficient Model 
+       Reduction and Prediction of Superharmonic Resonances in Frictional and 
+       Hysteretic Systems." Mechanical Systems and Signal Processing.
+       arXiv:2405.15918.
+    
+    .. [2]
+       Porter, J. H. 2024. Modal Interactions and Jointed Structures. PhD Thesis.
+       Rice University.
 
     """
     
@@ -435,6 +471,9 @@ def _extract_harmonic_amplitude(U, h, hi, recov, is_epmc=False):
     -----
     
     Function is not directly tested and is intended to be private.
+    Further code development may move this function to harmonic utilities,
+    add tests, and make the function public.
+    
     """
     
     Ndof = recov.shape[0]

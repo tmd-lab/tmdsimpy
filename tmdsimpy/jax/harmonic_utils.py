@@ -1,9 +1,15 @@
 """
-Subset of harmonic_utils using JAX
+Subset of `tmdsimpy.utils.harmonic` using JAX
 
 Autodiff is applied mainly for AFT at this point, thus only some functions
 need to be converted to JAX. Other functions are not updated at this point to 
-use JAX. 
+use JAX.
+
+See Also
+--------
+tmdsimpy.utils.harmonic :
+    Baseline implementation of harmonic utility methods without JAX.
+
 """
 
 import numpy as np
@@ -19,9 +25,50 @@ import jax.numpy as jnp
 # @partial(jax.jit, static_argnums=(0,1,3)) # May cause excessive recompile, do not use here.
 def time_series_deriv(Nt, htuple, X0, order):
     """
-    jax/jit version - set Nt, h to static
+    Returns derivative of a time series defined by a set of harmonics
     
-    Returns Derivative of a time series defined by a set of harmonics
+    Parameters
+    ----------
+    Nt : int, power of 2
+        Number of times considered, must be even.
+        Must be greater than `2*np.array(h).max()`.
+    htuple : (H,) tuple of sorted int
+        Harmonics considered, 0th harmonic must be first if included.
+    X0 : (Nhc, N) numpy.ndarray
+        Harmonic Coefficients for columns corresponding to degrees of freedom
+        and rows corresponding to different harmonic components.
+    order : int
+        Order of the derivative returned. 0 is generally displacement, 1 
+        is velocity, 2 is acceleration.
+    
+    Returns
+    -------
+    x_t : (Nt, N) numpy.ndarray
+        Time series of each DOF. Rows are time instants and columns are
+        DOFs.
+    
+    See Also
+    --------
+    tmdsimpy.utils.harmonic.time_series_deriv :
+        Implementation of this function without JAX.
+    
+    Notes
+    -----
+    For JAX/JIT calls to this function, the top level function will likely need
+    to have `htuple` and `Nt` set to static.
+    
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
+    
+    The normalized time instants between [0,1) for a cycle can be calculated as
+    `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
+    
+    If you have `h` as a numpy.ndarray of harmonic components, you can use
+    `htuple = tuple(h)`. The tuple is used here to allow for static arguments
+    in JAX compilation.
+    
+    The following notes are speculation about JIT compilation about this
+    function. Unit tests ensure that this function gives appropriate results.
     
     This function cannot be compiled with partial for the current 
     implementation. Rather this function gets different compiled versions for
@@ -36,17 +83,6 @@ def time_series_deriv(Nt, htuple, X0, order):
     This could be verified by profiling the final code to ensure that 
     there are not lots of recompiles during evaluations.
     
-    Parameters
-    ----------
-    Nt : Number of times considered, must be even
-    htuple : Harmonics considered, 0th harmonic must be first if included
-            use tuple(h) to convert from np.array to a tuple.
-    X0 : Harmonic Coefficients for Nhc x nd
-    order : Order of the derivative returned
-    
-    Returns
-    -------
-    x_t : time series of each DOF, Nt x nd
     """
     
     h = np.array(htuple)
@@ -120,20 +156,43 @@ def time_series_deriv(Nt, htuple, X0, order):
 # @partial(jax.jit, static_argnums=(0))
 def get_fourier_coeff(htuple, x_t):
     """
-    jax/jit version - set h to static
-    
-    Calculates the Fourier coefficients corresponding to the harmonics in h of
-    the input x_t
+    Calculates a specific set of Fourier coefficients of a time series.
 
     Parameters
     ----------
-    htuple : Harmonics of interest, 0th harmonic must be first if included
-            tuple(h) so that it is hashable
-    x_t : Time history of interest, Nt x nd
+    htuple : (H,) tuple of sorted int
+        Harmonics considered, 0th harmonic must be first if included.
+    x_t : (Nt, N) numpy.ndarray
+        Time series of each DOF. Rows are time instants over a cycle 
+        (see Notes). 
+        Columns are DOFs.
 
     Returns
     -------
-    v : Vector containing fourier coefficients of harmonics h
+    v : (Nhc, N) numpy.ndarray
+        Containing Fourier coefficients of harmonics `h` (rows) and 
+        DOFs (columns).
+
+    See Also
+    --------
+    tmdsimpy.utils.harmonic.get_fourier_coeff :
+        Implementation without JAX support.
+    
+    Notes
+    -----
+    The number of harmonic components is 
+    `Nhc = tmdsimpy.utils.harmonic.Nhc(h)`
+    
+    The normalized time instants between [0,1) for a cycle can be calculated as
+    `tau = numpy.linspace(0,1,Nt+1)[:-1]`.
+    
+    If you have `h` as a numpy.ndarray of harmonic components, you can use
+    `htuple = tuple(h)`. The tuple is used here to allow for static arguments
+    in JAX compilation.
+    
+    For JAX and JIT, the top level function that calls this should likely be
+    compiled with `htuple` as a static argument.
+        
     """
     
     h = np.array(htuple)

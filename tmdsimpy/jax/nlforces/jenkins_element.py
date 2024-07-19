@@ -9,45 +9,62 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from ... import harmonic_utils as hutils
+from ...utils import harmonic as hutils
 from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ...nlforces.nonlinear_force import NonlinearForce
 
 
 class JenkinsForce(NonlinearForce):
     """
-    Jenkins Slider Element Nonlinearity with JAX for automatic differentiation
+    Single Jenkins slider element nonlinearity with JAX for automatic 
+    differentiation.
 
-    The AFT formulation assumes that the spring starts at 0 force
-    at zero displacement.    
+    Parameters
+    ----------
+    Q : (1, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (N, 1) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential stiffness.
+    Fs : float
+        Slip force.
+    u0 : float or None, optional
+        Initialization value for the slider for AFT. 
+        If `u0 = None`, then the zeroth harmonic is used to initialize 
+        the slider position.
+        Highly recommended not to use `u0 = None` because it may result in
+        non-unique solutions.
+        The default is 0.
+
+    See Also
+    --------
+    tmdsimpy.nlforces.VectorJenkins :
+        non-JAX implementation of a Jenkins element that has full functionality
+        and can be faster.
+
+    Notes
+    -----
+
+    The Jenkins element consists of a linear spring of stiffness `kt` that
+    stretches until a slip force `Fs` is reached.
+    Once the slip force is reached, an anchor point for the other side of the
+    spring moves to maintain the slip force until reversal.
     
-    This nonlinear force does not have full functionality. Rather, it is 
-    recommended to use the normal (non-JAX) vector Jenkins implementation since
-    it is generally faster.
+    The `force` method is not implemented here since this is just an example
+    of automatic differentiation for AFT.
+    
+    It may be possible to do some calculations with multiple nonlinear 
+    elements, but such cases are not tested or fully supported.
+    It would probably be relatively straightforward to extend this to multiple
+    elements, but this serves more as a demonstration of JAX, JIT, and autodiff
+    for a frictional element than an implementation to be used.
+    
     """
 
     def __init__(self, Q, T, kt, Fs, u0=0):
-        """
-        Initialize a nonlinear force model
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential stiffness, tested for scalar, may work for vector of size 
-                Nnl
-        Fs : slip force, tested for scalar, may work for vector of size 
-                Nnl
-        u0 : initialization value for the slider. If u0 = None, then 
-                the zeroth harmonic is used to initialize the slider position.
-                For JAX, u0 must be an appropriately sized np array and not a 
-                scalar quantity
-                Highly recommended not to use u0=None because may result in
-                non-unique solutions.
-
-        """
+        
         self.Q = Q
         self.T = T
         self.kt = kt
@@ -59,49 +76,80 @@ class JenkinsForce(NonlinearForce):
       
     def nl_force_type(self):
         """
-        Marks as a hysteretic force.
+        Method to identify the force type as hysteretic. 
+        
+        Returns
+        -------
+        int
+            1, indicating hysteretic force type.
         """
+        
         return 1
     
     def set_prestress_mu(self):
         """
-        Set friction coefficient to a different value (generally 0.0) for
-        prestress analysis
+        Sets slip force to zero while saving initial value in a 
+        different variable. 
+        
+        Useful for prestress analysis.
+        
+        Returns
+        -------
+        None
         """
+        
         self.Fs = self.prestress_Fs
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
-        Reset friction coefficient to a real value (generally not 0.0) for
-        dynamic analysis
+        Resets slip force to initial value. 
+        
+        Useful for after prestress analysis with zero friction coefficient.
+        
+        Returns
+        -------
+        None
         """
+        
         self.Fs = self.real_Fs
         
     def aft(self, U, w, h, Nt=128, tol=1e-7):
         """
+        Implementation of the alternating frequency-time (AFT) method to
+        extract harmonic nonlinear force coefficients.
         
-        Tolerances are ignored since Jenkins converges to steady-state with 
-        two cycles of the hysteresis loop, so that is done by default. 
-
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            shape: (Nhc*nd,)
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
-             The default is 128.
-        max_repeats : number of hysteresis loops to calculate to reach steady
-                        state. Maximum value allowed. 
-                        The default is 2
-        atol : Convergence criteria, absolute for steady-state hysteresis loops
-              The default is 1e-10.
-        rtol : Convergence criteria, relative for steady-state hysteresis loops
-               The default is 1e-10.
-
+        U : (N*Nhc,) numpy.ndarray
+            Displacement harmonic DOFs (global)
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored, and is included for compatability of 
+            interface. 
+            The default is 1e-7.
+        
         Returns
         -------
-        None.
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
+        
+        Notes
+        -----
+        The tolerance `tol` is ignored because the Jenkins element converges
+        to steady-state with two cycles of the hysteresis loop. Two cycles of
+        the nonlinear forces are calculated automatically without the option to
+        change this setting.
 
         """
         

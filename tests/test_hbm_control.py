@@ -15,7 +15,7 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
-from tmdsimpy import harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 class TestHarmonicBalanceControl(unittest.TestCase):

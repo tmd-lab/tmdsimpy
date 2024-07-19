@@ -20,7 +20,7 @@ jax.config.update("jax_enable_x64", True)
 
 # Python Utilities
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 import tmdsimpy.jax.harmonic_utils as jhutils
 
 

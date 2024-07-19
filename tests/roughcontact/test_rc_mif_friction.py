@@ -42,7 +42,7 @@ import unittest
 sys.path.append('../..')
 
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction
-from tmdsimpy import harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 sys.path.append('..')
 import verification_utils as vutils

@@ -25,7 +25,7 @@ from tmdsimpy.jax.nlforces.elastic_dry_fric_2d import ElasticDryFriction2D
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 import matplotlib as mpl
@@ -232,3 +232,4 @@ plt.xlim((lam0, lam1))
 plt.yscale('log')
 plt.legend()
 plt.show()
+

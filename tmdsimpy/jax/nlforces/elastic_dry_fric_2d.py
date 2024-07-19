@@ -10,7 +10,7 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from ... import harmonic_utils as hutils
+from ...utils import harmonic as hutils
 from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ...nlforces.nonlinear_force import NonlinearForce
 
@@ -27,7 +27,7 @@ class ElasticDryFriction2D(NonlinearForce):
         `Nnl` should be even.
         Rows `0::2` correspond to local tangential DOFs.
         Rows `1::2` correspond to local normal DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
         Columns `0::2` correspond to local tangential forces.
         Columns `1::2` correspond to local normal forces.
@@ -155,7 +155,7 @@ class ElasticDryFriction2D(NonlinearForce):
         """
         self.mu = self.prestress_mu
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
         Resets friction coefficient to initial value. 
         Useful for after prestress analysis with zero friction coefficient.
@@ -174,8 +174,16 @@ class ElasticDryFriction2D(NonlinearForce):
         -------
         None.
         
+        See Also
+        --------
+        set_aft_initialize :
+            Method for initializing history states for AFT analysis.
+        
         Notes
         -----
+        This sets force history for evaluations with `force` method for static
+        calculations.
+        
         History variables are just initialized for tangential displacements.
         
         """
@@ -196,6 +204,11 @@ class ElasticDryFriction2D(NonlinearForce):
         Returns
         -------
         None.
+
+        See Also
+        --------
+        init_history :
+            Method for initializing history states for static analysis.
 
         """
         self.u0 = self.Q @ X
@@ -270,8 +283,8 @@ class ElasticDryFriction2D(NonlinearForce):
         
     def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
-        Implementation of the alternating frequency-time (AFT) method to extract 
-        harmonic nonlinear force coefficients.
+        Implementation of the alternating frequency-time (AFT) method to 
+        extract harmonic nonlinear force coefficients.
         
         Parameters
         ----------
@@ -309,6 +322,10 @@ class ElasticDryFriction2D(NonlinearForce):
         to steady-state with two cycles of the hysteresis loop. Two cycles of
         the nonlinear forces are calculated automatically without the option to
         change this setting.
+
+        A numpy `kron` operation is utilized to convert forces back to physical
+        domain. This operation may result in many unnecessary calculations that
+        could be eliminated to speed up AFT.
 
         """
 
