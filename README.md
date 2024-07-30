@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/tmd-lab-tmdsimpy/badge/)](https://tmd-lab-tmdsimpy.readthedocs.io/en/latest/index.html)
+
 # TMDSimPy: Tribomechadynamics Simulations for Python  
 
 This repository contains Python files and functions for running numerical simulations for various tribomechadynamics problems. 
