@@ -27,7 +27,7 @@ class ElasticDryFriction3D(NonlinearForce):
         `Nnl` should be even.
         Rows `0::2` correspond to local tangential DOFs.
         Rows `1::2` correspond to local normal DOFs.
-    T : (Nnl, N) numpy.ndarray
+    T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
         Columns `0::2` correspond to local tangential forces.
         Columns `1::2` correspond to local normal forces.
@@ -72,39 +72,6 @@ class ElasticDryFriction3D(NonlinearForce):
 
 
     def __init__(self, Q, T, kt, kn, mu, u0=0, meso_gap=0):
-        """
-        Initialize a nonlinear force model
-        
-        Implementation currently assumes that Nnl=2 (two nonlinear DOFs)
-        The Nonlinear DOFs must first be tangential displacement then normal
-        displacement
-        
-        Has been updated to allow for multiple elastic dry friction sliders. 
-        However, that may be memory inefficient since the Jacobians that are 
-        calculated aren't sparse.
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential stiffness, tested for scalar, may work for vector of size 
-                Nnl
-        Fs : slip force, tested for scalar, may work for vector of size 
-                Nnl
-        u0 : float or None or (Nnl,) numpy.ndarray
-            initialization value for the slider. If u0 = None, then 
-                the zeroth harmonic is used to initialize the slider position.
-                u0 should be size of number of tangential DOFs 
-                (e.g., 1 right now)
-                Highly recommended not to use u0=None because may result in
-                non-unique solutions. Not fully verified for None option.
-         meso_gap : float or (Nnl/2,) numpy.ndarray
-                 gap between frictional elements (Topology and distribution 
-                                                     of asperity parameters )
-
-        """
 
         self.Q = np.asarray(Q)
         self.T = np.asarray(T)
@@ -184,7 +151,18 @@ class ElasticDryFriction3D(NonlinearForce):
         Returns
         -------
         None.
+ 
+        See Also
+        --------
+        set_aft_initialize :
+            Method for initializing history states for AFT analysis.
+            
+        Notes
         
+        -----
+        This sets force history for evaluations with `force` method for static
+        calculations.
+
         Notes
         -----
         History variables are just initialized for tangential displacements.
@@ -207,8 +185,14 @@ class ElasticDryFriction3D(NonlinearForce):
         Returns
         -------
         None.
+        
+        See Also
+        --------
+        init_history :
+            Method for initializing history states for static analysis.
 
         """
+
         self.u0 = self.Q @ X
         
     def update_history(self, unl, fnl):
@@ -319,6 +303,10 @@ class ElasticDryFriction3D(NonlinearForce):
         to steady-state with two cycles of the hysteresis loop. Two cycles of
         the nonlinear forces are calculated automatically without the option to
         change this setting.
+        
+        A numpy `kron` operation is utilized to convert forces back to physical
+        domain. This operation may result in many unnecessary calculations that
+        could be eliminated to speed up AFT.
 
         """
 
