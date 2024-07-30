@@ -52,9 +52,9 @@ def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, eldry2d,
         txn[2::3] = True
 
 
-        # Create a mask tangent y and normal
+
         tyn = np.zeros(dof, dtype=bool)
-        tyn[0::3] = True
+        tyn[1::3] = True
         tyn[2::3] = True
          
        
@@ -73,13 +73,34 @@ def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, eldry2d,
     
         
         ###############
-        # Tangent - Tangent Gradient
+        # Tangent - Tangent Gradient in X direction
         dFH_error = np.max(np.abs(dFnldUH[np.ix_(txn,txn)]-dFnldUH_vec))
         
         obj.assertLess(dFH_error, df_tol, 
                         'Incorrect Tangential AFT gradient in X direction.')
         
         
+        
+        FnlH_vec, dFnldUH_vec, dFnldw_vec \
+            = eldry2d.aft(Unl[tyn,:], w, h, Nt=Nt)
+        
+        FnlH, dFnldUH, dFnldw = obj.eldry_force.aft(Unl, w, h, Nt=Nt)
+        
+        
+        FH_error = np.max(np.abs(FnlH[tyn]-FnlH_vec))
+        
+        
+        obj.assertLess(FH_error, force_tol, 
+                        'Incorrect elastic dry friction force in Y direction.')
+        
+    
+        
+        ###############
+        # Tangent - Tangent Gradient in Y direction
+        dFH_error = np.max(np.abs(dFnldUH[np.ix_(tyn,tyn)]-dFnldUH_vec))
+        
+        obj.assertLess(dFH_error, df_tol, 
+                        'Incorrect Tangential AFT gradient in Y direction.')
         ###############
         # Numeric Gradient check, should capture dTangent/dNormal terms
         
@@ -432,7 +453,7 @@ class TestJAXEldry(unittest.TestCase):
 
         # Create a mask tangent y and normal
         tyn = np.zeros(dof, dtype=bool)
-        tyn[0::3] = True
+        tyn[1::3] = True
         tyn[2::3] = True
                 
         # Force Values for harmonic zero
