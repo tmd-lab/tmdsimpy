@@ -10,7 +10,7 @@ class NonlinearForce:
     Parameters
     ----------
     Q : (Nnl, N) numpy.ndarray
-        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system
         to the `Nnl` local nonlinear DOFs.
     T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
@@ -160,10 +160,10 @@ class InstantaneousForce(NonlinearForce):
         
         Parameters
         ----------
-        unl : (Nt,Nnl) numpy.ndarray
+        unlt : (Nt,Nnl) numpy.ndarray
             Local displacements, rows are different time instants and
             columns are different displacement DOFs.
-        unldot : (Nt,Nnl) numpy.ndarray
+        unltdot : (Nt,Nnl) numpy.ndarray
             Local velocities, rows are different time instants and
             columns are different displacement DOFs.
         
@@ -437,19 +437,20 @@ class HystereticForce(NonlinearForce):
                             max_repeats=2, atol=1e-10, rtol=1e-10):
         """
         Evaluate the local forces for steady-state harmonic motion used in AFT.
+        (General hysteretic model implementation)
         
         Parameters
         ----------
-        unl : (Nt,Nnl) numpy.ndarray
+        unlt : (Nt,Nnl) numpy.ndarray
             Local displacements, rows are different time instants and
             columns are different displacement DOFs.
-        unldot : (Nt,Nnl) numpy.ndarray
+        unltdot : (Nt,Nnl) numpy.ndarray
             Local velocities, rows are different time instants and
             columns are different displacement DOFs.
         h : 1D numpy.ndarray, sorted
             List of harmonics used in subsequent analysis. Corresponds
             to `Nhc` harmonic components.
-        cst: (Nt,Nhc) numpy.ndarray
+        cst : (Nt,Nhc) numpy.ndarray
             Evaluation of each harmonic component (columns) at a given instant
             in time (row = instant in time). These are without any harmonic
             coefficients, so are just cosine and sine evaluations.

@@ -1,3 +1,11 @@
+"""
+Nonlinear force implementations
+
+See Also
+--------
+tmdsimpy.jax.nlforces :
+    Nonlinear forces implemented with JAX for automatic differentiation.
+"""
 from .nonlinear_force import NonlinearForce, InstantaneousForce, HystereticForce
 
 from .general_poly_stiffness import GenPolyForce
@@ -15,16 +23,16 @@ from .vector_iwan4 import VectorIwan4
 
 # things imported here that should be in __all__
 add_to_all = ['NonlinearForce', 'InstantaneousForce', 'HystereticForce',
-              'GenPolyForce',
-              'Iwan4Force',
-              'UnilateralSpring',
-              'CubicForce',
               'ConservativeIwanBB',
               'CubicDamping',
-              'QuinticForce',
-              'VectorJenkins',
+              'CubicForce',
+              'GenPolyForce',
+              'Iwan4Force',
               'JenkinsForce',
-              'VectorIwan4'
+              'QuinticForce',
+              'UnilateralSpring',
+              'VectorIwan4',
+              'VectorJenkins'
               ]
 
 # files that have imported contents here, so should not be in __all__

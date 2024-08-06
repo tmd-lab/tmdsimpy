@@ -4,21 +4,37 @@ from ..utils import harmonic as hutils
 
 class GenPolyForce(InstantaneousForce):
     """
-    Cubic and Quadratic Polynomial Nonlinearity (Used for geometric nonlinearity)
+    Nonlinear force based on general polynomial combinations of nonlinear DOFs.
 
     Parameters
     ----------
-    Q : (Nd,n) numpy.ndarray
-        Transformation matrix from system DOFs (n) to nonlinear DOFs (Nd), Nd x n
-    T : (n, Nd) numpy.ndarray
-        Transformation matrix from local nonlinear DOFs (Nd) to stsyem dofs
-        nonlinear forces, n x Nd
-    Emat: (Nd,cnl) numpy.ndarray
-        Matrix to transform modal coordinates into modal nonlinear force. 
-        cnl is sum of all cubic and quadratic nonlinear forces associated with Nd
-    qq : (cnl,Nd) numpy.ndarray
-        Matrix corresponding to exponnent of modal coordinates. 
-        
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system
+        to the `Nnl` local nonlinear DOFs.
+    T : (N, Nnl) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    Emat : (Nnl,cnl) numpy.ndarray
+        Stiffness coefficients that multiply polynomial combinations of
+        `Nnl` DOFs as defined by `qq`.
+        `cnl` is the number of polynomial combinations considered.
+    qq : (cnl,Nnl) numpy.ndarray
+        Matrix defining the exponents of the nonlinear DOFs for evaluating
+        the force.
+        Each of the `cnl` rows defines a different polynomial term.
+        Within a row, the column `i` is the exponent for nonlinear DOF `i`
+        of the `Nnl` nonlinear DOFs.
+
+    Notes
+    -----
+
+    This class can commonly be used with cubic and quadratic polynomial
+    nonlinearities to simulate geometric nonlinearity.
+    Applications can be more general than geometric nonlinearity.
+
+    This class calculates an instantaneous force, but does not exactly match
+    the template of `tmdsimpy.nlforces.InstantaneousForce` because here
+    each of the force outputs can depend in a nonlinear fashion on other
+    nonlinear DOFs.
 
     """
     
@@ -36,19 +52,19 @@ class GenPolyForce(InstantaneousForce):
         
     def force(self, X):
         """
-        Function evaluating nonlinear force and force gradient wrt displacement)
-        
+        Calculate global nonlinear forces for some global displacement vector.
+
         Parameters
         ----------
-        X : (Nd,) numpy.ndarray
-            displacement vector
-        
+        X : (N,) numpy.ndarray
+            Global displacements.
+
         Returns
         -------
-        F : (Nd,) numpy.ndarray
-            Nonlinear force
-        dFdX: (Nd,Nd) numpy.ndarray  
-            Force gradient with respect to displacement
+        F : (N,) numpy.ndarray
+            Global nonlinear force.
+        dFdX : (N,N) numpy.ndarray
+            Derivative of `F` with respect to `X`.
 
         """
         
@@ -58,40 +74,55 @@ class GenPolyForce(InstantaneousForce):
         
         F = self.T @ fnl
         
-        dFdX =  self.T @ self.Emat @ (self.qq*np.prod(unl ** self.qd, axis=2).T) @ self.Q
+        dFdX =  self.T @ self.Emat @ (self.qq*np.prod(unl ** self.qd,
+                                                      axis=2).T) @ self.Q
         
         return F, dFdX
     
     def local_force_history(self, unlt, unltdot):
         """
-        Function evaluating nonlinear force and force gradient wrt displacement 
-        from time history)
+        Evaluates the local nonlinear forces based on local nonlinear 
+        displacements for a time series.
         
         Parameters
         ----------
-        unlt : (Nt,Nd) numpy.ndarray
-            displacement time history
+        unl : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
         
         Returns
         -------
-        F : (Nt, Nd, Nd,) numpy.ndarray
-            Nonlinear force history
-        dFdX: (Nd,Nd) numpy.ndarray  
-            Time history of force gradient with respect to displacement
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces, rows are different time instants and
+            columns are different local force DOFs.
+        dfdu : (Nt,Nnl,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to displacements `unl`.
+            Each index `i, j, k` is the derivative `ft[i, j]` with respect
+            to `unl[i, k]`.
+        dfdud : (Nt,Nnl,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to velocities `unltdot`.
+            Each index `i, j, k` is the derivative `ft[i, j]` with respect
+            to `unltdot[i, k]`.
 
         """
         
         ## This function is modified to take multiple unlt rows from aft
         dfdu = np.zeros((unlt.shape[0],unlt.shape[1],unlt.shape[1]))
         
-        ft = np.prod(unlt.reshape(unlt.shape[0],1,unlt.shape[1]) ** self.qq, axis=2) @ (self.Emat).T 
+        ft = np.prod(unlt.reshape(unlt.shape[0],1,unlt.shape[1])**self.qq,
+                     axis=2) @ self.Emat.T
         # Size of ft (Nt,Nd)
    
         for k_row in range(unlt.shape[0]):
              u1=unlt[k_row,:]
              
-             dfdu[k_row,:,:]= self.Emat @ (self.qq*np.prod(u1 ** self.qd, axis=2).T)
-             # Size of dffu(Nt,Nd*Nd) where Jacobian is stacked [row1 row2 row2 ...rowNd]  
+             dfdu[k_row,:,:]= self.Emat @ (self.qq*np.prod(u1 ** self.qd,
+                                                           axis=2).T)
+             # Size of dffu(Nt,Nd*Nd) where Jacobian is stacked 
+             # [row1 row2 row2 ...rowNd]  
                
         dfdud = np.zeros_like(dfdu)
 
@@ -99,35 +130,49 @@ class GenPolyForce(InstantaneousForce):
     
     def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
-        Alternating Frequency Time Domain Method for calculating the Fourier
-        Coefficients of instantaneous forces. 
-        Notation: The variable names should be cleaned up. Currently U and Fnl
-        correspond to global DOFs while Unl and F correspond to reduced DOFs 
-        that the nonlinear force is evaluated at. 
-         
+        Implementation of the alternating frequency-time method to extract 
+        harmonic nonlinear force coefficients.
+        
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-        Nhc*nd x 1
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
-         The default is 128.
-        tol : Convergence criteria, irrelevant for instantaneous forcing.
-        The default is 1e-7.
-        calc_grad : boolean
-        This argument is ignored for now. It is included for 
-        compatability of interface. Future work could use it to
-        avoid calculating dFnldU.
-        The default is True
-        
+        U : (N*Nhc,) numpy.ndarray
+            displacement harmonic DOFs
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored for instantaneous forces. 
+            It is included for compatability of interface. 
+            The default is 1e-7.
+        calc_grad : boolean, optional
+            This argument is ignored for instantaneous forces. 
+            It is included for compatability of interface. 
+            The default is True.
+
         Returns
         -------
-        Fnl : (Nhc,) numpy.ndarray
-            Fourier coefficients of nonlinear force
-        dFnldU : (Nhc,Nhc) numpy.ndarray
-            Fourier coefficients of gradient
-        """       
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
+        
+        """
+        
+        # Notes omitted from docstring about understanding implementation
+        """
+        Implementation notation could use cleaning up: 
+        
+        Currently U and Fnl
+        correspond to global DOFs while Unl and F correspond to reduced DOFs 
+        that the nonlinear force is evaluated at. 
+        """
         
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))

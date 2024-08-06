@@ -16,10 +16,12 @@ class UnilateralSpring(InstantaneousForce):
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
     k : float or (Nnl,) numpy.ndarray
         Stiffness coefficient
-    Npreload : float or (Nnl,) numpy.ndarray
-        The minimum force is -Npreload for displacements less than `delta`
-    delta : float or (Nnl,) numpy.ndarray
+    Npreload : float or (Nnl,) numpy.ndarray, optional
+        The minimum force is `-1*Npreload` for displacements less than `delta`.
+        The default is 0.
+    delta : float or (Nnl,) numpy.ndarray, optional
         Offset of the elbow in the force from being at zero displacement.
+        The default is 0.
     
     Notes
     -----
@@ -51,22 +53,22 @@ class UnilateralSpring(InstantaneousForce):
     
     def force(self, X):
         """
-        This function is not fully tested and should not be used 
+        Calculate global nonlinear forces for some global displacement vector.
 
         Parameters
         ----------
-        X : TYPE
-            DESCRIPTION.
+        X : (N,) numpy.ndarray
+            Global displacements.
 
         Returns
         -------
-        F : TYPE
-            DESCRIPTION.
-        dFdX : TYPE
-            DESCRIPTION.
+        F : (N,) numpy.ndarray
+            Global nonlinear force.
+        dFdX : (N,N) numpy.ndarray
+            Derivative of `F` with respect to `X`.
 
         """
-        # raise Exception('Test this function before using it')
+        
         unl = self.Q @ X 
         
         fnl = np.maximum(self.k*(unl - self.delta) - self.Npreload, -self.Npreload)
@@ -80,6 +82,41 @@ class UnilateralSpring(InstantaneousForce):
         return F, dFdX
     
     def local_force_history(self, unlt, unltdot):
+        """
+        Evaluates the local nonlinear forces based on local nonlinear 
+        displacements for a time series.
+        
+        Parameters
+        ----------
+        unl : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        
+        Returns
+        -------
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces, rows are different time instants and
+            columns are different local force DOFs.
+        dfdu : (Nt,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to displacements `unl`.
+            Each index `i, j` is the derivative `ft[i, j]` with respect
+            to `unl[i, j]`.
+        dfdud : (Nt,Nnl) numpy.ndarray
+            Derivative of forces of `ft` with resepct to velocities `unltdot`.
+            Each index `i, j` is the derivative `ft[i, j]` with respect
+            to `unltdot[i, j]`.
+        
+        Notes
+        -----
+        
+        Since the nonlinear forces are dependent on only one of the local DOFs, 
+        the derivative matrix need not be three dimensional to contain all
+        necessary information.
+
+        """
                 
         ft = np.maximum(self.k*(unlt - self.delta) - self.Npreload, \
                         -self.Npreload)

@@ -11,49 +11,139 @@ from .iwan4_element import Iwan4Force
 
 class VectorIwan4(Iwan4Force):
     """
-    4-Par Iwan Element Nonlinearity, Vectorized Force Calculations
-    
-    See documentation for Iwan4Force for details. This class reorganizes 
-    computation to increase parallelization (vectorization) by making use of 
-    the fact that some the inclusion of some intermediate history points does
-    not change the result at the current instant.
+    4-Parameter Iwan Element Nonlinearity with vectorized force calculations.
+
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system
+        to the `Nnl` local nonlinear DOFs.
+    T : (N, Nnl) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential stiffness coefficient.
+    Fs : float
+        Slip force.
+    chi : float
+        Controls microslip damping slope. Recommended to have `chi > -1`.
+        Smaller values of `chi` may not work.
+    beta : float, positive
+        Controls discontinuity at beginning of macroslip (zero is smooth).
+    Nsliders : int, optional
+        Number of discrete sliders for the Iwan element.
+        Note that this does not include 1 additional slider for the
+        delta function at phimax.
+        Default is 100 (commonly used in literature).
+    alphasliders : float, optional
+        Determines the non-uniform discretization (see [1]_).
+        For midpoint rule, using anything other than 1.0 has
+        significantly higher error.
+        The default is 1.0.
+
+    See Also
+    --------
+    Iwan4Force :
+        Standard implementation of the Iwan element, generally a slower
+        implementation than the present class.
+
+    Notes
+    -----
+    This class exploits the fact that only reversal points need to be
+    calculated to reach steady-state.
+    After that, all intermediate times can be calculated in parallel
+    (vectorized here), to be faster.
+    This does not change the results.
+
+    This implementation is only tested for `Nnl == 1`.
+
+    `local_force_history` implementation is the only difference relative to
+    `Iwan4Force` for standard functions. This also adds a new function
+    to help in calculations of `local_force_history_crit`, but that function
+    should not be needed for must public calls.
+
+    Iwan nonlinearity is based on [1]_.
+
+    References
+    ----------
+    .. [1]
+       Segalman, D.J., 2005. A Four-Parameter Iwan Model for Lap-Type
+       Joints. J. Appl. Mech 72, 752–760.
+
     """
 
     def local_force_history_crit(self, unlt, unltdot, h, cst, unlth0, \
                                  max_repeats=2, atol=1e-10, rtol=1e-10):
         """
-        For evaluating local force history, used by AFT. Always does at least 
-        two loops to verify convergence.
-        
-        Convergence criteria is atol or rtol passes. To require a choice, pass 
-        in -1 for the other
-        
-        This function is slightly modified from the normal local_force_history
-        function from HystereticForce in that it passes out slider states in
-        addition to the forces and derivatives at the time points of interest
-        
-        WARNING: Derivatives with respect to harmonic velocities are not implemented.
-        
+        Modified `local_force_history` to pass out slider states as well
+        as other returns.
+
         Parameters
         ----------
-        unlt : Local displacements for Force
-        unltdot : Local velocities for Force
-        h : list of harmonics
-        cst : evaluation of cosine and sine of the harmonics at the times for aft
-        unlth0 : 0th harmonic of nonlinear forces for initializing history to start.
-        max_repeats: Number of times to repeat the time series to converge the 
-             initial state. Two is sufficient for slider models. 
-             The default is 2.
-        atol: Absolute tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        rtol: Relative tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        
+        unlt : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unltdot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst : (Nt,Nhc) numpy.ndarray
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            This is passed to `init_history_harmonic` to initialize model.
+        max_repeats : int, optional
+            Number of times to repeat the time series to converge the 
+            initial state with `local_force_history`. 
+            Two is sufficient for slider models. 
+            The default is 2.
+        atol : float, optional
+            Absolute tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+        rtol : float, optional
+            Relative tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+
         Returns
         -------
-        ft : Local nonlinear forces
-        dfduh : Derivative of forces w.r.t. displacement harmonic coefficients
-        dfdudh : Derivative of forces w.r.t. velocities harmonic coefficients
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF.
+        dfduh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to displacement harmonic
+            coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement. 
+            Fourth index corresponds to which of the `Nhc` harmonic 
+            components.
+        dfdudh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to velocities harmonic
+            coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement. 
+            Fourth index corresponds to which of the `Nhc` harmonic 
+            components.
+        fsliders : (Nt, Nsliders+1) numpy.ndarray
+            For each instant in time (row), the columns are the force of each
+            slider in integrating the Iwan nonlinearity force.
+        dfslidersduh : (Nt, Nsliders+1, Nhc) numpy.ndarray
+            The derivative of `fsliders` with respect to the harmonic
+            coefficients of the displacement `unlt`.
+
+        Notes
+        -----
+
+        Function is intended to be called for only a subset of the full times
+        of a cycle. These times should just be the velocity reversal points.
+        This allows to the calculation of those points more directly
+        to improve the efficiency of `local_force_history`.
+
+        Shapes of outputs rely on having `Nnl == 1`.
 
         """
         its = 0
@@ -109,34 +199,69 @@ class VectorIwan4(Iwan4Force):
     def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
                             atol=1e-10, rtol=1e-10):
         """
-        For evaluating local force history, used by AFT. Always does at least 
-        two loops to verify convergence.
-        
-        Convergence criteria is atol or rtol passes. To require a choice, pass 
-        in -1 for the other
-        
-        WARNING: Derivatives with respect to harmonic velocities are not implemented.
+        Evaluate the local forces for steady-state harmonic motion used in AFT.
         
         Parameters
         ----------
-        unlt : Local displacements for Force
-        unltdot : Local velocities for Force
-        h : list of harmonics
-        cst : evaluation of cosine and sine of the harmonics at the times for aft
-        unlth0 : 0th harmonic of nonlinear forces for initializing history to start.
-        max_repeats: Number of times to repeat the time series to converge the 
-             initial state. Two is sufficient for slider models. 
-             The default is 2.
-        atol: Absolute tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        rtol: Relative tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        
+        unlt : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst : (Nt,Nhc) numpy.ndarray
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            This is passed to `init_history_harmonic` to initialize model.
+        max_repeats : int, optional
+            This is included for compatibility, but is ignored.
+            Two repeats of the hysteresis loop are used by default
+            to ensure convergence since this is a slider model that
+            converges with two repeats.
+            The default is 2.
+        atol : float, optional
+            Absolute tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+        rtol : float, optional
+            Relative tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+            
         Returns
         -------
-        ft : Local nonlinear forces
-        dfduh : Derivative of forces w.r.t. displacement harmonic coefficients
-        dfdudh : Derivative of forces w.r.t. velocities harmonic coefficients
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF.
+        dfduh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to displacement harmonic
+            coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement. 
+            Fourth index corresponds to which of the `Nhc` harmonic 
+            components.
+        dfdudh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to velocities harmonic coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement. 
+            Fourth index corresponds to which of the `Nhc` harmonic 
+            components.
+        
+        Notes
+        -----
+        
+        Convergence criteria is atol or rtol passes. To require a choice, pass 
+        in -1 for the other. Convergence should be exact within two cycles
+        since this is a slider based model.
+        
+        This function is reimplemented from `Iwan4Force` with the more
+        efficient vectorized algorithm.
 
         """
         
@@ -233,11 +358,3 @@ class VectorIwan4(Iwan4Force):
                 
         
         return ft, dfduh, dfdudh
-        
-        
-        
-        
-        
-        
-    
-    
