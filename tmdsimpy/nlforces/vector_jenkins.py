@@ -10,46 +10,109 @@ from .jenkins_element import JenkinsForce
 
 class VectorJenkins(JenkinsForce):
     """
-    Jenkins Slider Element Nonlinearity, Vectorized Force Calculations
-    
-    See documentation for JenkinsForce for details. This class reorganizes 
-    computation to increase parallelization (vectorization) by making use of 
-    the fact that some the inclusion of some intermediate history points does
-    not change the result at the current instant.
+    Jenkins slider element nonlinearity with vectorized force calculations.
+
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system
+        to the `Nnl` local nonlinear DOFs.
+    T : (N, Nnl) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential stiffness coefficient.
+    Fs : float
+        Slip force.
+
+    See Also
+    --------
+    JenkinsForce :
+        Standard implementation of the Jenkins element, generally a slower
+        implementation than the present class.
+
+    Notes
+    -----
+    This class exploits the fact that only reversal points need to be
+    calculated to reach steady-state.
+    After that, all intermediate times can be calculated in parallel
+    (vectorized here), to be faster.
+    This does not change the results.
+
+    This implementation is only tested for `Nnl == 1`.
+
+    `local_force_history` implementation is the only difference relative to
+    `JenkinsForce`.
+
     """
     
         
     def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2, \
                             atol=1e-10, rtol=1e-10):
         """
-        For evaluating local force history, used by AFT. Always does at least 
-        two loops to verify convergence.
-        
-        Convergence criteria is atol or rtol passes. To require a choice, pass 
-        in -1 for the other
-        
-        WARNING: Derivatives with respect to harmonic velocities are not implemented.
-        
+        Evaluate the local forces for steady-state harmonic motion used in AFT.
+
         Parameters
         ----------
-        unlt : Local displacements for Force
-        unltdot : Local velocities for Force
-        h : list of harmonics
-        cst : evaluation of cosine and sine of the harmonics at the times for aft
-        unlth0 : 0th harmonic of nonlinear forces for initializing history to start.
-        max_repeats: Number of times to repeat the time series to converge the 
-             initial state. Two is sufficient for slider models. 
-             The default is 2.
-        atol: Absolute tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        rtol: Relative tolerance on AFT convergence (final state of cycle)
-             The default is 1e-10.
-        
+        unlt : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unltdot : (Nt,Nnl) numpy.ndarray
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst : (Nt,Nhc) numpy.ndarray
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            This is passed to `init_history_harmonic` to initialize model.
+        max_repeats : int, optional
+            This is included for compatibility, but is ignored.
+            Two repeats of the hysteresis loop are used by default
+            to ensure convergence since this is a slider model that
+            converges with two repeats.
+            The default is 2.
+        atol : float, optional
+            Absolute tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+        rtol : float, optional
+            Relative tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+
         Returns
         -------
-        ft : Local nonlinear forces
-        dfduh : Derivative of forces w.r.t. displacement harmonic coefficients
-        dfdudh : Derivative of forces w.r.t. velocities harmonic coefficients
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF.
+        dfduh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to displacement harmonic
+            coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement.
+            Fourth index corresponds to which of the `Nhc` harmonic
+            components.
+        dfdudh : (Nt,Nnl,Nnl,Nhc) numpy.ndarray
+            Derivative of forces with respect to velocities harmonic
+            coefficients.
+            First two indices correspond to `ft`. Third index corresponds to
+            which local nonlinear displacement.
+            Fourth index corresponds to which of the `Nhc` harmonic
+            components.
+
+        Notes
+        -----
+
+        Convergence criteria is atol or rtol passes. To require a choice, pass 
+        in -1 for the other. Convergence should be exact within two cycles
+        since this is a slider based model.
+
+        This function is reimplemented from `JenkinsForce` with the more
+        efficient vectorized algorithm.
 
         """
         

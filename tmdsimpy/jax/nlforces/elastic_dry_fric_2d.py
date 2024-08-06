@@ -205,9 +205,10 @@ class ElasticDryFriction2D(NonlinearForce):
         ----------
         X : (N,) numpy.ndarray
             Global displacements
-        update_hist : bool
+        update_hist : bool, optional
             Flag to save displacement and force from the evaluation as history
             variables for subsequent calls to this function.
+            The default is False.
 
         Returns
         -------
