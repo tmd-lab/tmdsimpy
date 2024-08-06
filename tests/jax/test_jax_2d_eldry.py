@@ -24,7 +24,7 @@ sys.path.append('../..')
 from tmdsimpy.jax.nlforces.jenkins_element import JenkinsForce 
 
 # JAX version for elastic dry friction
-from tmdsimpy.jax.nlforces.elastic_dry_fric_2d import ElasticDryFriction2D 
+from tmdsimpy.jax.nlforces import ElasticDryFriction2D 
 
 import tmdsimpy.utils.harmonic as hutils
 from tmdsimpy.vibration_system import VibrationSystem

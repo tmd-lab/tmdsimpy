@@ -10,14 +10,14 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from ... import harmonic_utils as hutils
+from ...utils import harmonic as hutils
 from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ...nlforces.nonlinear_force import NonlinearForce
 
 
 class ElasticDryFriction3D(NonlinearForce):
     """
-    2D Elastic Dry Friction (Spring + Coulomb Friction) Model
+    3D Elastic Dry Friction (Spring + Coulomb Friction) Model
     
     Parameters
     ----------
@@ -25,14 +25,16 @@ class ElasticDryFriction3D(NonlinearForce):
         Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
         to the `Nnl` local nonlinear DOFs. 
         `Nnl` should be even.
-        Rows `0::2` correspond to local tangential DOFs.
-        Rows `1::2` correspond to local normal DOFs.
+        Rows `0::3` correspond to local tangential DOFs in X direction.
+        Rows `1::3` correspond to local tangential DOFs in X direction.
+        Rows `2::3` correspond to local normal DOFs.
     T : (N, Nnl) numpy.ndarray
         Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
-        Columns `0::2` correspond to local tangential forces.
-        Columns `1::2` correspond to local normal forces.
+        Columns `0::3` correspond to local tangential forces in X direction.
+        Columns `1::3` correspond to local tangential forces in Y direction.
+        Columns `2::3` correspond to local normal forces.
     kt : float
-        Tangential stiffness
+        Tangential stiffness in X and Y direction
     kn : float
         Tangential stiffness
     mu : float
@@ -40,13 +42,16 @@ class ElasticDryFriction3D(NonlinearForce):
     u0 : float, (Nnl,) numpy.ndarray, or None, optional
         If a float, all sliders in AFT are initialized at that displacement and
         zero force.
-        If a numpy.ndarray, entries `0::2` correspond to the initial slider
-        displacements and zero force for AFT.
+        If a numpy.ndarray, entries `0::3` and `1::3` correspond to the initial 
+        slider displacements and zero force for AFT.
         If None, then the zeroth harmonic displacements are used to initialize
         the slider position in AFT.
         Highly recommended not to use `u0=None` because may result in
         non-unique solutions. Not fully verified for None option.
         The default is 0.
+    meso_gap : float, optional
+        Initial gap between contact due to other.
+        This gap is added to quadrature location of contact element
     
     See Also
     --------
@@ -65,7 +70,7 @@ class ElasticDryFriction3D(NonlinearForce):
     very inefficient if more than 1 slider is included in the object 
     (i.e., `Nnl` > 2).
     
-    `kt`, `kn`, and `mu` may work for inputs of `(Nnl//2,) numpy.ndarrays`. 
+    `kt`, `kn`, and `mu` may work for inputs of `(Nnl//3,) numpy.ndarrays`. 
     However, this is not tested.
     
     """
@@ -133,7 +138,7 @@ class ElasticDryFriction3D(NonlinearForce):
         """
         self.mu = self.prestress_mu
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
         Resets friction coefficient to initial value. 
         Useful for after prestress analysis with zero friction coefficient.
@@ -151,20 +156,17 @@ class ElasticDryFriction3D(NonlinearForce):
         Returns
         -------
         None.
- 
+        
         See Also
         --------
         set_aft_initialize :
             Method for initializing history states for AFT analysis.
-            
-        Notes
         
+        Notes
         -----
         This sets force history for evaluations with `force` method for static
         calculations.
-
-        Notes
-        -----
+        
         History variables are just initialized for tangential displacements.
         
         """
@@ -303,7 +305,6 @@ class ElasticDryFriction3D(NonlinearForce):
         to steady-state with two cycles of the hysteresis loop. Two cycles of
         the nonlinear forces are calculated automatically without the option to
         change this setting.
-        
         A numpy `kron` operation is utilized to convert forces back to physical
         domain. This operation may result in many unnecessary calculations that
         could be eliminated to speed up AFT.
@@ -479,15 +480,15 @@ def _local_eldy_force(unl, up, fp, pars, meso_gap):
     Parameters
     ----------
     unl : (Nnl,) numpy.ndarray
-        Local nonlinear displacements for (Nnl//2) elastic dry friction 
+        Local nonlinear displacements for (Nnl//3) elastic dry friction 
         elements
     up : (2*Nnl//3,) numpy.ndarray
         Previous displacements for tangential direction only
     fp : (2*Nnl//3,) numpy.ndarray
         Previous tangential forces only
-    pars : (3, Nnl//3) or (Nnl//3) numpy.ndarray
+    pars : (3, Nnl//3) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
-        `kn = pars[1]` (normal stiffness), 
+        `kn = pars[2]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
     
     Returns
@@ -543,7 +544,7 @@ def _local_eldy_force_grad(unl, up, fp, pars, meso_gap):
         Previous displacements for tangential direction only
     fp : (2*Nnl//3,) numpy.ndarray
         Previous tangential forces only
-    pars : (3, Nnl//3) or (Nnl//3) numpy.ndarray
+    pars : (3, Nnl//3) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -582,9 +583,9 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
         Array of force values for all time
     unlt : (Nt,Nnl) numpy.ndarray
         Displacements for Jenkins for all times
-    kt : float or (Nnl//2,) numpy.ndarray
+    kt : float or (Nnl//3,) numpy.ndarray
         Tangential stiffness parameter
-    Fs : float or (Nnl//2,) numpy.ndarray
+    Fs : float or (Nnl//3,) numpy.ndarray
         Friction coeffient.
 
     Returns
@@ -596,8 +597,8 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
     Notes
     -----
     
-    The normal forces corresponding to `ft[:, 1::2]` are precalculated before
-    the call to this loop body function.
+    The normal forces corresponding to `ft[:, 1::3]  are precalculated 
+    before the call to this loop body function.
     
     History appears at index `ind-1`. For `ind=0`, this corresponds to the last
     entry of the arrays.
@@ -628,7 +629,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
         Local nonlinear displacements for each harmonic component in order
         followed by the frequency in rad/s. Each harmonic component is listed
         in full before the next one.
-    pars : (3, Nnl//3) or (Nnl//3) numpy.ndarray
+    pars : (3, Nnl//3) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -723,7 +724,7 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
         Local nonlinear displacements for each harmonic component in order
         followed by the frequency in rad/s. Each harmonic component is listed
         in full before the next one.
-    pars : (3, Nnl//3) or (Nnl//3) numpy.ndarray
+    pars : (3, Nnl//3) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -766,7 +767,7 @@ def _local_force_history(unlt, pars, u0, meso_gap):
     unlt : (Nt,Nnl)
         Time history of displacements to evaluate cycles over. Rows are time
         instants, columns are local displacements for nonlinear evaluation.
-    pars : (3, Nnl//3) or (Nnl//3) numpy.ndarray
+    pars : (3, Nnl//3) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -793,8 +794,8 @@ def _local_force_history(unlt, pars, u0, meso_gap):
     mu = pars[2]
     
     # Initialize force time memory
-    ft = jnp.zeros_like(unlt)                                                                                                                                                                                                                                                                   
-     
+    ft = jnp.zeros_like(unlt)
+
     # Normal Force
     ft = ft.at[:, 2::3].set(jnp.maximum((unlt[:, 2::3]-meso_gap)*kn, 0.0))
     

@@ -19,12 +19,14 @@ from .vector_jenkins import VectorJenkins
 
 # things imported here that should be in __all__
 add_to_all = ['ElasticDryFriction2D',
+              'ElasticDryFriction3D',
               'JenkinsForce',
               'RoughContactFriction',
               'VectorJenkins']
 
 # files that have imported contents here, so should not be in __all__
 remove_from_all = ['elastic_dry_fric_2d',
+                   'elastic_dry_fric_3d',
                    'jenkins_element',
                    'roughcontact',
                    'vector_jenkins']

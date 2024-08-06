@@ -47,6 +47,9 @@ class ElasticDryFriction2D(NonlinearForce):
         Highly recommended not to use `u0=None` because may result in
         non-unique solutions. Not fully verified for None option.
         The default is 0.
+    meso_gap : float, optional
+        Initial gap between contact due to other.
+        This gap is added to quadrature location of contact element
     
     See Also
     --------
@@ -370,7 +373,6 @@ class ElasticDryFriction2D(NonlinearForce):
     
     def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2,
                             atol=1e-10, rtol=1e-10):
-
         """
         Evaluate the local forces for steady-state harmonic motion used in AFT.
         
@@ -472,7 +474,7 @@ def _local_eldy_force(unl, up, fp, pars, meso_gap):
         Previous displacements for tangential direction only
     fp : (Nnl//2,) numpy.ndarray
         Previous tangential forces only
-    pars : (3, Nnl//2) or (Nnl//2) numpy.ndarray
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -526,7 +528,7 @@ def _local_eldy_force_grad(unl, up, fp, pars, meso_gap):
         Previous displacements for tangential direction only
     fp : (Nnl//2,) numpy.ndarray
         Previous tangential forces only
-    pars : (3, Nnl//2) or (Nnl//2) numpy.ndarray
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -606,7 +608,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
         Local nonlinear displacements for each harmonic component in order
         followed by the frequency in rad/s. Each harmonic component is listed
         in full before the next one.
-    pars : (3, Nnl//2) or (Nnl//2) numpy.ndarray
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -694,7 +696,7 @@ def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
         Local nonlinear displacements for each harmonic component in order
         followed by the frequency in rad/s. Each harmonic component is listed
         in full before the next one.
-    pars : (3, Nnl//2) or (Nnl//2) numpy.ndarray
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
@@ -737,7 +739,7 @@ def _local_force_history(unlt, pars, u0, meso_gap):
     unlt : (Nt,Nnl)
         Time history of displacements to evaluate cycles over. Rows are time
         instants, columns are local displacements for nonlinear evaluation.
-    pars : (3, Nnl//2) or (Nnl//2) numpy.ndarray
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
         Contains `kt = pars[0]` (tangential stiffness), 
         `kn = pars[1]` (normal stiffness), 
         and `mu = pars[2]` (friction coefficient).
