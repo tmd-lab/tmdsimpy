@@ -164,7 +164,7 @@ class TestJAXEldry(unittest.TestCase):
         
         # Create Two eldry Force options with different u0 and verify in the 
         # stuck regime that they give the correct forces for harmonic 0
-        self.eldry_force_3D = ElasticDryFriction3D(Q_3D, T_3D, kt, kn, mu, u0=np.array([0.0]))
+        self.eldry_force2_3D = ElasticDryFriction3D(Q_3D, T_3D, kt, kn, mu, u0=np.array([0.0]))
         self.eldry_force2_2D = ElasticDryFriction2D(Q_2D, T_2D, kt, kn, mu, u0=np.array([0.0]))
         
 
@@ -1039,9 +1039,9 @@ class TestJAXEldry(unittest.TestCase):
         self.assertEqual(len(res_true_grad), 3, 'True Grad AFT returns wrong number of outputs')
         
         # Should be exact since the calculation is the same, just 
-        # returning different outputs
-        # self.assertEqual(np.linalg.norm(res_default[0] - res_no_grad[0]), 0.0,
-        #                  'No grad option on AFT is returning wrong force.')  
+        #returning different outputs
+        self.assertLess(np.linalg.norm(res_default[0] - res_no_grad[0]), 1e-15,
+                          'No grad option on AFT is returning wrong force.')  
         
         self.assertNotEqual(np.linalg.norm(res_default[0]), 0.0,
                           'Bad test of nonlinear force, is all zeros.')   
