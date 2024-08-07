@@ -846,7 +846,56 @@ class TestJAXEldry(unittest.TestCase):
         
         self.assertLess(error, self.atol_grad, 
                         'Aft of Nonlinear force with gap'\
-                            +'does not match without')                
+                            +'does not match without')    
+
+    def test_aft_no_grad(self): 
+        """
+        check if the function works correctly for meso gap with multiple 
+        friction elements. Here, 2 test cases are generated where with gap 
+        test case has stat displacement delta and without gap
+        """
+    
+        # Simple Mapping to displacements - eldry
+        Q = np.array([[1.0, 0.0], [0.0, 1.0]])
+        T= np.array([[1.0, 0.0], [0.0, 1.0]])
+        
+        inputpars_kt = 2.0
+        inputpars_kn = 2.5
+        inputpars_mu = 0.75
+            
+        fnl_force = ElasticDryFriction2D(Q, T, inputpars_kt, inputpars_kn,\
+                                          inputpars_mu, u0=0)
+        
+        ###### Test Parameters
+        Nt = 1 << 7
+        w = 1.7
+        
+        ##### Verification
+        
+        h = np.array([0, 1, 2, 3])
+        
+    
+        U = np.array([[4.29653115, 4.29165565, 2.8307871 , 4.17186848, 3.37441948,\
+                           0.80543152, 3.55638299],
+                          [-0.2, 0.2, 0.4, 0.0, -0.03, 1, -1]]).T     
+        U = U.reshape(-1,1)
+            
+        
+        res_default = fnl_force.aft(U, w, h, Nt=Nt)
+        res_true_grad = fnl_force.aft(U, w, h, Nt=Nt, calc_grad=True)
+        res_no_grad = fnl_force.aft(U, w, h, Nt=Nt, calc_grad=False)
+        
+        self.assertEqual(len(res_default), 3, 'Default AFT returns wrong number of outputs')
+        self.assertEqual(len(res_no_grad), 1, 'No Grad AFT returns wrong number of outputs')
+        self.assertEqual(len(res_true_grad), 3, 'True Grad AFT returns wrong number of outputs')
+        
+        # Should be exact since the calculation is the same, just 
+        #returning different outputs
+        self.assertLess(np.linalg.norm(res_default[0] - res_no_grad[0]), 1e-15,
+                          'No grad option on AFT is returning wrong force.')  
+        
+        self.assertNotEqual(np.linalg.norm(res_default[0]), 0.0,
+                          'Bad test of nonlinear force, is all zeros.')               
             
 if __name__ == '__main__':
     unittest.main()

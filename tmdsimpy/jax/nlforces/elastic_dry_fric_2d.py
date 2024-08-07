@@ -50,6 +50,7 @@ class ElasticDryFriction2D(NonlinearForce):
     meso_gap : float, optional
         Initial gap between contact due to other.
         This gap is added to quadrature location of contact element
+        The default is 0
     
     See Also
     --------

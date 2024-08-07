@@ -52,6 +52,7 @@ class ElasticDryFriction3D(NonlinearForce):
     meso_gap : float, optional
         Initial gap between contact due to other.
         This gap is added to quadrature location of contact element
+        The default is 0
     
     See Also
     --------
@@ -68,7 +69,7 @@ class ElasticDryFriction3D(NonlinearForce):
     Derivatives are calculated with automatic differentiation using JAX. 
     JAX calculates dense derivative matrices, so the calculation may become
     very inefficient if more than 1 slider is included in the object 
-    (i.e., `Nnl` > 2).
+    (i.e., `Nnl` > 3).
     
     `kt`, `kn`, and `mu` may work for inputs of `(Nnl//3,) numpy.ndarrays`. 
     However, this is not tested.

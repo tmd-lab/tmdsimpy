@@ -80,9 +80,6 @@ def run_comparison(obj, Unl, w, h, Nt, force_tol, df_tol, eldry2d, eldry3d,
         FnlH_vec, dFnldUH_vec, dFnldw_vec \
             = eldry2d.aft(Unl[tyn,:], w, h, Nt=Nt)
         
-        FnlH, dFnldUH, dFnldw = eldry3d.aft(Unl, w, h, Nt=Nt)
-        
-        
         FH_error = np.max(np.abs(FnlH[tyn]-FnlH_vec))
         
         
