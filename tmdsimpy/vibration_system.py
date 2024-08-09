@@ -306,12 +306,13 @@ class VibrationSystem:
         Fnl = np.zeros_like(U)
         dFnldU = np.zeros((U.shape[0], U.shape[0]))
         
+        
         for nlforce in self.nonlinear_forces:
             Fnl_curr, dFnldU_curr = nlforce.force(U)
             
             Fnl += Fnl_curr
             dFnldU += dFnldU_curr
-        
+
         R = self.K @ U + Fnl - Fstatic
         dRdU = self.K + dFnldU
         
