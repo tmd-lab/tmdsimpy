@@ -7,6 +7,13 @@ Installation
 Please see the installation instructions on the GitHub Repository for cloning and setting up TMDSimPy: 
 `https://github.com/tmd-lab/tmdsimpy#setup <https://github.com/tmd-lab/tmdsimpy#setup>`_
 
+Citation
+--------
+
+Please cite the appropriate journal paper if you use this code base.
+The list of appropriate papers can be found at `https://github.com/tmd-lab/tmdsimpy#reference <https://github.com/tmd-lab/tmdsimpy#reference>`_
+
+
 General Use Case
 ----------------
 

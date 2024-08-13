@@ -8,10 +8,6 @@ Welcome to TMDSimPy's documentation!
 
 **TMDSimPy** (Tribomechadynamics Simulations for Python) is a Pyton library for solving for various tribomechadynamics problems.
 
-.. note::
-
-   This documentation is under active development.
-
 
 .. toctree::
    :maxdepth: -1
@@ -30,6 +26,5 @@ Contents
 .. toctree::
    :maxdepth: 4
 
-   README
    usage
    api
