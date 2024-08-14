@@ -1,8 +1,16 @@
-# Simulation of a Two Degree of Freedom Duffing Oscillator
-#
-# References for NFRC's with identical parameters:
-#   M. Volvert and G. Kerschen, 2021, Phase resonance nonlinear modes of 
-#   mechanical systems. 
+"""
+Simulations of a two degree of freedom (2 DOF) Duffing oscillator
+
+For verification, you can compare plots from this script to those published
+in the paper: 
+    M. Volvert and F. Kerschen, 2021. Phase resonance nonlinear modes of 
+    mechanical systems. Journal of Sound and Vibration 511, 116355. 
+    https://doi.org/10.1016/j.jsv.2021.116355
+    
+Comments note some parameters that may require changes to exactly match 
+the cases shown in that paper.
+
+"""
 
 
 import sys
@@ -17,7 +25,7 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 import matplotlib as mpl

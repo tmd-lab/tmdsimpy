@@ -1,81 +1,92 @@
+[![Documentation Status](https://readthedocs.org/projects/tmd-lab-tmdsimpy/badge/)](https://tmd-lab-tmdsimpy.readthedocs.io/en/latest/index.html)
+
 # TMDSimPy: Tribomechadynamics Simulations for Python  
 
-This repository contains python files and functions for running numerical simulations for various tribomechadynamics problems. 
+This repository contains Python files and functions for running numerical simulations for various tribomechadynamics problems. 
 Files intended for experimental analysis are not included here and can be found elsewhere. 
 Specific projects are based in other repositories and use these shared modeling routines as a dependency. 
 This repository is not intended to include research problems beyond a few examples.
 
 ## Reference
 
-If using this code, please cite the relevant journal paper ([preprint here](https://doi.org/10.48550/arXiv.2401.08790)):
-```
-@article{porterTrackingSuperharmonic2024,
-    title = {Tracking Superharmonic Resonances for Nonlinear Vibration},
-    journal = {Mechanical Systems and Signal Processing},
-    author = {Justin H. Porter and Matthew R.W. Brake},
-    year = {Under Review},
-}
-```
-For the rough contact friction model, please cite (MATLAB code for this model and the paper preprint can be found [here](https://github.com/tmd-lab/microslip-rough-contact)):  
-```
-@article{porterTowardsAPredictive2023,
-    title = {Towards a predictive, physics-based friction model for the dynamics of jointed structures},
-    journal = {Mechanical Systems and Signal Processing},
-    volume = {192},
-    pages = {110210},
-    year = {2023},
-    issn = {0888-3270},
-    doi = {10.1016/j.ymssp.2023.110210},
-    author = {Justin H. Porter and Matthew R.W. Brake},
-}
-```
+If you use this code, please cite the relevant journal paper from this list:
+
+1. For most uses of the code see [this preprint](https://arxiv.org/abs/2405.15918) (multiple degree of freedom systems, variable phase resonance nonlinear modes, reduced order modeling):
+   ```
+   @article{porterEfficientModelReduction,
+       title = {Efficient Model Reduction and Prediction of Superharmonic Resonances in Frictional and Hysteretic Systems},
+       journal = {Mechanical Systems and Signal Processing},
+       author = {Justin H. Porter and Matthew R.W. Brake},
+       number = {arXiv:2405.15918},
+       eprint = {2405.15918},
+       archiveprefix = {arxiv},
+       year = {Under Review},
+   }
+   ```
+2. Initial code development for single degree of freedom systems from [this paper](https://doi.org/10.1016/j.ymssp.2024.111410)
+   ([preprint here](https://doi.org/10.48550/arXiv.2401.08790)).
+3. Rough contact friction modeling from [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) 
+   (initially in MATLAB with prepreint [here](https://github.com/tmd-lab/microslip-rough-contact), reimplemented in Python for 1.).
+
 This code is provided under the MIT License to aid in research, no guarantee is made for the accuracy of the results when applied to other structures.
 
 
 ## Setup 
 
 For research analyses, it is recommended to clone this as a dependency of a different repository containing scripts that define the analyses. 
-The following instructions all utilize a command line (Linux or macOS). 
-On Windows, you can use the Windows Subsystem for Linux (WSL), though you may have to repeat the installation of dependencies separately on the Windows side to run scripts natively on Windows.
-See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
+The following instructions all utilize a command line (Linux, macOS, WSL on Windows). 
 
+This example will clone the repo and then setup a conda environment named `tmdsimpy` for the installation. 
+Instructions for installing anaconda can be found [here](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html).
+ 
 To clone and install requirements:
 ```
-git clone git@github.com:tmd-lab/tmdsimpy.git
+git clone git@github.com:tmd-lab/tmdsimpy.git # clone with whatever method desired.
 cd tmdsimpy
+conda create --name tmdsimpy python=3.10.13 pip # create 'tmdsimpy' conda environment.
+conda activate tmdsimpy
 python3 -m pip install --upgrade -r requirements.txt 
 ```
-Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
-This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
 
-After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working:
+After cloning the repo and installing the requirements, you should run these tests to ensure that everything is working.
+These have been combined in a bash script, so execute:
 ```
-cd tests
-python3 -m unittest discover
-
-cd nlforces
-python3 -m unittest discover
-
-cd ../postprocess/
-python3 -m unittest discover
-
-# If jax is installed, also check those tests
-cd ../jax
-python3 -m unittest discover
-
-# These also require jax
-cd ../roughcontact/
-python3 -m unittest discover
-
-# Return to top level
-cd ../..
+source run_tests.sh
 ```
+
+Note, that there is no particular reason for this specific version of python, and an attempt will be made
+to keep the code compatible with current packages. 
+Specific package versions are included in `specific_reqs.txt`, but may capture some unneccessary packages.
+To use that list, replace the final install line from above with
+```
+python3 -m pip install -r specific_reqs.txt
+```
+You can verify the installed versions with `python3 -m pip list`.
+If you would like to exactly match the spyder IDE installation used in development on Linux, you can instead use
+```
+python3 -m pip install -r spyder_reqs.txt
+```
+
+
+### Setup Notes
+
+1. This code has been developed using a x86_64 Linux machine and WSL on a Windows machine.
+2. Note that JAX may not fully support all operating systems as described [here](https://jax.readthedocs.io/en/latest/installation.html). 
+2. See [Windows Computer Environment](#windows-computer-environment) for more advice on working with WSL.
+3. Installing packages directly through conda may be a more reliable way to get a fully reproducible environment, but can be challenging. 
+   The use of conda environments to isolate code while exclusively installing via pip appears to be a 
+   reasonable approach based on [this](https://www.anaconda.com/blog/using-pip-in-a-conda-environment).
 
 
 ## Examples
 
-Several examples are included to demonstrate the repository and can be run to further verify the correctness of the code. 
+Several examples (see `examples` folder) are included to demonstrate the repository and can be run to further verify the correctness of the code. 
 One can also look at the tests folder to see further examples.
+
+### Superharmonic Resonance Reduced Order Model (VPRNM ROM)
+
+See `examples/vprnm_rom_iwan.py` for an application of the VPRNM ROM to capture a superharmonic resonance that is missed by single nonlinear mode theory (based on EPMC). 
+This example also uses EPMC and HBM.
 
 ### Brake-Reuss Beam with Physics-Based Rough Contact
 
@@ -123,13 +134,38 @@ cd ..
 
 ## Code Development Guidance
 
+Prior to merging new code, the following should be checked:
+1. All tests run and pass.
+2. New classes should be imported in the `__init__.py` file for that folder. 
+   For example, see the nonlinear forces. 
+   Make sure that the file with the class is removed from `__all__` and that the class is added.
+2. The documentation builds without warnings or errors with sphinx (see next section).
+3. All new functions, methods, and classes are appropriately documented in numpydoc strings.
+4. Create new releases for papers and/or final projects. Version numbering should follow these guidelines [here](https://semver.org/).
+
 ### Documentation
 
-Documentation is in progress utilizing numpy docstring formatting as described [here](https://numpydoc.readthedocs.io/en/latest/format.html). 
-All new functions, modules, and classes should follow correct formatting of docstrings. 
-Methods, and functions should all include for "Parameters" and "Returns" sections.
-All Classes should have a "Parameters" section that includes information for the constructor method.
-The intention is to utilize Sphinx to generate documentation once everything is in correct numpy docstring formatting.
+Documentation is in progress utilizing numpydoc string format, see [here](https://numpydoc.readthedocs.io/en/latest/format.html).
+html of the documentation can be generated with the following:
+```
+cd docs
+make html
+```
+The html can then be opened from `[docs/]build/html/index.html`.
+
+If you have warnings, you may need to do a clean build with
+```
+make clean # again from the docs folder
+rm -rf source/generated
+make html
+```
+
+All items should have a short summary docstring.
+Methods and functions should all include for "Parameters" and "Returns" sections.
+All classes should have a "Parameters" section that includes information for the constructor method.
+
+For classes, the methods section is not needed since it is automatically generated in the sphinx docs.
+For modules, the routine listings section is not needed because it is likewise automatically generated.
 
 
 ### Testing

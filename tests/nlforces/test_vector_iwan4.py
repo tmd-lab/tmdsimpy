@@ -16,7 +16,7 @@ import unittest
 
 # Python Utilities
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 from tmdsimpy.nlforces.iwan4_element import Iwan4Force
 from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 

@@ -5,6 +5,7 @@ nonlinearity and a single degree of freedom (SDOF) system.
 Parameters are taken from: 
     J. H. Porter and M. R. W. Brake, in preparation, tracking superharmonic 
     resonances for nonlinear vibration.
+    [See updated and final citation on README.md]
 
 """
 
@@ -19,8 +20,7 @@ from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.harmonic_utils as hutils
-import tmdsimpy.shooting_utils as sutils
+import tmdsimpy.utils.harmonic as hutils
 
 ###############################################################################
 ####### System parameters                                               #######

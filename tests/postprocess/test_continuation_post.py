@@ -7,7 +7,7 @@ import numpy as np
 import unittest
 
 sys.path.append('../..')
-import tmdsimpy.postprocess.continuation_post as cpost
+import tmdsimpy.postprocess.continuation as cpost
 
 
 
@@ -208,6 +208,75 @@ class TestContinuationPost(unittest.TestCase):
                         1e-12,
                         'Default cubic hermite spline interpolation failed.')
         
+        return
+    
+    def test_linear_interp_values(self):
+        """
+        Test linear interpolation calculations
+        """
+        
+        rng = np.random.default_rng(seed=1023)
+        
+        XlamP_full = rng.random((5, 7))
+        XlamP_full[:, -1] = np.sort(XlamP_full[:, -1])
+        XlamP_full[0, -1] = 0.0
+        XlamP_full[-1, -1] = 1.0
+        
+        reference_values = 2*XlamP_full[:, -1] + 1
+        
+        new_values = rng.random(8)
+        
+        # 1. Test for errors in user inputs
+        fun = lambda : cpost.linear_interp(XlamP_full, new_values, 
+                                       reference_values=np.array([-1, 1, 0]))
+        
+        self.assertRaises(AssertionError, fun)
+        
+        # 2. Correct return shape for a single interpolation point
+        XlamP_interp = cpost.linear_interp(XlamP_full, 0.5)
+        
+        self.assertEqual(XlamP_interp.shape, (1,7),
+             'Interpolation to a single point does not give expected shape.')
+        
+        # 3. Handling out of bounds as np.nan on top and bottom
+        XlamP_interp = cpost.linear_interp(XlamP_full, 
+                                           np.array([-1.0, 0.5, 1.5]))
+        
+        self.assertTrue(np.all(np.isnan(XlamP_interp[0])), 
+                        'Failed to return NaN for out of bounds on lower side')
+        
+        self.assertTrue(np.all(np.isnan(XlamP_interp[-1])), 
+                        'Failed to return NaN for out of bounds on upper side')
+
+        # 4. Correctly interpolating all columns for no provided reference
+        XlamP_interp = cpost.linear_interp(XlamP_full, new_values)
+        
+        XlamP_ref = np.zeros((new_values.shape[0], XlamP_full.shape[1]))
+        
+        for col in range(XlamP_full.shape[1]):
+            
+            XlamP_ref[:, col] = np.interp(new_values, XlamP_full[:, -1], 
+                                          XlamP_full[:, col])
+        
+        self.assertLess(np.linalg.norm(XlamP_interp - XlamP_ref), 1e-12, 
+                        'Incorrect interpolation results.')
+        
+        
+        # 5. Correctly interpolating for a provided reference
+        new_vals5 = 2*new_values+1
+        XlamP_interp = cpost.linear_interp(XlamP_full, new_vals5,
+                                           reference_values=reference_values)
+        
+        XlamP_ref = np.zeros((new_values.shape[0], XlamP_full.shape[1]))
+        
+        for col in range(XlamP_full.shape[1]):
+            
+            XlamP_ref[:, col] = np.interp(new_vals5, reference_values, 
+                                          XlamP_full[:, col])
+        
+        self.assertLess(np.linalg.norm(XlamP_interp - XlamP_ref), 1e-12, 
+                    'Incorrect interpolation results for provided reference.')
+                
         return
     
 if __name__ == '__main__':

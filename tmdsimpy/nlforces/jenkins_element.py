@@ -2,30 +2,42 @@ import numpy as np
 from .nonlinear_force import HystereticForce
 
 # Harmonic Functions for AFT
-from .. import harmonic_utils as hutils
+from ..utils import harmonic as hutils
 
 
 class JenkinsForce(HystereticForce):
     """
-    Jenkins Slider Element Nonlinearity
+    Implementation of the a Jenkins element model for hysteresis in joints.
+
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs.
+    T : (N, Nnl) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+    kt : float
+        Tangential stiffness coefficient.
+    Fs : float
+        Slip force.
+
+    See Also
+    --------
+    VectorJenkins :
+        Implementation that uses a more efficient vectorization of local forces
+        for AFT calculation.
+
+    Notes
+    -----
+    Implementation is tested for float `kt` and `Fs`, but may work for vectors
+    of size `Nnl`.
+
+    Tests also focus on `Nnl == 1`, class may not work for simultaneous
+    elements.
+
     """
     
     def __init__(self, Q, T, kt, Fs):
-        """
-        Initialize a nonlinear force model
-
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential stiffness, tested for scalar, may work for vector of size 
-                Nnl
-        Fs : slip force, tested for scalar, may work for vector of size 
-                Nnl
-
-        """
         
         self.Q = Q
         self.T = T
@@ -37,40 +49,63 @@ class JenkinsForce(HystereticForce):
     
     def set_prestress_mu(self):
         """
-        Set friction coefficient to a different value (generally 0.0) for
-        prestress analysis
+        Sets friction slip force to zero while saving initial value in a 
+        different variable. Useful for prestress analysis.
+        
+        Returns
+        -------
+        None
+        
         """
         self.Fs = self.prestress_Fs
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
-        Reset friction coefficient to a real value (generally not 0.0) for
-        dynamic analysis
+        Resets friction slip force to initial value. 
+        Useful for after prestress analysis with zero friction coefficient.
+        
+        Returns
+        -------
+        None
         """
+        
         self.Fs = self.real_Fs
         
     def init_history(self):
-        self.up = 0
-        self.fp = 0
-        
-    def init_history_harmonic(self, unlth0, h=np.array([0])):
         """
-        Initialize History
-
-        Parameters
-        ----------
-        unlt0 : 0th Harmonic Displacement as a reference configuration. 
-                Not required to use as slider reference, but makes a good 
-                invariant choice. Could lead to non-unique solutions though.
-        h : List of harmonics. Only use default if not interested in harmonic 
-            information and derivatives.
-            The default is [0].
+        Method to initialize history variables for the hysteretic model.
+        
+        This consists of setting previous displacements and forces
+        to be zero.
 
         Returns
         -------
         None.
 
         """
+        
+        self.up = 0
+        self.fp = 0
+        
+    def init_history_harmonic(self, unlth0, h=np.array([0])):
+        """
+        Initialize history variables for harmonic (AFT) analysis.
+
+        Parameters
+        ----------
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            History displacements are initialized at this value.
+        h : numpy.ndarray, sorted
+            List of harmonics used in subsequent analysis.
+            The default is `numpy.array([0])`.
+
+        Returns
+        -------
+        None.
+
+        """
+        
         self.up = unlth0
         self.fp = 0
         self.dupduh = np.zeros((hutils.Nhc(h)))
@@ -83,22 +118,45 @@ class JenkinsForce(HystereticForce):
     
     def update_history(self, unl, fnl):
         """
-        Updates hysteretic states
+        Updates hysteretic states by storing displacement and force values.
 
         Parameters
         ----------
-        unl : nonlinear displacements to update
-        fnl : nonlinear forces to save as update
+        unl : (Nnl,) numpy.ndarray
+            Local nonlinear element displacements to be saved.
+        fnl : (Nnl,) numpy.ndarray
+            Local nonlinear element forces to be saved.
 
         Returns
         -------
         None.
 
         """
+        
         self.up = unl
         self.fp = fnl
         
     def force(self, X, update_hist=False):
+        """
+        Calculate global nonlinear forces for some global displacement vector.
+
+        Parameters
+        ----------
+        X : (N,) numpy.ndarray
+            Global displacements.
+        update_hist : bool, optional
+            Flag to save displacement and force from the evaluation as history
+            variables for subsequent calls to this function.
+            The default is False.
+
+        Returns
+        -------
+        F : (N,) numpy.ndarray
+            Global nonlinear force.
+        dFdX : (N,N) numpy.ndarray
+            Derivative of `F` with respect to `X`.
+        
+        """
         
         unl = self.Q @ X
         
@@ -124,21 +182,36 @@ class JenkinsForce(HystereticForce):
     
     def instant_force(self, unl, unldot, update_prev=False):
         """
-        Gives the force for a given loading instant using the previous history
-        Then updates the stored history. 
+        Calculates local force based on local nonlinear displacements.
 
         Parameters
         ----------
-        unl : Displacements
-        unldot : Velocities
+        unl : (Nnl,) numpy.ndarray
+            Local nonlinear displacements to evaluate force at.
+        unldot : (Nnl,) numpy.ndarray
+            Local nonlinear velocities to evaluate force at.
+        update_prev : bool, optional
+            Flag to store the results of the evaluation for the start of the
+            subsequent step. 
+            The default is False.
 
         Returns
         -------
-        fnl : Nonlinear Forces
-        dfnldunl : derivative of forces w.r.t. current displacements
-        dfnldup : derivative of forces w.r.t. previous displacements
-        dfnldfp : derivative of forces w.r.t. previous forces
+        fnl : float
+            Evaluated local nonlinear forces.
+        dfnldunl : float
+            Derivative of `fnl` with respect to current displacements `unl`.
+        dfnldup : float
+            Derivative of `fnl` with respect to previous displacements.
+        dfnldfp : float
+            Derivative of `fnl` with respect to previous forces.
 
+        Notes
+        -----
+        
+        Implementation only allows for a single nonlinear element, thus
+        output shapes are reduced to scalar.
+        
         """
                 
         # Stuck Force
@@ -163,22 +236,48 @@ class JenkinsForce(HystereticForce):
     
     def instant_force_harmonic(self, unl, unldot, h, cst, update_prev=False):
         """
-        For evaluating a force state, uses history initialized in init_history_harmonic.
-        Updates history for the next call based on the current results. 
-        
-        WARNING: Derivatives including unldot are not calculated.
+        Evaluates the force at a instantaneous set of displacement and velocity
+        along with harmonic derivatives.
         
         Parameters
         ----------
-        unl : Local displacements for Force
-        unltdot : Local velocities for Force
+        unl : (Nnl,) numpy.ndarray
+            Local nonlinear displacements to evaluate force at.
+        unldot : (Nnl,) numpy.ndarray
+            Local nonlinear velocities to evaluate force at.
+        h : 1D numpy.ndarray, sorted
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst : (Nhc,) numpy.ndarray
+            Evaluation of harmonics without coefficients at the given instant 
+            in time. 
+            If zeroth harmonic is included, the first entry is 1.0. 
+            Beyond that, it is cosine and then sine at the appropriate harmonic
+            for the given instant in time then the next harmonic etc.
+        update_prev : bool, optional
+            Flag to store the results of the evaluation for the start of the
+            subsequent step. 
+            The default is False.
         
         Returns
         -------
-        fnl : Local nonlinear forces (Ndnl, Ndnl)
-        dfduh : Derivative of forces w.r.t. displacement harmonic coefficients (Ndnl, Ndnl, Nhc)
-        dfdudh : Derivative of forces w.r.t. velocities harmonic coefficients (Ndnl, Ndnl, Nhc)
+        fnl : (1,) numpy.ndarray
+            Local nonlinear forces
+        dfduh : (1, 1, Nhc) numpy.ndarray
+            Derivative of `fnl` with respect to displacement harmonic
+            coefficients.
+        dfdudh : (1, 1, Nhc) numpy.ndarray
+            Derivative of `fnl` with respect to velocities harmonic
+            coefficients.
 
+        Notes
+        -----
+        
+        Starts calculation based on `init_history_harmonic`.
+        
+        Implementation of this function may work for `Nnl > 1`, but this
+        function depends on `instant_force`, which does not support `Nnl > 1`.
+        
         """
                 
         # Number of nonlinear DOFs
@@ -188,7 +287,8 @@ class JenkinsForce(HystereticForce):
         dfduh = np.zeros((Ndnl, Ndnl, Nhc))
         dfdudh = np.zeros((Ndnl, Ndnl, Nhc))
         
-        fnl, dfnldunl, dfnldup, dfnldfp = self.instant_force(unl, unldot, update_prev=update_prev)
+        fnl, dfnldunl, dfnldup, dfnldfp = self.instant_force(unl, unldot, 
+                                                     update_prev=update_prev)
         
         fnl = np.atleast_1d(fnl)
         

@@ -1,7 +1,3 @@
-"""
-Definition of Elastic Dry Friction Element using JAX for automatic derivatives
-"""
-
 # Standard imports
 import numpy as np
 import warnings
@@ -14,50 +10,73 @@ import jax.numpy as jnp
 from functools import partial
 
 # Imports of Custom Functions and Classes
-from ... import harmonic_utils as hutils
+from ...utils import harmonic as hutils
 from ...jax import harmonic_utils as jhutils # Jax version of harmonic utils
 from ...nlforces.nonlinear_force import NonlinearForce
 
 
 class ElasticDryFriction2D(NonlinearForce):
     """
-    Elastic Dry friction Slider Element Nonlinearity with JAX for automatic 
-    differentiation
-
-    The AFT formulation assumes that the spring starts at 0 force
-    at zero displacement.    
+    2D Elastic Dry Friction (Spring + Coulomb Friction) Model
+    
+    Parameters
+    ----------
+    Q : (Nnl, N) numpy.ndarray
+        Matrix tranform from the `N` degrees of freedom (DOFs) of the system 
+        to the `Nnl` local nonlinear DOFs. 
+        `Nnl` should be even.
+        Rows `0::2` correspond to local tangential DOFs.
+        Rows `1::2` correspond to local normal DOFs.
+    T : (N, Nnl) numpy.ndarray
+        Matrix tranform from the local `Nnl` forces to the `N` global DOFs.
+        Columns `0::2` correspond to local tangential forces.
+        Columns `1::2` correspond to local normal forces.
+    kt : float
+        Tangential stiffness
+    kn : float
+        Tangential stiffness
+    mu : float
+        Friction coefficient
+    u0 : float, (Nnl,) numpy.ndarray, or None, optional
+        If a float, all sliders in AFT are initialized at that displacement and
+        zero force.
+        If a numpy.ndarray, entries `0::2` correspond to the initial slider
+        displacements and zero force for AFT.
+        If None, then the zeroth harmonic displacements are used to initialize
+        the slider position in AFT.
+        Highly recommended not to use `u0=None` because may result in
+        non-unique solutions. Not fully verified for None option.
+        The default is 0.
+    meso_gap : float, optional
+        Initial gap between contact due to other.
+        This gap is added to quadrature location of contact element
+        The default is 0
+    
+    See Also
+    --------
+    set_aft_initialize :
+        Overrides the value of `u0`.
+    
+    Notes
+    -----
+    
+    Positive normal displacements are in contact and yield positive normal
+    forces. Negative normal displacements are out of contact and yield zero
+    normal force.
+    
+    Derivatives are calculated with automatic differentiation using JAX. 
+    JAX calculates dense derivative matrices, so the calculation may become
+    very inefficient if more than 1 slider is included in the object 
+    (i.e., `Nnl` > 2).
+    
+    `kt`, `kn`, and `mu` may work for inputs of `(Nnl//2,) numpy.ndarrays`. 
+    However, this is not tested.
+    
     """
 
-    def __init__(self, Q, T, kt, kn, mu, u0=0):
-        """
-        Initialize a nonlinear force model
-        
-        Implementation currently assumes that Nnl=2 (two nonlinear DOFs)
-        The Nonlinear DOFs must first be tangential displacement then normal
-        displacement
-        
-        Has been updated to allow for multiple elastic dry friction sliders. 
-        However, that may be memory inefficient since the Jacobians that are 
-        calculated aren't sparse.
 
-        Parameters
-        ----------
-        Q : Transformation matrix from system DOFs (n) to nonlinear DOFs (Nnl), 
-            Nnl x n
-        T : Transformation matrix from local nonlinear forces to global 
-            nonlinear forces, n x Nnl
-        kt : Tangential stiffness, tested for scalar, may work for vector of size 
-                Nnl
-        Fs : slip force, tested for scalar, may work for vector of size 
-                Nnl
-        u0 : initialization value for the slider. If u0 = None, then 
-                the zeroth harmonic is used to initialize the slider position.
-                u0 should be size of number of tangential DOFs 
-                (e.g., 1 right now)
-                Highly recommended not to use u0=None because may result in
-                non-unique solutions. Not fully verified for None option.
+    def __init__(self, Q, T, kt, kn, mu, u0=0, meso_gap=0):
 
-        """
         self.Q = np.asarray(Q)
         self.T = np.asarray(T)
         
@@ -70,6 +89,7 @@ class ElasticDryFriction2D(NonlinearForce):
             warnings.warn('Matrix T argument is not a numpy array. Conversion '
                           'to numpy array was attempted, but not '
                           'guaranteed to work.')
+  
         
         self.kt = kt
         self.kn = kn
@@ -80,68 +100,134 @@ class ElasticDryFriction2D(NonlinearForce):
         self.u0 = u0
         
         self.init_history()
+        # Topology and distribution of asperity parameters 
+        self.meso_gap = meso_gap
         
     def nl_force_type(self):
         """
-        Marks as a hysteretic force.
+        Method to identify the force type as hysteretic. 
+        
+        Returns
+        -------
+        int
+            1, indicating hysteretic force type.
         """
+        
         return 1
         
     def set_prestress_mu(self):
         """
-        Set friction coefficient to a different value (generally 0.0) for
-        prestress analysis
+        Sets friction coefficient to zero while saving initial value in a 
+        different variable. Useful for prestress analysis.
+        
+        Returns
+        -------
+        None
         """
         self.mu = self.prestress_mu
         
-    def reset_real_mu(self): 
+    def reset_real_mu(self):
         """
-        Reset friction coefficient to a real value (generally not 0.0) for
-        dynamic analysis
+        Resets friction coefficient to initial value. 
+        Useful for after prestress analysis with zero friction coefficient.
+        
+        Returns
+        -------
+        None
         """
         self.mu = self.real_mu
         
-       
     def init_history(self):
         """
-        Initialize history variables to zero
-        Only applies to tangent displacement and force
+        Method to initialize history variables to zero force and displacement.
+
+        Returns
+        -------
+        None.
+        
+        See Also
+        --------
+        set_aft_initialize :
+            Method for initializing history states for AFT analysis.
+        
+        Notes
+        -----
+        This sets force history for evaluations with `force` method for static
+        calculations.
+        
+        History variables are just initialized for tangential displacements.
+        
         """
         self.up = np.zeros(self.Q.shape[0]//2)
         self.fp = np.zeros(self.Q.shape[0]//2)
-        
-        
-    def update_history(self, unl, fnl):
+
+    def set_aft_initialize(self, X):
         """
-        Updates hysteretic states
+        Set an initial slider position with zero force for AFT calculation.
 
         Parameters
         ----------
-        unl : nonlinear displacements to update
-        fnl : nonlinear forces to save as update
+        X : (N,) numpy.ndarray
+            Global displacements to be used with `self.Q` to calculate
+            local slider positions for initializing AFT.
+            Generally, a solution to a static problem.
+
+        Returns
+        -------
+        None.
+
+        See Also
+        --------
+        init_history :
+            Method for initializing history states for static analysis.
+
+        """
+        self.u0 = self.Q @ X
+        
+    def update_history(self, unl, fnl):
+        """
+        Updates hysteretic states to be the input displacement and force.
+
+        Parameters
+        ----------
+        unl : (Nnl//2,) numpy.ndarray
+            Local tangential nonlinear displacements to save
+        fnl : (Nnl//2,) numpy.ndarray
+            Local tangential nonlinear forces to save
 
         Returns
         -------
         None.
 
         """
+        
         self.up = unl
         self.fp = fnl
         
     def force(self, X, update_hist=False):
         """
-        Forces from nonlinearity given some global displacement vector
+        Calculate global nonlinear forces for some global displacement vector.
 
         Parameters
         ----------
-        X : Displacements
-        update_hist : Option to save the inputs for future calls as history 
-                        variables
+        X : (N,) numpy.ndarray
+            Global displacements
+        update_hist : bool, optional
+            Flag to save displacement and force from the evaluation as history
+            variables for subsequent calls to this function.
+            The default is False.
 
         Returns
         -------
-        F : Global nonlinear force
-        dFdX : Global nonlinear force gradient
+        F : (N,) numpy.ndarray
+            Global nonlinear force
+        dFdX : (N,N) numpy.ndarray
+            Derivative of `F` with respect to `X`.
+            
+        Notes
+        -----
+        If `update_hist` is True, then `update_history` is called on the 
+        local results of this calculation to save the history.
 
         """
         
@@ -154,8 +240,8 @@ class ElasticDryFriction2D(NonlinearForce):
         
         pars = np.array([self.kt, self.kn, self.mu])
         
-        dfnldunl,fnl = _local_eldy_force_grad(unl, self.up, self.fp, pars)
-        
+        dfnldunl,fnl = _local_eldy_force_grad(unl, self.up, self.fp, pars, 
+                                              self.meso_gap)
         #############################
         
         F = self.T @ fnl
@@ -163,45 +249,67 @@ class ElasticDryFriction2D(NonlinearForce):
         dFdX = self.T @ dfnldunl @ self.Q
         
         if update_hist: 
-            self.update_history(unl, fnl)
+            self.update_history(unl[0::2], fnl[0::2])
         
         return F, dFdX
         
-    def aft(self, U, w, h, Nt=128, tol=1e-7):
+    def aft(self, U, w, h, Nt=128, tol=1e-7, calc_grad=True):
         """
+        Implementation of the alternating frequency-time (AFT) method to 
+        extract harmonic nonlinear force coefficients.
         
-        Tolerances are ignored since Elastic Dry Friction converges to steady
-        -state with 
-        two cycles of the hysteresis loop, so that is done by default. 
-
         Parameters
         ----------
-        U : Global DOFs harmonic coefficients, all 0th, then 1st cos, etc, 
-            shape: (Nhc*nd,)
-        w : Frequency, scalar
-        h : List of harmonics that are considered, zeroth must be first
-        Nt : Number of time points to evaluate at. 
-             The default is 128.
-        max_repeats : number of hysteresis loops to calculate to reach steady
-                        state. Maximum value allowed. 
-                        The default is 2
-        atol : Convergence criteria, absolute for steady-state hysteresis loops
-              The default is 1e-10.
-        rtol : Convergence criteria, relative for steady-state hysteresis loops
-               The default is 1e-10.
-
+        U : (N*Nhc,) numpy.ndarray
+            Displacement harmonic DOFs (global)
+        w : float
+            Frequency in rad/s. Needed in case there is velocity dependency.
+        h : numpy.ndarray, sorted
+            List of harmonics. The list corresponds to `Nhc` harmonic 
+            components.
+        Nt : int power of 2, optional
+            Number of time steps used in evaluation. 
+            The default is 128.
+        tol : float, optional
+            This argument is ignored, and is included for compatability of 
+            interface. 
+            The default is 1e-7.
+        calc_grad : boolean
+            Flag where True indicates that the gradients should be calculated 
+            and returned. If False, then returns only (Fnl,) as a tuple. 
+            The default is True
+        
         Returns
         -------
-        None.
+        Fnl : (N*Nhc,) numpy.ndarray
+            Nonlinear hamonic force coefficients
+        dFnldU : (N*Nhc,N*Nhc) numpy.ndarray
+            Jacobian of `Fnl` with respect to `U`
+        dFnldw : (N*Nhc,) numpy.ndarray
+            Jacobian of `Fnl` with respect to `w`
+        
+        Notes
+        -----
+        The tolerance `tol` is ignored because elastic dry friction converges
+        to steady-state with two cycles of the hysteresis loop. Two cycles of
+        the nonlinear forces are calculated automatically without the option to
+        change this setting.
+
+        A numpy `kron` operation is utilized to convert forces back to physical
+        domain. This operation may result in many unnecessary calculations that
+        could be eliminated to speed up AFT.
 
         """
+
         
         #########################
         # Memory Initialization 
         
         Fnl = np.zeros_like(U)
-        dFnldU = np.zeros((U.shape[0], U.shape[0]))
-        dFnldw = np.zeros_like(U)
+        
+        if calc_grad:
+            dFnldU = np.zeros((U.shape[0], U.shape[0]))
+            dFnldw = np.zeros_like(U)
         
         
         #########################
@@ -231,48 +339,160 @@ class ElasticDryFriction2D(NonlinearForce):
         Uwlocal = np.hstack((np.reshape(Ulocal.T, (Ndnl*Nhc,), 'F'), w))
         
         pars = np.array([self.kt, self.kn, self.mu])
-        
+
         # # If no Grad is needed use:
         # Flocal = _local_aft_jenkins(Uwlocal, pars, u0, tuple(h), Nt, u0h0)[0]
         
+        if calc_grad:
         # Case with gradient and local force
-        dFdUwlocal, Flocal = _local_aft_eldry_grad(Uwlocal, pars, u0, \
-                                                     tuple(h), Nt, u0h0)
-        
-        
+            dFdUwlocal, Flocal = _local_aft_eldry_grad(Uwlocal, pars, u0, \
+                                        tuple(h), Nt, u0h0, self.meso_gap)
+        else:
+            Flocal,_ = _local_aft_eldry(Uwlocal, pars, u0, \
+                                        tuple(h), Nt, u0h0, self.meso_gap)
+            
         #########################
         # Convert AFT to Global Coordinates
         
         # Reshape Flocal
         Flocal = jnp.reshape(Flocal, (Ndnl, Nhc), 'F')
-                
+        
         # Global coordinates        
         Fnl = np.reshape(self.T @ Flocal, (U.shape[0],), 'F')
-        dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
-                                                @ np.kron(np.eye(Nhc), self.Q)
         
-        dFnldw = np.reshape(self.T @ \
-                            np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
-                            (U.shape[0],), 'F')
+        if calc_grad:
+            dFnldU = np.kron(np.eye(Nhc), self.T) @ dFdUwlocal[:, :-1] \
+                                                    @ np.kron(np.eye(Nhc), self.Q)
+            
+            dFnldw = np.reshape(self.T @ \
+                                np.reshape(dFdUwlocal[:, -1], (Ndnl, Nhc)), \
+                                (U.shape[0],), 'F')
+            
+            return Fnl, dFnldU, dFnldw
+        else:
+            return (Fnl,)
+    
+    
+    def local_force_history(self, unlt, unltdot, h, cst, unlth0, max_repeats=2,
+                            atol=1e-10, rtol=1e-10):
+        """
+        Evaluate the local forces for steady-state harmonic motion used in AFT.
         
-        return Fnl, dFnldU, dFnldw
+        Parameters
+        ----------
+        unl : (Nt,Nnl) numpy.ndarray
+            Local displacements, rows are different time instants and
+            columns are different displacement DOFs.
+        unldot : (Nt,Nnl) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Local velocities, rows are different time instants and
+            columns are different displacement DOFs.
+        h : 1D numpy.ndarray, sorted
+            Ignored here, included for compatibility of interface.
+            List of harmonics used in subsequent analysis. Corresponds
+            to `Nhc` harmonic components.
+        cst: (Nt,Nhc) numpy.ndarray
+            Ignored here, included for compatibility of interface.
+            Evaluation of each harmonic component (columns) at a given instant
+            in time (row = instant in time). These are without any harmonic
+            coefficients, so are just cosine and sine evaluations.
+        unlth0 : (Nnl,) numpy.ndarray
+            Zeroth harmonic contributions to a time series of displacements.
+            This is passed to `init_history_harmonic` to initialize model is
+            `self.u0` is None.
+        max_repeats : int, optional
+            Ignored here, included for compatibility of interface.
+            The default is 2.
+        atol : float, optional
+            Ignored here, included for compatibility of interface.
+            Absolute tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+        rtol : float, optional
+            Ignored here, included for compatibility of interface.
+            Relative tolerance on force time series convergence to steady-state
+            (final state of cycle).
+            The default is 1e-10.
+            
+        Returns
+        -------
+        ft : (Nt,Nnl) numpy.ndarray
+            Local nonlinear forces. First index is time instants, second index
+            is which local nonlinear force DOF. This is returned as the first
+            entry in a tuple.
+        
+        Notes
+        -----
+        This method is for the post-processing of force displacement
+        relationships of the model from harmonic solutions.
+        
+        This method is not directly called by AFT for the elastic dry
+        friction model. Rather this just provides a public interface to the 
+        same private JAX function that AFT uses. As such, only the forces and
+        not the derivatives are returned.
+
+
+        """
+        
+         #########################
+         # Determine Slider Starting Position
+         
+        if self.u0 is None:
+            # Initialize based on the zeroth harmonic.
+            u0 = unlth0
+        else:
+            u0 = self.u0*np.ones_like(unlth0[0])
+        
+        pars = np.array([self.kt, self.kn, self.mu])
+        
+        fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
+        
+        #########################
+        # Determine Slider Starting Position
+
+        if self.u0 is None:
+            # Initialize based on the zeroth harmonic.
+            u0 = unlth0
+        else:
+            u0 = self.u0*np.ones_like(unlth0[0])
+
+        pars = np.array([self.kt, self.kn, self.mu])
+
+        fxyn_t = _local_force_history(unlt, pars, u0[::2], self.meso_gap)
+
+        return (fxyn_t,)
         
     
-def _local_eldy_force(unl, up, fp, pars):
+def _local_eldy_force(unl, up, fp, pars, meso_gap):
     """
-    See _local_eldy_force_grad for gradient call.
+    Private function for local force evaluation.
 
     Parameters
     ----------
-    unl : Local nonlinear force vector of size (2*N) for N elastic dry friction 
-            elements
-    up : Previous displacements for tangential direction only (N, )
-    fp : Previous tangential forces only (N,)
-    pars : Parameters
-
+    unl : (Nnl,) numpy.ndarray
+        Local nonlinear displacements for (Nnl//2) elastic dry friction 
+        elements
+    up : (Nnl//2,) numpy.ndarray
+        Previous displacements for tangential direction only
+    fp : (Nnl//2,) numpy.ndarray
+        Previous tangential forces only
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
+        Contains `kt = pars[0]` (tangential stiffness), 
+        `kn = pars[1]` (normal stiffness), 
+        and `mu = pars[2]` (friction coefficient).
+    
     Returns
     -------
-    fnl : Nonlinear forces, output twice for gradient function
+    fnl : (Nnl,) numpy.ndarray
+        Nonlinear forces in local domain
+    fnl : (Nnl,) numpy.ndarray
+        Nonlinear forces in local domain (repeated to have access in gradient 
+        function)
+    
+    See Also
+    --------
+    _local_eldy_force_grad :
+        Function with gradient evaluation.
 
     """
     # Recover pars for convenience / readability
@@ -283,7 +503,7 @@ def _local_eldy_force(unl, up, fp, pars):
     fnl = jnp.zeros_like(unl)
     
     # Normal Force
-    fnl = fnl.at[1::2].set(jnp.maximum(unl[1::2]*kn, 0.0))
+    fnl = fnl.at[1::2].set(jnp.maximum((unl[1::2]-meso_gap)*kn, 0.0))
     
     # Tangent Force - must use where to get tradient consistently correct
     fpred = kt*(unl[0::2]-up)
@@ -293,53 +513,81 @@ def _local_eldy_force(unl, up, fp, pars):
     # Other Directly slip limit tangent force
     fnl = fnl.at[0::2].set(jnp.where(fcurr>-mu*fnl[1::2], fcurr, -mu*fnl[1::2]))
 
-    return fnl,fnl
+    return fnl, fnl
 
-# @partial(jax.jit) 
-def _local_eldy_force_grad(unl, up, fp, pars):
+@partial(jax.jit) 
+def _local_eldy_force_grad(unl, up, fp, pars, meso_gap):
     """
     Function that computes the gradient of local force. Using Aux data allows for 
     returning Fnl also from one function call. 
 
     Parameters
     ----------
-    unl : Local nonlinear force vector of size (2*N) for N elastic dry friction 
-            elements
-    up : Previous displacements for tangential direction only (N, )
-    fp : Previous tangential forces only (N,)
-    pars : Parameters
+    unl : (Nnl,) numpy.ndarray
+        Local nonlinear displacements for (Nnl//2) elastic dry friction 
+        elements
+    up : (Nnl//2,) numpy.ndarray
+        Previous displacements for tangential direction only
+    fp : (Nnl//2,) numpy.ndarray
+        Previous tangential forces only
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
+        Contains `kt = pars[0]` (tangential stiffness), 
+        `kn = pars[1]` (normal stiffness), 
+        and `mu = pars[2]` (friction coefficient).
+
+    See Also
+    --------
+    _local_eldy_force : 
+        Function with same input parameters, but does not return gradient.
 
     Returns
     -------
-    dfnldunl : gradient of nonlinear forces
-    fnl : Nonlinear forces
-
+    dfnldunl : (Nnl,Nnl) numpy.ndarray
+        Derivative of nonlinear forces in local domain with respect to `unl`.
+    fnl : (Nnl,) numpy.ndarray
+        Nonlinear forces in local domain (repeated to have access in gradient 
+        function)
 
     """
     
-    dfnldunl,fnl = jax.jacfwd(_local_eldy_force, has_aux=True)(unl, up, fp, pars)
+    dfnldunl,fnl = jax.jacfwd(_local_eldy_force, has_aux=True)(unl, up, fp, pars,meso_gap)
     
     return dfnldunl,fnl
 
 
 def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
     """
-    Function for calculating a single force update for Jenkins. This is
-    constructed as a loop body function for JAX and thus evaluates for a 
-    specific index given the full arrays for the force and displacement 
-    time series.
+    Calculation of elastic dry friction force at a given instant for 
+    steady-state calculation in AFT.
 
     Parameters
     ----------
-    ind : Index that is being updated for this loop step.
-    ft : Array of force values for all time (Nt,)
-    unlt : Displacements for Jenkins for all times (Nt,)
-    kt : Tangential stiffness parameter
-    Fs : Slip Force parameter
+    ind : int
+        Index that is being updated for this loop step corresponding to a row
+        of `unlt` and `ft`
+    ft : (Nt,Nnl) numpy.ndarray
+        Array of force values for all time
+    unlt : (Nt,Nnl) numpy.ndarray
+        Displacements for Jenkins for all times
+    kt : float or (Nnl//2,) numpy.ndarray
+        Tangential stiffness parameter
+    Fs : float or (Nnl//2,) numpy.ndarray
+        Friction coeffient.
 
     Returns
     -------
-    ft : Force array with the entry at ind updated for Jenkins nonlinear force
+    ft : (Nt,Nnl) numpy.ndarray
+        Force array with the entry at row `ind` updated for the nonlinear force
+        evaluation.
+    
+    Notes
+    -----
+    
+    The normal forces corresponding to `ft[:, 1::2]` are precalculated before
+    the call to this loop body function.
+    
+    History appears at index `ind-1`. For `ind=0`, this corresponds to the last
+    entry of the arrays.
 
     """
     
@@ -352,40 +600,43 @@ def _local_eldry_loop_body(ind, ft, unlt, kt, mu):
  
 
 @partial(jax.jit, static_argnums=(3,4,5)) 
-def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
+def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
     """
     Conducts AFT in a functional form that can be used with JAX and JIT
 
-    NOTES:
-        1. Jenkins converges to steady-state in at most 2 repeats of the 
-        hysteresis loop. This code always does exactly two loops. 
-        Different logic for while loops could be implemented in the future.
-        Other models may want to use better logic or allow for additional 
-        repeated loops. 
-
     Parameters
     ----------
-    Uwlocal : jax.numpy array with displacements at local nonlinear DOFs 
-                followed by frequency. Each harmonic is listed in full
-                then the next harmonic ect. Size (Nhc*Ndnl + 1,)
-    pars : jax.numpy array with parameters [kt, Fs]. Bundled this way in case
-            future work is interested in applying autodiff w.r.t. parameters
-    u0 : scalar value for the displacement to initialize the slider to
-    htuple : tuple containing the list of harmonics. Tuple is used so the 
-            argument can be made static. 
-    Nt : Number of AFT time steps to be used. 
-    u0h0 : set to True if u0 should be taken from harmonic zero instead of from
-            the input u0. Cannot set u0 in that case outside function because
-            miss gradient pieces
+    Uwlocal : (Nnl*Nhc + 1,) numpy.ndarray
+        Local nonlinear displacements for each harmonic component in order
+        followed by the frequency in rad/s. Each harmonic component is listed
+        in full before the next one.
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
+        Contains `kt = pars[0]` (tangential stiffness), 
+        `kn = pars[1]` (normal stiffness), 
+        and `mu = pars[2]` (friction coefficient).
+    u0 : float or (Nnl,) numpy.ndarray
+        Value for the displacement to initialize the slider to.
+    htuple : tuple of int, sorted
+        tuple list of harmonics. Tuple is used so that it can be made static
+    Nt : int, power of 2
+        Number of AFT time steps to be used. 
+    u0h0 : bool
+        Flag for if the zeroth harmonic displacements should be taken 
+        rather than u0. For correct gradient calculation, u0 is ignored if
+        u0h0 is True, even if they are identical.
     
-
     Returns
     -------
-    Flocal : Nhc*Ndl array of the harmonic force coefficients locally. 
-             Same format as U part of Uwlocal 
-    Flocal : Flocal is returned again as aux data so it can be accessed when
-                gradient is calculated with JAX
-
+    Flocal : (Nhc*Nnl,) numpy.ndarray 
+        Harmonic force coefficients locally, same format as U part of Uwlocal 
+    Flocal : (Nhc*Nnl,) numpy.ndarray
+        Repeated return value to allow for JAX auto diff calculation.
+    
+    Notes
+    -----
+    Elastic dry friction converges in at most 2 repeats of the hysteresis loop.
+    This always does exactly two loops.
+    
     """
     
     ########################################
@@ -394,12 +645,7 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # Size Calculation
     Nhc = hutils.Nhc(np.array(htuple))
     Ndnl = int(Uwlocal.shape[0] / Nhc)
-    
-    # Recover pars for convenience / readability
-    kt = pars[0]
-    kn = pars[1]
-    mu = pars[2]
-    
+        
     # Uwlocal is arranged as all of harmonic 0, then all of 1c, etc. 
     # For each harmonic it has the DOFs in order. Finally there is frequency.
     # This is a 1d array. 
@@ -420,37 +666,16 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
     # # Nt x Ndnl
     # unltdot = Uwlocal[-1]*jhutils.time_series_deriv(Nt, htuple, Ulocal, 1) 
     
-    # Initialize force time memory
-    ft = jnp.zeros_like(unlt)
-    
-    # Normal Force
-    ft = ft.at[:, 1::2].set(jnp.maximum(unlt[:, 1::2]*kn, 0.0))
-    
-    # Do a loop function for each update at index i
-    loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)
-    
-    
     ########################################
     #### Start slider in desired position
+    u0 = u0*jnp.ones_like(Ulocal[0])
     
     # if u0 comes from the zeroth harmonic, pull it from the jax traced 
     # array rather than the separate input value, which is constant as far as 
     # gradients are concerned.
-    u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0)
+    u0 = jnp.where(u0h0, Ulocal[0, 0::2], u0[0::2])
     
-    # The first evaluation is based on the last entry of ft and therefore 
-    # initialize the last entry of ft based on a linear spring
-    # slip limit does not need to be applied since this just needs to get stuck
-    # regime correct for the first step to be through zero. 
-    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0[0::2]))
-        
-    # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
-    # steady-state
-    for out_ind in range(2):
-        
-        # This construct must be used otherwise compiling tries writing out
-        # all Nt steps of the loop updates and is excessively slow
-        ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
+    ft = _local_force_history(unlt, pars, u0, meso_gap)
     
     # Convert back into frequency domain
     Flocal = jhutils.get_fourier_coeff(htuple, ft)
@@ -462,31 +687,112 @@ def _local_aft_eldry(Uwlocal, pars, u0, htuple, Nt, u0h0):
         
 
 @partial(jax.jit, static_argnums=(3,4,5)) 
-def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0):
+def _local_aft_eldry_grad(Uwlocal, pars, u0, htuple, Nt, u0h0, meso_gap):
     """
-    Function that computes the gradient of AFT. Using Aux data allows for 
-    returning Flocal also from one function call. 
+    Private function that computes the gradient of AFT for elastic dry 
+    friction.
 
     Parameters
     ----------
-    Uwlocal : Displacements and frequency as defined for _local_aft_jenkins
-    pars : Parameters as defined for _local_aft_jenkins
-    u0 : scalar value for the displacement to initialize the slider to
-    htuple : List of harmonics, tuple, use tuple(h) so can be set to static.
-    Nt : Number of time steps used in AFT
-    u0h0 : set to True if u0 should be taken from harmonic zero instead of from
-            the input u0. Cannot set u0 in that case outside function because
-            miss gradient pieces
-
+    Uwlocal : (Nnl*Nhc + 1,) numpy.ndarray
+        Local nonlinear displacements for each harmonic component in order
+        followed by the frequency in rad/s. Each harmonic component is listed
+        in full before the next one.
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
+        Contains `kt = pars[0]` (tangential stiffness), 
+        `kn = pars[1]` (normal stiffness), 
+        and `mu = pars[2]` (friction coefficient).
+    u0 : float or (Nnl,) numpy.ndarray
+        Value for the displacement to initialize the slider to.
+    htuple : tuple of int, sorted
+        tuple list of harmonics. Tuple is used so that it can be made static
+    Nt : int, power of 2
+        Number of AFT time steps to be used. 
+    u0h0 : bool
+        Flag for if the zeroth harmonic displacements should be taken 
+        rather than u0. For correct gradient calculation, u0 is ignored if
+        u0h0 is True, even if they are identical.
+    
     Returns
     -------
-    J : Jacobian of _local_aft_jenkins w.r.t. Uwlocal
-    F : Normal output argument (nonlinear force) of _local_aft_jenkins
-
+    J : (Nhc*Nnl,Nhc*Nnl+1) numpy.ndarray 
+        Derivative of `F` with respect to `Uwlocal`
+    F : (Nhc*Nnl,) numpy.ndarray
+        Repeated return value to allow for JAX auto diff calculation.
+    
+    Notes
+    -----
+    Elastic dry friction converges in at most 2 repeats of the hysteresis loop.
+    This always does exactly two loops.
+    
     """
     
     J,F = jax.jacfwd(_local_aft_eldry, has_aux=True)(Uwlocal, pars, u0, 
-                                                       htuple, Nt, u0h0)    
+                                                       htuple, Nt, u0h0, meso_gap)    
     return J,F
 
+@partial(jax.jit) 
+def _local_force_history(unlt, pars, u0, meso_gap):
+    """
+    Calculates the steady-state force history for elastic dry friction.
 
+    Parameters
+    ----------
+    unlt : (Nt,Nnl)
+        Time history of displacements to evaluate cycles over. Rows are time
+        instants, columns are local displacements for nonlinear evaluation.
+    pars : (3, Nnl//2) or (3,) numpy.ndarray
+        Contains `kt = pars[0]` (tangential stiffness), 
+        `kn = pars[1]` (normal stiffness), 
+        and `mu = pars[2]` (friction coefficient).
+    u0 : float or (Nnl,) numpy.ndarray
+        Value for the displacement to initialize the slider to.
+
+    Returns
+    -------
+    fxyn_t : (Nt,Nnl) jax.numpy.ndarray
+        History of total forces
+
+    Notes
+    -----
+    Function is JIT compiled because it may throw an error if not compiled.
+    Previous comment suggested that it is because of non-static arguments,
+    but that issue is not immediately clear looking at it here.
+
+    """
+    Nt = unlt.shape[0]
+    
+    # Recover pars for convenience / readability
+    kt = pars[0]
+    kn = pars[1]
+    mu = pars[2]
+    
+    # Initialize force time memory
+    ft = jnp.zeros_like(unlt)
+    
+    # Normal Force
+    ft = ft.at[:, 1::2].set(jnp.maximum((unlt[:, 1::2]-meso_gap)*kn, 0.0))
+    
+    # Do a loop function for each update at index i
+    loop_fun = lambda i,f : _local_eldry_loop_body(i, f, unlt, kt, mu)
+    
+    
+    ########################################
+    #### Start slider in desired position
+    
+    # The first evaluation is based on the last entry of ft and therefore 
+    # initialize the last entry of ft based on a linear spring
+    # slip limit does not need to be applied since this just needs to get stuck
+    # regime correct for the first step to be through zero. 
+    ft = ft.at[-1, 0::2].set(kt*(unlt[-1, 0::2] - u0))
+        
+    # Conduct exactly 2 repeats of the hysteresis loop to be converged to 
+    # steady-state
+    for out_ind in range(2):
+        
+        # This construct must be used otherwise compiling tries writing out
+        # all Nt steps of the loop updates and is excessively slow
+        ft = jax.lax.fori_loop(0, Nt, loop_fun, ft)
+    
+
+    return ft

@@ -11,7 +11,7 @@ from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.nlforces.vector_iwan4 import VectorIwan4
 
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 import matplotlib as mpl
@@ -22,7 +22,7 @@ mpl.rcParams['lines.linewidth'] = 3
 mpl.rc('text', usetex=True)
 mpl.rc('text.latex', preamble=r'\usepackage{amsmath}')
 
-mpl.style.use('seaborn-colorblind')
+mpl.style.use('seaborn-v0_8-colorblind')
 
 import matplotlib.pyplot as plt
 plt.rcParams['font.size'] = 14 # Default 10

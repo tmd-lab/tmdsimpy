@@ -17,7 +17,7 @@ import unittest
 
 # Python Utilities
 sys.path.append('../..')
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 from tmdsimpy.nlforces.jenkins_element import JenkinsForce
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 

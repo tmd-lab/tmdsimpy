@@ -6,7 +6,6 @@ control constraint
 
 import sys
 import numpy as np
-from scipy import io as sio
 import unittest
 
 import verification_utils as vutils
@@ -16,17 +15,14 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.solvers import NonlinearSolver
-from tmdsimpy import harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 
 class TestHarmonicBalanceControl(unittest.TestCase):
     
     def __init__(self, *args, **kwargs):
         """
-        Check if MATLAB/Python integration is available and import MATLAB if 
-        needed
-        
-        Also initialize the tolerances all here at the beginning
+        Initialize a linear and nonlinear system for later tests to use.
 
         Parameters
         ----------
@@ -47,9 +43,8 @@ class TestHarmonicBalanceControl(unittest.TestCase):
         self.grad_rtol = 5e-10
         self.nearlin_tol = 1e-13 # Tolerance for linear analytical v. HBM check
         
-        
         #######################################################################
-        ###### Setup Nonlinear System                                    ######
+        ###### Setup Linear    System                                    ######
         #######################################################################
         
         M = np.array([[6.12, 3.33, 4.14],
@@ -66,8 +61,9 @@ class TestHarmonicBalanceControl(unittest.TestCase):
         
         self.vib_sys_lin = vib_sys_lin
         
-        ###########################
-        # Setup Nonlinear Force
+        #######################################################################
+        ###### Setup Nonlinear System                                    ######
+        #######################################################################
         
         # Simple Mapping to spring displacements
         Q = np.array([[-1.0, 1.0, 0.0]])

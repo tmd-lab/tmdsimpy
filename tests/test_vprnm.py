@@ -23,7 +23,7 @@ from tmdsimpy.nlforces.cubic_stiffness import CubicForce
 from tmdsimpy.nlforces.vector_jenkins import VectorJenkins
 from tmdsimpy.nlforces.cubic_damping import CubicDamping
 
-import tmdsimpy.harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 sys.path.append('../DEPENDENCIES/tmdsimpy/tests/')
 import verification_utils as vutils
@@ -663,6 +663,475 @@ class TestVPRNM(unittest.TestCase):
         self.assertFalse(grad_failed, 
              'Incorrect Gradient w.r.t. force magnitude for skipped harmonics')
         
-                
+    def test_calc_grad(self):
+        """
+        Test the calc_grad flag for the VPRNM
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 2, 3, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UwF = rng.random(Ndof*Nhc+2) - 0.5
+        UwF[-2] = 1.9 # Fix positive freq
+        UwF[-1] = 1.453 # Fix positive force
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        rhi = 3
+        
+        # Baseline solution
+        Rdefault = vib_sys.vprnm_res(UwF, h, rhi, Fl)
+        
+        # With calc_grad
+        Rtrue = vib_sys.vprnm_res(UwF, h, rhi, Fl, calc_grad=True)
+        
+        # Without calc_grad
+        Rfalse = vib_sys.vprnm_res(UwF, h, rhi, Fl, calc_grad=False)
+        
+        # Check correct number of outputs
+        self.assertEqual(len(Rdefault), 3, 
+                         'Default calc_grad should have 3 ouputs')
+        
+        self.assertEqual(len(Rtrue), 3, 
+                         'calc_grad=True should have 3 ouputs')
+        
+        self.assertEqual(len(Rfalse), 1, 
+                         'calc_grad=False should have 3 ouputs')
+        
+        # Check outputs are the same for all three
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rtrue[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rfalse[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[1] - Rtrue[1]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+    def test_vprnm_amp_phase_with_h0(self):
+        """
+        Test VPRNM with amplitude and phase constraints for correctness of
+        equations and gradients - include harmonic 0
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 2, 3])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        recov = np.array([1.0, 0.0])
+        rhi = 3
+        order = 2
+        
+        constraint_scale = 1.753
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        ############### Test Correctness of R
+        
+        Rvprnm = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[0]
+        
+        Rhbm = vib_sys.hbm_amp_phase_control_res(UFcFswA[:-1], Fl, h, 
+                                                 recov, UFcFswA[-1], order)[0]
+        
+        Rvprnm_eqn = vib_sys.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
+                                              h, rhi)[0]
+        
+        self.assertEqual(np.max(np.abs(Rvprnm[:-1]-Rhbm)), 0.0,
+                         'VPRNM should not modify HBM equations.')
+        
+        self.assertEqual(Rvprnm[-1], constraint_scale*Rvprnm_eqn,
+                         'VPRNM last equation should match function call.')
+        
+        ############### Test Gradients
+
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFsw, UFcFswA[-1])),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], verbose=False, 
+                                        rtol=1e-11)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. UFcFsw.')
+        
+        fun = lambda A : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFswA[:-1], A)),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[::2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(UFcFswA[-1]), 
+                                        verbose=False, 
+                                        rtol=1e-11, atol=1e-11)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. A.')
+        
+    def test_vprnm_amp_phase_without_h0(self):
+        """
+        Test VPRNM with amplitude and phase constraints for correctness of
+        equations and gradients - exclude harmonic 0 and some other harmonics
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([1, 3, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        recov = np.array([1.0, 0.0])
+        rhi = 3
+        order = 0
+        constraint_scale = 1e4
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        ############### Test Correctness of R
+        
+        Rvprnm = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[0]
+        
+        Rhbm = vib_sys.hbm_amp_phase_control_res(UFcFswA[:-1], Fl, h, 
+                                                 recov, UFcFswA[-1], order)[0]
+        
+        Rvprnm_eqn = vib_sys.vprnm_single_eqn(UFcFswA[:-4], UFcFswA[-2], 
+                                              h, rhi)[0]
+        
+        self.assertEqual(np.max(np.abs(Rvprnm[:-1]-Rhbm)), 0.0,
+                         'VPRNM should not modify HBM equations.')
+        
+        self.assertEqual(Rvprnm[-1], constraint_scale*Rvprnm_eqn,
+                         'VPRNM last equation should match function call.')
+        
+        ############### Test Gradients
+
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFsw, UFcFswA[-1])),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], verbose=False, 
+                                        rtol=1e-9)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. UFcFsw.')
+        
+        fun = lambda A : vib_sys.vprnm_amp_phase_res(
+                                        np.hstack((UFcFswA[:-1], A)),
+                                        Fl, h, rhi, 
+                                        recov, order,
+                                        constraint_scale=constraint_scale)[::2]
+        
+        grad_failed = vutils.check_grad(fun, np.atleast_1d(UFcFswA[-1]), 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Amp Phase - Incorrect Gradient w.r.t. A.')
+        
+        
+    def test_vprnm_amp_phase_calc_grad(self):
+        """
+        Test the calc_grad flag for the VPRNM with phase and amplitude 
+        constraint
+        """
+        
+        # Size of the problem
+        vib_sys = self.vib_sys_duffing_2dof
+        h = np.array([0, 1, 3, 4, 5])
+        Ndof = vib_sys.M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        # Generate needed quantities
+        rng = np.random.default_rng(seed=1023)
+        
+        UFcFswA = rng.random(Ndof*Nhc+4) - 0.5
+        UFcFswA[-2] = 1.9 # Fix positive freq
+        UFcFswA[-1] = 1.453 # Fix positive amplitude
+        
+        Fl = rng.random(Ndof*Nhc) - 0.5
+        
+        rhi = 3
+        
+        recov = np.array([1.0, 0.0])
+        order = 2
+        
+        # Baseline solution
+        Rdefault = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                               order)
+        
+        # With calc_grad
+        Rtrue = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                            order, calc_grad=True)
+        
+        # Without calc_grad
+        Rfalse = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov,
+                                             order, calc_grad=False)
+        
+        # Check correct number of outputs
+        self.assertEqual(len(Rdefault), 3, 
+                         'Default calc_grad should have 3 ouputs')
+        
+        self.assertEqual(len(Rtrue), 3, 
+                         'calc_grad=True should have 3 ouputs')
+        
+        self.assertEqual(len(Rfalse), 1, 
+                         'calc_grad=False should have 3 ouputs')
+        
+        # Check outputs are the same for all three
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rtrue[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[0] - Rfalse[0]), 0.0,
+                         'calc_grad changed residual value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[1] - Rtrue[1]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+        self.assertEqual(np.linalg.norm(Rdefault[2] - Rtrue[2]), 0.0,
+                         'calc_grad changed gradient value.')
+        
+    def test_vprnm_grad_filter(self):
+        """
+        Test VPRNM equation for modal filtering
+        
+        Cubic damping is considered to check frequency gradient, but it appears
+        that all of the frequency gradient terms cancel out in this case so 
+        that gradient is zero. This may not be generally true for other
+        velocity dependent nonlinearities.
+        """
+        
+        M = np.array([[1.0, 2.0], [3.0, 4.0]])
+        
+        K = np.array([[5.0, 6.0], [7.0, 8.0]])
+        
+        Q = np.array([[1.0, -1.0]])
+        T = Q.T
+        
+        calpha = 3.145 # N/(m/s)^3
+        kalpha = 3.145 # N/m^3
+        
+        ab_damp = [0.01, 0]
+        
+        h = np.array(range(6))
+        
+        rhi = 3
+        
+        Ndof = M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        ###########
+        # Random Quantities
+        
+        rng = np.random.default_rng(seed=1023)
+        
+        superharmonic_filter = rng.random(Ndof)
+        U = rng.random(Ndof*Nhc)
+        w = 3.7
+        F = 2.5
+        Fl = rng.random(Nhc*Ndof)
+        
+        Uw0 = np.hstack((U, w))
+        
+        ###########
+        # Setup Vibration System
+        nl_damping = CubicDamping(Q, T, calpha)
+        
+        vib_sys_cubic_damp = VibrationSystem(M, K, ab=ab_damp)
+        
+        vib_sys_cubic_damp.add_nl_force(nl_damping)
+        
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        vib_sys_duffing = VibrationSystem(M, K, ab=ab_damp)
+        
+        vib_sys_duffing.add_nl_force(duff_force)
+        
+        
+        ###########
+        # Check Gradients 
+        
+        fun = lambda Uw : vib_sys_cubic_damp.vprnm_res(np.hstack((Uw, F)), 
+                                    h, rhi, Fl,
+                                    superharmonic_filter=superharmonic_filter)[:2]
+
+
+        grad_failed = vutils.check_grad(fun, Uw0, 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+        
+        
+        fun = lambda Uw : vib_sys_duffing.vprnm_res(np.hstack((Uw, F)), 
+                                    h, rhi, Fl,
+                                    superharmonic_filter=superharmonic_filter)[:2]
+
+
+        grad_failed = vutils.check_grad(fun, Uw0, 
+                                        verbose=False, 
+                                        rtol=1e-10, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+    
+    def test_vprnm_residual_filter(self):
+        """
+        Construct a system with the specific goal of producing cases with the 
+        modal filter that give clearly different values of residual for VPRNM
+        """
+
+        ###########
+        # Construct System
+        
+        M = np.diag([1.0, 2.0])
+        K = np.diag([3.0, 4.0])
+        ab_damp = [0.01, 0]
+        
+        Q = np.array([[1.0, -1.0]])
+        T = Q.T
+        kalpha = 3.68
+        
+        duff_force = CubicForce(Q, T, kalpha)
+        
+        vib_sys = VibrationSystem(M, K, ab=ab_damp)
+        vib_sys.add_nl_force(duff_force)
+        
+        # Specific case 
+        h = np.array([1, 3])
+        
+        super_filter = np.array([1.0, 0.0])
+        
+        U1 = np.array([1.0, -1.0, 0.0, 0.0])
+        
+        Ndof = M.shape[0]
+        Nhc = hutils.Nhc(h)
+        
+        Fl = np.zeros(Nhc * Ndof)
+        Fl[:Ndof] = 1.0
+        
+        rhi = 3
+        
+        recov = np.array([1.0, -1.0])
+        order = 0
+        
+        # Make up some numbers for other parts of the solution at random
+        w = 6.1
+        A = 2.0
+        Fc = 2.7
+        Fs = 3.5
+        
+        UFcFswA_base = np.hstack((U1, 0*U1, Fc, Fs, w, A))
+        
+        ###########
+        # In Phase Motion - positive 1 residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([-1.0, -51.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1] - 1.0), 1e-12, 
+                        'Wrong modally filtered residual for in phase motion')
+        
+        ###########
+        # Out of Phase Motion - negative 1 residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([1.0, 2*1.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1] - (-1.0)), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        ###########
+        # Resonance Motion - zero residual
+        # Second entry of U3 is delibrately to confuse VPRNM if modal filter 
+        # was not used
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[3*Ndof:4*Ndof] = np.array([1.0, 5.0])
+        
+        R = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        self.assertLess(np.abs(R[-1]), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        ###########
+        # Resonance Motion - hidden by other DOF for basic VPRNM, 
+        # shown with modal filter
+        
+        UFcFswA = np.copy(UFcFswA_base)
+        UFcFswA[2*Ndof:3*Ndof] = np.array([0.0, -50.0])
+        UFcFswA[3*Ndof:4*Ndof] = np.array([1.0, 5.0])
+        
+        R_filt = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[0]
+        
+        R_nofilt = vib_sys.vprnm_amp_phase_res(UFcFswA, Fl, h, rhi, recov, 
+                                               order)[0]
+        
+        self.assertLess(np.abs(R_filt[-1]), 1e-12, 
+                    'Wrong modally filtered residual for out of phase motion')
+        
+        # test that the test tests the correct thing.
+        self.assertGreater(np.abs(R_nofilt[-1]), 0.5, 
+                    'Test should hide the VPRNM resonance when modal filter '\
+                    + 'is not used. This has not been accomplished')
+        
+        # check gradient here as well
+        fun = lambda UFcFsw : vib_sys.vprnm_amp_phase_res(\
+                                        np.hstack((UFcFsw, UFcFswA[-1])), 
+                                        Fl, h, rhi, recov, order,
+                                        superharmonic_filter=super_filter)[:2]
+        
+        grad_failed = vutils.check_grad(fun, UFcFswA[:-1], 
+                                        verbose=False, 
+                                        rtol=1e-9, atol=1e-10)
+        
+        self.assertFalse(grad_failed, 
+                         'VPRNM Modally Filtered Eqn - wrong gradient.')
+        
 if __name__ == '__main__':
     unittest.main()

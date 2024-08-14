@@ -118,12 +118,12 @@ import time
 import argparse # parse command line arguments
     
 sys.path.append('../..')
-from tmdsimpy import harmonic_utils as hutils
+import tmdsimpy.utils.harmonic as hutils
 
 from tmdsimpy.jax.solvers import NonlinearSolverOMP
 
 from tmdsimpy.continuation import Continuation
-import tmdsimpy.continuation_utils as cont_utils
+import tmdsimpy.utils.continuation as cont_utils
 
 from tmdsimpy.vibration_system import VibrationSystem
 from tmdsimpy.jax.nlforces.roughcontact.rough_contact import RoughContactFriction
