@@ -141,6 +141,7 @@ Prior to merging new code, the following should be checked:
    Make sure that the file with the class is removed from `__all__` and that the class is added.
 2. The documentation builds without warnings or errors with sphinx (see next section).
 3. All new functions, methods, and classes are appropriately documented in numpydoc strings.
+4. Create new releases for papers and/or final projects. Version numbering should follow these guidelines [here](https://semver.org/).
 
 ### Documentation
 

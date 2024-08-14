@@ -7,6 +7,7 @@ Welcome to TMDSimPy's documentation!
 ====================================
 
 **TMDSimPy** (Tribomechadynamics Simulations for Python) is a Pyton library for solving for various tribomechadynamics problems.
+Such problems can include nonlinear vibration, contact, and friction.
 
 
 .. toctree::
