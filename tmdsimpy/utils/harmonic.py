@@ -652,7 +652,7 @@ def predict_harmonic_solution(vib_sys, w, Fl, h, solver,
     
     return Ulam0
 
-def zero_crossing(X, zero_tol=np.Inf):
+def zero_crossing(X, zero_tol=np.inf):
     """
     Finds the locations where the vector has zero crossings (sign changes). 
 
