@@ -90,7 +90,7 @@ This example also uses EPMC and HBM.
 
 ### Brake-Reuss Beam with Physics-Based Rough Contact
 
-This example calculates the nonlinear vibration response of the Brake-Ruess Beam as described in [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) and originally implemented in MATLAB [here](https://github.com/tmd-lab/microslip-rough-contact). This model uses provided system matrices originally calculated with Abaqus as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.106615) and [this tutorial](https://nidish96.github.io/Abaqus4Joints/). Model reduction was further conducted as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.107249).
+This example calculates the nonlinear vibration response of the Brake-Ruess Beam as described in [this paper](https://doi.org/10.1016/j.ymssp.2023.110210) and originally implemented in MATLAB [here](https://github.com/tmd-lab/microslip-rough-contact). This model uses provided system matrices originally calculated with Abaqus as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.106615) and [this tutorial](https://nidish96.github.io/Abaqus4Joints/). Model reduction was further conducted as described in [this paper](https://doi.org/10.1016/j.ymssp.2020.107249). The video tutorial is available [here](https://rice.account.box.com/login?redirect_url=https%3A%2F%2Frice.app.box.com%2Fs%2Fff0baawjd8mgdivvrw70b9fygdffs0v9) in Rice box folder.
 
 This example runs continuation to calculate the modal backbone with the Extended Periodic Motion Concept (EPMC) utilizing a physics-based contact model. This example requires the full repository (and JAX). 
 Therefore, this example assumes you are running on a command line (Linux, macOS, or WSL). 
