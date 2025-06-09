@@ -50,7 +50,7 @@ def verify_hutils(fname, test_obj, tol=1e-12):
     C = mat_sol['C']
     K = mat_sol['K']
     
-    h = mat_sol['h'].reshape(-1)
+    h = mat_sol['h'].reshape(-1).astype(np.int64)
     # nd = mat_sol['nd'][0, 0]
     X0 = mat_sol['X0']
     

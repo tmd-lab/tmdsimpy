@@ -87,7 +87,7 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5, silent=False
     assert gradlen == U0len, 'Derivative dimensions do not match input vector.'
     
     if U0.shape[0] == 1:
-        dFnldU = np.atleast_2d(dFnldU).T
+        dFnldU = np.atleast_2d(dFnldU).reshape(-1, 1)
     
     ########## Numerical Derivative
     
@@ -113,7 +113,7 @@ def check_grad(fun, U0, verbose=True, atol=1e-10, rtol=0.0, h=1e-5, silent=False
                     /( np.linalg.norm(dFnldU_num) + (np.linalg.norm(dFnldU_num)==0))
     
     grad_failed = (abs_error > atol and norm_error > rtol)
-    
+
     if (verbose or (abs_error > atol and norm_error > rtol)) and not silent:
         print('Difference Between numerical and analytical Jacobian:', abs_error)
         print('Diff/norm(numerical Jacobian):', norm_error)
